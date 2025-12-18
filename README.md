@@ -18,7 +18,20 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Env vars
+
+Create a `.env.local` (not committed) based on `.env.example`.
+
+- Firebase (public): `NEXT_PUBLIC_FIREBASE_*`
+- Stripe:
+  - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (client)
+  - `STRIPE_SECRET_KEY` (server)
+  - `STRIPE_WEBHOOK_SECRET` (server webhook verification)
+
+## Stripe (starter endpoints)
+
+- `POST /api/stripe/create-checkout-session` with JSON `{ "amountCents": 500, "charityId": "abc", "charityName": "Example" }`
+- `POST /api/stripe/webhook` expects a valid `stripe-signature` header and raw request body
 
 ## Learn More
 

@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // TEMP bootstrap: replace with your own UID, promote yourself, then remove.
+    // Find UID in Firebase Console (Auth) after signing in once.
+    function isBootstrapAdmin() {
+      return isSignedIn() && request.auth.uid == "REPLACE_WITH_YOUR_UID";
+    }
+
+    // Admin role marker docs. To promote a user, create: admins/{uid}
+    match /admins/{uid} {
+      // Allow users to read their own marker doc (or admins to read any).
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Only admins (or bootstrap) can write admin markers.
+      allow create, update, delete: if isBootstrapAdmin() || isAdmin();
+    }
+
+    // Default: locked down until explicit rules are added per collection.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
