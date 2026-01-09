@@ -1,119 +1,181 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import React from "react";
 import { signOut } from "firebase/auth";
+import Image from "next/image";
+import { Badge } from "@/ui-kit/badge";
+import { Navbar, NavbarItem, NavbarLabel, NavbarSection, NavbarSpacer } from "@/ui-kit/navbar";
+import {
+  Sidebar,
+  SidebarBody,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarHeading,
+  SidebarItem,
+  SidebarLabel,
+  SidebarSection,
+  SidebarSpacer,
+} from "@/ui-kit/sidebar";
+import { SidebarLayout } from "@/ui-kit/sidebar-layout";
+import { Text } from "@/ui-kit/text";
 import { firebaseAuth } from "@/lib/firebase/client";
+import { useBusinessAccess } from "@/lib/auth/business";
 import { useRequireAdmin } from "@/lib/auth/routeGuards";
+import { usePathname, useRouter } from "next/navigation";
 
 type NavItem = { href: string; label: string };
 
 const navItems: NavItem[] = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/users", label: "Users" },
-  { href: "/admin/charities", label: "Charities" },
+  { href: "/admin/causes", label: "Charities" },
+  { href: "/admin/businesses", label: "Businesses" },
   { href: "/admin/donations", label: "Donations" },
+  { href: "/admin/qrs", label: "QRs" },
 ];
 
-function NavLink({ href, label }: NavItem) {
-  const pathname = usePathname();
-  const isActive = pathname === href;
+function AdminNavbar({
+  userEmail,
+  onSignOut,
+}: {
+  userEmail: string;
+  onSignOut: () => void;
+}) {
   return (
-    <Link
-      className={[
-        "flex h-10 items-center rounded-xl px-3 text-sm font-medium transition-colors",
-        isActive
-          ? "bg-black/[.06] text-zinc-950 dark:bg-white/10 dark:text-zinc-50"
-          : "text-zinc-700 hover:bg-black/[.04] dark:text-zinc-300 dark:hover:bg-white/5",
-      ].join(" ")}
-      href={href}
-    >
-      {label}
-    </Link>
+    <Navbar className="mx-auto max-w-6xl px-2">
+      <NavbarSection>
+        <NavbarItem href="/">
+          <Image
+            src="/RackUp-01.svg"
+            alt="Rack Up"
+            width={140}
+            height={40}
+            className="h-10 w-auto"
+          />
+          <span className="sr-only">Rack Up</span>
+        </NavbarItem>
+        <NavbarItem href="/admin">
+          <NavbarLabel>Admin</NavbarLabel>
+        </NavbarItem>
+        <Badge color="emerald">Secure</Badge>
+      </NavbarSection>
+      <NavbarSpacer />
+      <NavbarSection>
+        <NavbarLabel className="hidden text-sm text-zinc-300 sm:block">{userEmail}</NavbarLabel>
+        <NavbarItem href="/profile">
+          <NavbarLabel>Profile</NavbarLabel>
+        </NavbarItem>
+        <NavbarItem onClick={onSignOut}>
+          <NavbarLabel>Sign out</NavbarLabel>
+        </NavbarItem>
+      </NavbarSection>
+    </Navbar>
+  );
+}
+
+function AdminSidebar({
+  pathname,
+  onSignOut,
+  businessId,
+}: {
+  pathname: string;
+  onSignOut: () => void;
+  businessId?: string;
+}) {
+  return (
+    <Sidebar className="bg-white text-zinc-950 shadow-xl ring-1 ring-zinc-950/10 dark:bg-zinc-900 dark:text-white dark:ring-white/10">
+      <SidebarHeader>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/RackUp-01.svg"
+            alt="Rack Up"
+            width={32}
+            height={32}
+            className="h-8 w-auto"
+          />
+          <div>
+            <SidebarLabel className="text-base font-semibold">Admin dashboard</SidebarLabel>
+            <Text className="text-xs text-zinc-500 dark:text-zinc-400">Platform controls</Text>
+          </div>
+        </div>
+      </SidebarHeader>
+      <SidebarBody>
+        <SidebarSection>
+          <SidebarHeading>Navigate</SidebarHeading>
+          {navItems.map((item) => (
+            <SidebarItem key={item.href} href={item.href} current={pathname === item.href}>
+              <SidebarLabel>{item.label}</SidebarLabel>
+            </SidebarItem>
+          ))}
+        </SidebarSection>
+        {businessId ? (
+          <SidebarSection>
+            <SidebarHeading>Business console</SidebarHeading>
+            <SidebarItem href={`/biz/${businessId}`}>
+              <Badge color="emerald">Staff</Badge>
+              <SidebarLabel>{businessId}</SidebarLabel>
+            </SidebarItem>
+          </SidebarSection>
+        ) : null}
+        <SidebarSpacer />
+      </SidebarBody>
+      <SidebarFooter>
+        <SidebarSection>
+          <SidebarItem href="/profile">
+            <SidebarLabel>Profile</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem onClick={onSignOut}>
+            <SidebarLabel>Sign out</SidebarLabel>
+          </SidebarItem>
+        </SidebarSection>
+      </SidebarFooter>
+    </Sidebar>
   );
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const { user, isAdmin, loading } = useRequireAdmin("/profile");
+  const { membership } = useBusinessAccess();
 
   if (loading || !user || !isAdmin) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 dark:bg-black">
-        <div className="text-sm text-zinc-600 dark:text-zinc-400">Loading…</div>
+      <div className="flex min-h-screen items-center justify-center px-6">
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 shadow-lg">
+          <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-emerald-300" />
+          Loading admin…
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <div className="mx-auto flex max-w-6xl gap-6 px-6 py-8">
-        <aside className="hidden w-64 shrink-0 md:block">
-          <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-black">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-semibold tracking-tight">Rack Up</div>
-                <div className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
-                  Admin Dashboard
-                </div>
-              </div>
-              <span className="inline-flex items-center rounded-full border border-black/10 bg-black/[.04] px-2.5 py-1 text-xs font-medium text-zinc-900 dark:border-white/15 dark:bg-white/10 dark:text-zinc-50">
-                Admin
-              </span>
-            </div>
-
-            <nav className="mt-5 space-y-1">
-              {navItems.map((item) => (
-                <NavLink key={item.href} {...item} />
-              ))}
-            </nav>
-
-            <div className="mt-6 border-t border-black/10 pt-4 text-xs text-zinc-600 dark:border-white/10 dark:text-zinc-400">
-              <div className="truncate">Signed in: {user.email}</div>
-              <div className="mt-3 flex items-center gap-3">
-                <Link className="underline" href="/profile">
-                  Profile
-                </Link>
-                <button
-                  className="underline"
-                  type="button"
-                  onClick={() => signOut(firebaseAuth)}
-                >
-                  Sign out
-                </button>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        <main className="w-full">
-          <header className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-black/10 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-black md:hidden">
-            <div>
-              <div className="text-sm font-semibold tracking-tight">Admin Dashboard</div>
-              <div className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">
-                {user.email}
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Link className="text-sm underline" href="/profile">
-                Profile
-              </Link>
-              <button
-                className="text-sm underline"
-                type="button"
-                onClick={() => signOut(firebaseAuth)}
-              >
-                Sign out
-              </button>
-            </div>
-          </header>
-
-          <div className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-black">
-            {children}
-          </div>
-        </main>
+    <SidebarLayout
+      className="bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] text-white"
+      navbar={
+        <AdminNavbar
+          userEmail={user.email ?? ""}
+          onSignOut={() => {
+            void signOut(firebaseAuth);
+            router.replace("/signin");
+          }}
+        />
+      }
+      sidebar={
+        <AdminSidebar
+          pathname={pathname}
+          businessId={membership?.businessId}
+          onSignOut={() => {
+            void signOut(firebaseAuth);
+            router.replace("/signin");
+          }}
+        />
+      }
+    >
+      <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/30">
+        {children}
       </div>
-    </div>
+    </SidebarLayout>
   );
 }
-

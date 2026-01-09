@@ -16,7 +16,7 @@ export function useRequireAuth(redirectTo = "/signin") {
   return { user, loading };
 }
 
-export function useRedirectIfAuthenticated(redirectTo = "/profile") {
+export function useRedirectIfAuthenticated(redirectTo = "/") {
   const router = useRouter();
   const { user, loading } = useAuth();
 

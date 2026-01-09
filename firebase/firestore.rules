@@ -10,6 +10,16 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function isBusinessAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/business_admins/$(request.auth.uid));
+    }
+
+    function businessAdminFor(businessId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/business_admins/$(request.auth.uid)).data.businessId == businessId;
+    }
+
     // TEMP bootstrap: replace with your own UID, promote yourself, then remove.
     // Find UID in Firebase Console (Auth) after signing in once.
     function isBootstrapAdmin() {
@@ -25,10 +35,45 @@ service cloud.firestore {
       allow create, update, delete: if isBootstrapAdmin() || isAdmin();
     }
 
+    // Business admin marker docs. Each doc ties a user to a business.
+    match /business_admins/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if isAdmin();
+    }
+
     // Default: locked down until explicit rules are added per collection.
+    match /businesses/{businessId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /locations/{locationId} {
+        allow read: if true;
+        allow write: if isAdmin() || businessAdminFor(businessId);
+      }
+
+      match /causes/{causeId} {
+        allow read: if true;
+        allow write: if isAdmin() || businessAdminFor(businessId);
+      }
+    }
+
+    match /transactions/{txId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow write: if isAdmin(); // written server-side
+    }
+
+    match /donations/{donationId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow write: if isAdmin();
+    }
+
+    match /reward_issues/{issueId} {
+      allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow write: if isAdmin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
-

@@ -1,29 +1,41 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import React, { useEffect, useMemo, useState } from "react";
 import { createUserWithEmailAndPassword } from "firebase/auth";
+import { Badge } from "@/ui-kit/badge";
+import { Button } from "@/ui-kit/button";
+import { Field, Fieldset, Label } from "@/ui-kit/fieldset";
+import { Heading } from "@/ui-kit/heading";
+import { Input } from "@/ui-kit/input";
+import { Text, TextLink } from "@/ui-kit/text";
 import { firebaseAuth } from "@/lib/firebase/client";
-import { useRedirectIfAuthenticated } from "@/lib/auth/routeGuards";
+import { fetchRedirectTarget } from "@/lib/auth/redirectTarget";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import PublicShell from "@/app/_components/PublicNav";
 
 export default function SignUpPage() {
   const router = useRouter();
-  const { user, loading } = useRedirectIfAuthenticated("/profile");
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect");
+  const redirectParam = useMemo(
+    () => (redirect && redirect.startsWith("/") ? redirect : "/"),
+    [redirect],
+  );
+  const { user, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!loading && user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 dark:bg-black">
-        <div className="text-sm text-zinc-600 dark:text-zinc-400">
-          Redirecting…
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (loading) return;
+    if (!user) return;
+    (async () => {
+      const target = (await fetchRedirectTarget()) ?? redirectParam;
+      router.replace(target);
+    })();
+  }, [loading, redirectParam, router, user]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,7 +43,8 @@ export default function SignUpPage() {
     setError(null);
     try {
       await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
-      router.replace("/profile");
+      const target = (await fetchRedirectTarget()) ?? redirectParam;
+      router.replace(target);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed.");
       setSubmitting(false);
@@ -39,57 +52,81 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 py-12 dark:bg-black">
-      <main className="w-full max-w-md rounded-2xl border border-black/10 bg-white p-8 shadow-sm dark:border-white/10 dark:bg-black">
-        <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Already have an account?{" "}
-          <Link className="underline" href="/signin">
-            Sign in
-          </Link>
-          .
-        </p>
-
-        <form className="mt-8 space-y-4" onSubmit={onSubmit}>
-          <label className="block text-sm">
-            <div className="mb-1 font-medium">Email</div>
-            <input
-              className="h-11 w-full rounded-xl border border-black/10 bg-transparent px-3 outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:focus:ring-white/20"
-              autoComplete="email"
-              inputMode="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </label>
-
-          <label className="block text-sm">
-            <div className="mb-1 font-medium">Password</div>
-            <input
-              className="h-11 w-full rounded-xl border border-black/10 bg-transparent px-3 outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:focus:ring-white/20"
-              autoComplete="new-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </label>
-
-          {error ? (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-200">
-              {error}
+    <PublicShell contentClassName="max-w-5xl space-y-10">
+      <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr] lg:items-start">
+        <div className="space-y-5 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl shadow-black/30">
+          <Badge color="emerald">Join Rack Up</Badge>
+          <Heading level={1} className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            Create your account to start donating and earning rewards
+          </Heading>
+          <Text className="text-zinc-200">
+            Secure hosted checkout, points for every donation, and perks at partner businesses.
+          </Text>
+          <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-sm text-emerald-100">
+            <div className="text-xs uppercase tracking-wide text-emerald-200/80">
+              Already have an account?
             </div>
-          ) : null}
+            <div className="mt-1">
+              <TextLink
+                className="font-semibold text-emerald-200"
+                href={
+                  redirectParam && redirectParam !== "/"
+                    ? `/signin?redirect=${encodeURIComponent(redirectParam)}`
+                    : "/signin"
+                }
+              >
+                Sign in here
+              </TextLink>
+              .
+            </div>
+          </div>
+        </div>
 
-          <button
-            className="inline-flex h-11 w-full items-center justify-center rounded-full bg-foreground px-6 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-60 dark:hover:bg-[#ccc]"
-            type="submit"
-            disabled={submitting}
-          >
-            {submitting ? "Creating…" : "Create account"}
-          </button>
-        </form>
-      </main>
-    </div>
+        <main className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-xl shadow-black/30 backdrop-blur">
+          <div className="mb-4 space-y-1">
+            <Badge color="emerald">Secure signup</Badge>
+            <Heading level={2} className="text-lg font-semibold text-white">
+              Use your email to get started
+            </Heading>
+          </div>
+
+          <form className="space-y-4" onSubmit={onSubmit}>
+            <Fieldset className="space-y-4">
+              <Field>
+                <Label className="text-white">Email</Label>
+                <Input
+                  autoComplete="email"
+                  inputMode="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </Field>
+
+              <Field>
+                <Label className="text-white">Password</Label>
+                <Input
+                  autoComplete="new-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </Field>
+            </Fieldset>
+
+            {error ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
+                {error}
+              </div>
+            ) : null}
+
+            <Button type="submit" color="emerald" className="w-full" disabled={submitting}>
+              {submitting ? "Creating…" : "Create account"}
+            </Button>
+          </form>
+        </main>
+      </div>
+    </PublicShell>
   );
 }

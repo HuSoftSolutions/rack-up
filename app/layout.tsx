@@ -7,14 +7,19 @@ export const metadata: Metadata = {
   description: "Earn points, redeem rewards, and donate to charity.",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased">
+    <html lang="en" className="dark">
+      <body className="antialiased bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] text-white">
         <Providers>{children}</Providers>
       </body>
     </html>

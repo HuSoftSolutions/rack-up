@@ -9,10 +9,17 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.0",
+    "canvas-confetti": "^1.9.4",
+    "clsx": "^2.1.1",
     "firebase": "^12.6.0",
+    "firebase-admin": "^12.6.0",
+    "motion": "^12.23.26",
     "next": "16.0.10",
+    "qrcode": "^1.5.3",
     "react": "19.2.1",
     "react-dom": "19.2.1",
+    "react-to-print": "^3.2.0",
     "stripe": "^20.0.0"
   },
   "devDependencies": {

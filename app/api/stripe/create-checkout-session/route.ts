@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
+import { getOptionalUser } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,14 @@ type CreateCheckoutBody = {
   amountCents: number;
   charityId: string;
   charityName?: string;
+  businessId?: string;
+  userId?: string;
+  causeId?: string;
+  pointsOverride?: number;
+  causeTitle?: string;
+  businessName?: string;
+  locationId?: string;
+  locationSlug?: string;
 };
 
 function badRequest(message: string, details?: Record<string, unknown>) {
@@ -25,6 +34,21 @@ export async function POST(request: Request) {
   const amountCents = body.amountCents;
   const charityId = body.charityId?.trim();
   const charityName = body.charityName?.trim();
+  const businessId = body.businessId?.trim();
+  const userIdFromBody = body.userId?.trim();
+  const causeId = body.causeId?.trim();
+  const causeTitle = body.causeTitle?.trim();
+  const businessName = body.businessName?.trim();
+  const locationId = body.locationId?.trim();
+  const locationSlug = body.locationSlug?.trim();
+  const pointsOverride =
+    typeof body.pointsOverride === "number" && body.pointsOverride >= 0
+      ? body.pointsOverride
+      : undefined;
+
+  const authContext = await getOptionalUser(request);
+  const userId = authContext?.uid ?? userIdFromBody;
+  const customerEmail = authContext?.email ?? undefined;
 
   if (!Number.isInteger(amountCents) || amountCents < 50) {
     return badRequest("amountCents must be an integer >= 50.");
@@ -34,14 +58,15 @@ export async function POST(request: Request) {
   }
 
   const origin = request.headers.get("origin") ?? "http://localhost:3000";
-  const successUrl = `${origin}/profile?stripe=success&session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl = `${origin}/profile?stripe=cancel`;
+  const successUrl = `${origin}/donate/result?status=success&session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = `${origin}/donate/result?status=cancel`;
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     submit_type: "donate",
     success_url: successUrl,
     cancel_url: cancelUrl,
+    ...(customerEmail ? { customer_email: customerEmail } : {}),
     line_items: [
       {
         quantity: 1,
@@ -56,6 +81,16 @@ export async function POST(request: Request) {
     ],
     metadata: {
       charityId,
+      ...(businessId ? { businessId } : {}),
+      ...(businessName ? { businessName } : {}),
+      ...(userId ? { userId } : {}),
+      ...(causeId ? { causeId } : {}),
+      ...(causeTitle ? { causeTitle } : {}),
+      ...(locationId ? { locationId } : {}),
+      ...(locationSlug ? { locationSlug } : {}),
+      ...(pointsOverride !== undefined
+        ? { pointsOverride: String(pointsOverride) }
+        : {}),
     },
   });
 
@@ -66,4 +101,3 @@ export async function POST(request: Request) {
 }
 
 export type { CreateCheckoutBody };
-

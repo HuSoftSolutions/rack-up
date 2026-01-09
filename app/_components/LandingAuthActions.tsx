@@ -6,10 +6,12 @@ import { signOut } from "firebase/auth";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { useAdminStatus } from "@/lib/auth/admin";
+import { useBusinessAccess } from "@/lib/auth/business";
 
 export default function LandingAuthActions() {
   const { user, loading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdminStatus();
+  const { membership, loading: bizLoading } = useBusinessAccess();
 
   if (loading) {
     return (
@@ -34,6 +36,12 @@ export default function LandingAuthActions() {
         >
           Create account
         </Link>
+        <Link
+          className="inline-flex h-11 items-center justify-center rounded-full border border-black/10 px-6 text-sm font-medium transition-colors hover:bg-black/[.04] dark:border-white/15 dark:hover:bg-[#1a1a1a]"
+          href="/rewards"
+        >
+          Browse rewards
+        </Link>
       </div>
     );
   }
@@ -49,29 +57,44 @@ export default function LandingAuthActions() {
             Admin
           </span>
         ) : null}
+        {!bizLoading && membership ? (
+          <span className="inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-900 dark:text-blue-200">
+            {membership.role} · {membership.businessId}
+          </span>
+        ) : null}
       </div>
       <div className="mt-3 flex flex-col gap-3 sm:flex-row">
         <Link
           className="inline-flex h-11 items-center justify-center rounded-full bg-foreground px-6 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
-          href="/profile"
+          href={
+            !bizLoading && membership
+              ? `/biz/${membership.businessId}`
+              : !adminLoading && isAdmin
+                ? "/admin"
+                : "/profile"
+          }
         >
-          Go to profile
+          {bizLoading
+            ? "Loading..."
+            : membership
+              ? "Open business console"
+              : isAdmin
+                ? "Admin dashboard"
+                : "Profile"}
         </Link>
-        {!adminLoading && isAdmin ? (
-          <Link
-            className="inline-flex h-11 items-center justify-center rounded-full border border-black/10 px-6 text-sm font-medium transition-colors hover:bg-black/[.04] dark:border-white/15 dark:hover:bg-[#1a1a1a]"
-            href="/admin"
-          >
-            Admin dashboard
-          </Link>
-        ) : null}
-        <button
+        <Link
           className="inline-flex h-11 items-center justify-center rounded-full border border-black/10 px-6 text-sm font-medium transition-colors hover:bg-black/[.04] dark:border-white/15 dark:hover:bg-[#1a1a1a]"
-          type="button"
+          href="/rewards"
+        >
+          Browse rewards
+        </Link>
+        <Link
+          className="inline-flex h-11 items-center justify-center rounded-full border border-black/10 px-6 text-sm font-medium transition-colors hover:bg-black/[.04] dark:border-white/15 dark:hover:bg-[#1a1a1a]"
+          href="/signin"
           onClick={() => signOut(firebaseAuth)}
         >
           Sign out
-        </button>
+        </Link>
       </div>
     </div>
   );
