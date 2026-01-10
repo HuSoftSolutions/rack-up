@@ -129,9 +129,10 @@ export default function LocationPrintPage({
 
   useEffect(() => {
     if (!publicUrl) return;
+    const url = publicUrl;
     let canceled = false;
     async function generate() {
-      const data = await QRCode.toDataURL(publicUrl, { margin: 1, width: 280 });
+      const data = await QRCode.toDataURL(url, { margin: 1, width: 280 });
       if (!canceled) setQrDataUrl(data);
     }
     void generate();
