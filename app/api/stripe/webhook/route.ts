@@ -62,6 +62,16 @@ export async function POST(request: Request) {
 
       if (!paymentIntentId) break;
 
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: ["latest_charge"],
+      });
+      const latestCharge = paymentIntent.latest_charge;
+      const charge =
+        typeof latestCharge === "object" && latestCharge ? (latestCharge as Stripe.Charge) : null;
+      const receiptUrl = charge?.receipt_url ?? null;
+      const chargeId =
+        charge?.id ?? (typeof latestCharge === "string" ? latestCharge : null);
+
       const points = pointsOverride ?? calculatePointsFromCents(amountCents);
       const txRef = adminFirestore.collection("transactions").doc(paymentIntentId);
       const donationRef = adminFirestore.collection("donations").doc(paymentIntentId);
@@ -105,6 +115,8 @@ export async function POST(request: Request) {
             paymentIntentId,
             checkoutSessionId: session.id,
             customer: session.customer ?? null,
+            chargeId,
+            receiptUrl,
           },
           status: "completed",
           createdAt: eventTimestamp,

@@ -16,7 +16,12 @@ type DonationRow = {
   amountCents: number | null;
   points: number | null;
   status: string | null;
-  stripe: { paymentIntentId?: string; checkoutSessionId?: string } | null;
+  stripe: {
+    paymentIntentId?: string;
+    checkoutSessionId?: string;
+    chargeId?: string | null;
+    receiptUrl?: string | null;
+  } | null;
   createdAt: string | null;
 };
 
@@ -253,7 +258,26 @@ export default function AdminDonationsPage() {
                 <div className="mt-1 space-y-1 font-mono text-xs">
                   <div>Intent: {selected.stripe?.paymentIntentId ?? "—"}</div>
                   <div>Session: {selected.stripe?.checkoutSessionId ?? "—"}</div>
+                  <div>Charge: {selected.stripe?.chargeId ?? "—"}</div>
                 </div>
+              </div>
+
+              <div>
+                <div className="text-xs uppercase tracking-wide text-zinc-400">
+                  Receipt
+                </div>
+                {selected.stripe?.receiptUrl ? (
+                  <a
+                    href={selected.stripe.receiptUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-flex text-xs text-emerald-200 underline"
+                  >
+                    View Stripe receipt
+                  </a>
+                ) : (
+                  <div className="mt-1 text-xs text-zinc-300">—</div>
+                )}
               </div>
             </div>
           )}

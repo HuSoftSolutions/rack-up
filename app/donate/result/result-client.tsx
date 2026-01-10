@@ -30,7 +30,6 @@ export default function DonateResultClient() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(!!sessionId);
   const confettiFired = useRef(false);
-  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   useEffect(() => {
     if (!sessionId) return;
@@ -106,24 +105,25 @@ export default function DonateResultClient() {
         ? "Points pending"
         : null;
 
-  async function shareStatus() {
-    if (!status?.success) return;
-    const amount =
-      typeof status.amountTotal === "number"
-        ? `$${(status.amountTotal / 100).toFixed(2)}`
-        : "a donation";
-    const cause = status.causeTitle ?? status.causeId ?? "";
-    const biz = status.businessName ?? status.businessId ?? "";
-    const target =
-      cause && biz ? `${cause} at ${biz}` : cause || biz ? `${cause || biz}` : "";
-    const text = `I just donated ${amount} via RackUp${
-      target ? ` to ${target}` : ""
-    }!`;
-    const url = typeof window !== "undefined" ? window.location.origin : undefined;
-    if (navigator.share) {
-      await navigator.share({ title: "RackUp donation", text, url });
+  const shareText = useMemo(() => {
+    if (!status?.success) return "";
+    return "Join me in supporting a great cause while earning rewards!";
+  }, [status?.success]);
+
+  const shareUrl = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    if (status?.businessId && status?.causeId && status?.locationSlug) {
+      return `${window.location.origin}/donate/${status.businessId}/${status.causeId}/${status.locationSlug}`;
     }
-  }
+    return `${window.location.origin}/donate`;
+  }, [status?.businessId, status?.causeId, status?.locationSlug]);
+
+  const facebookUrl = shareUrl
+    ? `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+        shareUrl,
+      )}&quote=${encodeURIComponent(shareText)}`
+    : "";
+
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-12 dark:bg-black">
@@ -208,14 +208,15 @@ export default function DonateResultClient() {
                   Download receipt
                 </a>
               ) : null}
-              {status?.success && canShare ? (
-                <button
-                  type="button"
-                  onClick={shareStatus}
+              {status?.success ? (
+                <a
+                  href={facebookUrl}
+                  target="_blank"
+                  rel="noreferrer"
                   className="inline-flex h-10 items-center justify-center rounded-full border border-black/10 px-4 text-sm font-medium transition-colors hover:bg-black/[.04] dark:border-white/15 dark:hover:bg-[#1a1a1a]"
                 >
-                  Share donation
-                </button>
+                  Share on Facebook
+                </a>
               ) : null}
               <Link
                 className="inline-flex h-10 items-center justify-center rounded-full bg-foreground px-4 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
