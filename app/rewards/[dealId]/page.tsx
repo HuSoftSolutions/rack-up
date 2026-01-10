@@ -1,39 +1,40 @@
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { adminFirestore } from "@/lib/firebase/admin";
 import DealRedeemCard from "./redeem-client";
 
 export const dynamic = "force-dynamic";
 
-async function getBaseUrl() {
-  if (process.env.NEXT_PUBLIC_BASE_URL) return process.env.NEXT_PUBLIC_BASE_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  const headerList = await headers();
-  const forwardedHost = headerList.get("x-forwarded-host");
-  const host = forwardedHost ?? headerList.get("host");
-  const proto = headerList.get("x-forwarded-proto") ?? "http";
-  if (host) return `${proto}://${host}`;
-  return "http://localhost:3000";
-}
+type Deal = {
+  id: string;
+  businessId: string | null;
+  businessName: string | null;
+  title: string | null;
+  description: string | null;
+  terms: string | null;
+  pointCost: number | null;
+  type: string | null;
+  locations: string[];
+};
 
 async function getDeal(dealId: string) {
-  const baseUrl = await getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/rewards/deals/${dealId}`, {
-    cache: "no-store",
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) return null;
-  const json = (await res.json()) as { deal?: unknown };
-  return json.deal as {
-    id: string;
-    businessId: string | null;
-    businessName: string | null;
-    title: string | null;
-    description: string | null;
-    terms: string | null;
-    pointCost: number | null;
-    type: string | null;
-    locations: string[];
+  const snapshot = await adminFirestore.collection("deals").doc(dealId).get();
+  if (!snapshot.exists) return null;
+  const data = snapshot.data();
+  if (!data?.active) return null;
+  const deal: Deal = {
+    id: snapshot.id,
+    businessId: data.businessId ?? null,
+    businessName: data.businessName ?? null,
+    title: data.title ?? null,
+    description: data.description ?? null,
+    terms: data.terms ?? null,
+    pointCost: data.pointCost ?? null,
+    type: data.type ?? null,
+    locations: Array.isArray(data.locations)
+      ? data.locations.map((loc) => (typeof loc === "string" ? loc : loc?.label)).filter(Boolean)
+      : [],
   };
+  return deal;
 }
 
 export default async function DealDetailPage({
