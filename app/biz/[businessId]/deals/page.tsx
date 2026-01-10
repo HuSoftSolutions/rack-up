@@ -44,12 +44,13 @@ export default function BusinessDealsPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
+    const currentUser = user;
     let canceled = false;
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const idToken = await user.getIdToken();
+        const idToken = await currentUser.getIdToken();
         const [dealsRes, locationsRes] = await Promise.all([
           fetch(`/api/business/${businessId}/deals`, {
             headers: { Authorization: `Bearer ${idToken}` },
@@ -109,7 +110,8 @@ export default function BusinessDealsPage({
       });
       const json = (await res.json()) as { deal?: Deal; error?: string };
       if (!res.ok || !json.deal) throw new Error(json.error ?? "Failed to create deal.");
-      setDeals((prev) => [json.deal, ...prev]);
+      const createdDeal = json.deal;
+      setDeals((prev) => [createdDeal, ...prev]);
       setForm(defaultForm);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create deal.");

@@ -65,8 +65,8 @@ export async function GET(
             ? locations.filter((loc) => link.locationIds?.includes(loc.id))
             : locations;
         return {
-          id: linkDoc.id,
           ...cause,
+          id: linkDoc.id,
           createdAt: toIso((cause as { createdAt?: unknown }).createdAt),
           updatedAt: toIso((cause as { updatedAt?: unknown }).updatedAt),
           selectedLocationIds: link.locationIds ?? [],

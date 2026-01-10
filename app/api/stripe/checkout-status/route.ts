@@ -16,11 +16,15 @@ export async function GET(request: Request) {
 
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ["payment_intent.charges"],
+      expand: ["payment_intent.latest_charge"],
     });
 
     const paymentIntent = session.payment_intent as Stripe.PaymentIntent | null;
-    const charge = paymentIntent?.charges?.data?.[0];
+    const latestCharge = paymentIntent?.latest_charge;
+    const charge =
+      typeof latestCharge === "object" && latestCharge
+        ? (latestCharge as Stripe.Charge)
+        : null;
     const receiptUrl = charge?.receipt_url ?? null;
     const paymentIntentId = paymentIntent?.id ?? null;
 

@@ -59,11 +59,12 @@ export default function RewardsPage() {
       setPointsError(null);
       return;
     }
+    const currentUser = user;
     let canceled = false;
     async function loadPoints() {
       setPointsLoading(true);
       try {
-        const idToken = await user.getIdToken();
+        const idToken = await currentUser.getIdToken();
         const res = await fetch("/api/users/points", {
           headers: { Authorization: `Bearer ${idToken}` },
         });

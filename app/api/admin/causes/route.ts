@@ -46,7 +46,7 @@ async function uploadImage(file: File) {
   }
   const ext = file.name.split(".").pop() ?? "jpg";
   const path = `cause-images/global/${Date.now()}.${ext}`;
-  const bucket = getStorage(firebaseAdminApp, bucketName).bucket();
+  const bucket = getStorage(firebaseAdminApp).bucket(bucketName);
   const ref = bucket.file(path);
   const buffer = Buffer.from(await file.arrayBuffer());
   await ref.save(buffer, { contentType: file.type, resumable: false, metadata: { cacheControl: "public,max-age=31536000" } });
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
           const parsed = parseStoragePath(imageUrl);
           if (parsed) {
             try {
-              const bucket = getStorage(firebaseAdminApp, parsed.bucket).bucket();
+              const bucket = getStorage(firebaseAdminApp).bucket(parsed.bucket);
               const [signed] = await bucket.file(parsed.path).getSignedUrl({
                 action: "read",
                 expires: Date.now() + 1000 * 60 * 60 * 24 * 365,
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
     const slug = slugify(title).toLowerCase();
     const ref = adminFirestore.collection("causes").doc(slug);
     const now = Timestamp.now();
-    let imageUrl: string | null = null;
+    let imageUrl: string | undefined;
     if (imageFile && imageFile.size > 0) {
       imageUrl = await uploadImage(imageFile);
     }
@@ -156,10 +156,11 @@ export async function POST(request: Request) {
       description,
       slug,
       mode,
-      pointsPerDollar: mode === "custom" ? Number(pointsPerDollar || 0) : null,
-      minAmountCents: mode === "custom" ? Number(minAmountCents) || null : null,
-      maxAmountCents: mode === "custom" ? Number(maxAmountCents) || null : null,
-      predefinedOptions: mode === "predefined" ? predefinedOptions ?? [] : [],
+      businessId: "",
+      pointsPerDollar: mode === "custom" ? Number(pointsPerDollar || 0) : undefined,
+      minAmountCents: mode === "custom" ? Number(minAmountCents) || undefined : undefined,
+      maxAmountCents: mode === "custom" ? Number(maxAmountCents) || undefined : undefined,
+      predefinedOptions: mode === "predefined" ? predefinedOptions ?? [] : undefined,
       locationIds: [],
       active: true,
       imageUrl,
@@ -211,13 +212,25 @@ export async function PATCH(request: Request) {
       imageUrl = await uploadImage(imageFile);
     }
 
+    const parseOptionalNumber = (value: FormDataEntryValue | null) => {
+      if (typeof value !== "string") return undefined;
+      const trimmed = value.trim();
+      if (!trimmed) return undefined;
+      const num = Number(trimmed);
+      return Number.isFinite(num) ? num : undefined;
+    };
+    const pointsPerDollarValue =
+      typeof pointsPerDollar === "string" && pointsPerDollar.trim()
+        ? Number(pointsPerDollar)
+        : 0;
+
     const payload: Partial<CauseDoc> = {
       title: title ?? snap.data()?.title,
       description,
       mode,
-      pointsPerDollar: mode === "custom" ? Number(pointsPerDollar || 0) : null,
-      minAmountCents: mode === "custom" ? Number(minAmountCents) || null : null,
-      maxAmountCents: mode === "custom" ? Number(maxAmountCents) || null : null,
+      pointsPerDollar: mode === "custom" ? pointsPerDollarValue : undefined,
+      minAmountCents: mode === "custom" ? parseOptionalNumber(minAmountCents) : undefined,
+      maxAmountCents: mode === "custom" ? parseOptionalNumber(maxAmountCents) : undefined,
       predefinedOptions: mode === "predefined" ? predefinedOptions ?? [] : [],
       active,
       imageUrl,

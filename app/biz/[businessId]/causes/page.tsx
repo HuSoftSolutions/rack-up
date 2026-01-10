@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { Button } from "@/ui-kit/button";
 import { useAuth } from "@/lib/auth/AuthProvider";
 
 type CauseRow = {
@@ -49,12 +50,13 @@ export default function BusinessCausesPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
+    const currentUser = user;
     let canceled = false;
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const idToken = await user.getIdToken();
+        const idToken = await currentUser.getIdToken();
         const res = await fetch(`/api/business/${businessId}/causes`, {
           headers: { Authorization: `Bearer ${idToken}` },
         });
@@ -94,6 +96,35 @@ export default function BusinessCausesPage({
       {error ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
+        </div>
+      ) : null}
+
+      {businessId && locations.length > 0 ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-lg shadow-black/30">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold">Print location QR sheets</div>
+              <div className="text-xs text-zinc-300">
+                Each sheet includes a QR code that takes donors to this location&apos;s charity options.
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {locations.map((loc) => (
+              <div
+                key={loc.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+              >
+                <div>
+                  <div className="text-sm font-semibold text-white">{loc.name ?? loc.id}</div>
+                  <div className="text-xs text-zinc-400">{loc.id}</div>
+                </div>
+                <Button href={`/biz/${businessId}/locations/${loc.id}/print`} outline>
+                  Print sheet
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 

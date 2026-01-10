@@ -84,12 +84,13 @@ export async function POST(request: Request) {
       title: (deal.title as string | undefined) ?? "Reward",
       businessName: (deal.businessName as string | undefined) ?? businessId ?? "Partner",
       dealType: (deal.type as RewardIssue["displayPayload"]["dealType"]) ?? "amount_off",
-      terms: (deal.terms as string | undefined) ?? null,
-      logoUrl: null,
+      terms: (deal.terms as string | undefined) ?? undefined,
+      logoUrl: undefined,
       locations: Array.isArray(deal.locations)
-        ? (deal.locations as Array<{ label?: string } | string>).map((loc) =>
-            typeof loc === "string" ? { label: loc } : { label: loc.label },
-          )
+        ? (deal.locations as Array<{ label?: string } | string>)
+            .map((loc) => (typeof loc === "string" ? loc : loc.label))
+            .filter((label): label is string => typeof label === "string" && label.length > 0)
+            .map((label) => ({ label }))
         : [],
       expiresAt: expiresAt.toDate().toISOString(),
       code,

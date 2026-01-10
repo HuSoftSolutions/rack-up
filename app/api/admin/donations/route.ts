@@ -33,6 +33,9 @@ export async function GET(request: Request) {
       return {
         id: doc.id,
         userId: data.userId ?? null,
+        donorName: data.donorName ?? null,
+        donorEmail: data.donorEmail ?? null,
+        donorPhone: data.donorPhone ?? null,
         businessId: data.businessId ?? null,
         businessName: data.businessName ?? null,
         causeId: data.causeId ?? null,

@@ -70,12 +70,13 @@ export default function BusinessRewardsPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
+    const currentUser = user;
     let canceled = false;
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const idToken = await user.getIdToken();
+        const idToken = await currentUser.getIdToken();
         const query = filter === "all" ? "" : `?status=${filter}`;
         const res = await fetch(`/api/business/${businessId}/rewards/issues${query}`, {
           headers: { Authorization: `Bearer ${idToken}` },

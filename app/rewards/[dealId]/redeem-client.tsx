@@ -33,10 +33,11 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
       return;
     }
 
+    const currentUser = user;
     let canceled = false;
     async function fetchPoints() {
       try {
-        const idToken = await user.getIdToken();
+        const idToken = await currentUser.getIdToken();
         const res = await fetch("/api/users/points", {
           headers: { Authorization: `Bearer ${idToken}` },
         });

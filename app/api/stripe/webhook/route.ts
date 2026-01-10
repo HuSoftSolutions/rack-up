@@ -53,6 +53,9 @@ export async function POST(request: Request) {
       const locationId = session.metadata?.locationId ?? null;
       const locationSlug = session.metadata?.locationSlug ?? null;
       const pointsOverride = normalizePointsOverride(session.metadata?.pointsOverride);
+      const donorName = session.customer_details?.name ?? null;
+      const donorEmail = session.customer_details?.email ?? session.customer_email ?? null;
+      const donorPhone = session.customer_details?.phone ?? null;
       const eventTimestamp = session.created
         ? Timestamp.fromMillis(session.created * 1000)
         : Timestamp.now();
@@ -86,6 +89,9 @@ export async function POST(request: Request) {
 
         tx.set(donationRef, {
           userId,
+          donorName,
+          donorEmail,
+          donorPhone,
           charityId,
           businessId,
           causeId,

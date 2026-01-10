@@ -11,6 +11,7 @@ type RewardIssue = {
   id: string;
   dealId: string | null;
   businessId: string | null;
+  code?: string | null;
   status: "issued" | "used" | "expired";
   issuedAt: string | null;
   expiresAt: string | null;
@@ -52,12 +53,13 @@ export default function RewardHistoryPage() {
 
   useEffect(() => {
     if (!user) return;
+    const currentUser = user;
     let canceled = false;
     async function load() {
       setLoadingIssues(true);
       setError(null);
       try {
-        const idToken = await user.getIdToken();
+        const idToken = await currentUser.getIdToken();
         const res = await fetch("/api/rewards/issues", {
           headers: { Authorization: `Bearer ${idToken}` },
         });

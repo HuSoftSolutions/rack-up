@@ -1,5 +1,4 @@
-/* eslint-disable @next/next/no-img-element */
-'use client'
+"use client";
 
 import clsx from "clsx";
 import { signOut } from "firebase/auth";

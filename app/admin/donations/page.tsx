@@ -6,6 +6,9 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 type DonationRow = {
   id: string;
   userId: string | null;
+  donorName: string | null;
+  donorEmail: string | null;
+  donorPhone: string | null;
   businessId: string | null;
   businessName: string | null;
   causeId: string | null;
@@ -111,6 +114,7 @@ export default function AdminDonationsPage() {
               <thead className="sticky top-0 border-b border-white/10 bg-black/30 text-left text-xs uppercase tracking-wide text-zinc-300 backdrop-blur">
                 <tr>
                   <th className="px-4 py-2">Charity</th>
+                  <th className="px-4 py-2">Donor</th>
                   <th className="px-4 py-2">Business</th>
                   <th className="px-4 py-2">Amount</th>
                   <th className="px-4 py-2">Points</th>
@@ -121,13 +125,18 @@ export default function AdminDonationsPage() {
               <tbody>
                 {donations.length === 0 && !loading ? (
                   <tr>
-                    <td className="px-4 py-3 text-zinc-300" colSpan={6}>
+                    <td className="px-4 py-3 text-zinc-300" colSpan={7}>
                       No donations yet.
                     </td>
                   </tr>
                 ) : null}
                 {donations.map((d) => {
                   const isSelected = selectedId === d.id;
+                  const donorLine =
+                    d.donorName ??
+                    d.donorEmail ??
+                    d.donorPhone ??
+                    (d.userId ? `User ${d.userId.slice(0, 8)}` : "—");
                   return (
                     <tr
                       key={d.id}
@@ -138,6 +147,7 @@ export default function AdminDonationsPage() {
                       onClick={() => setSelectedId(d.id)}
                     >
                       <td className="px-4 py-2 font-medium text-white">{d.causeTitle ?? d.causeId ?? "—"}</td>
+                      <td className="px-4 py-2 text-zinc-200">{donorLine}</td>
                       <td className="px-4 py-2 text-zinc-200">{d.businessName ?? d.businessId ?? "—"}</td>
                       <td className="px-4 py-2 text-zinc-100">{formatMoney(d.amountCents)}</td>
                       <td className="px-4 py-2 text-zinc-100">{d.points ?? "—"}</td>
@@ -179,6 +189,36 @@ export default function AdminDonationsPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <div className="text-xs uppercase tracking-wide text-zinc-400">
+                    Donor name
+                  </div>
+                  <div className="mt-1 font-medium">{selected.donorName ?? "—"}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-zinc-400">
+                    Donor email
+                  </div>
+                  <div className="mt-1 font-medium">{selected.donorEmail ?? "—"}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-zinc-400">
+                    Donor phone
+                  </div>
+                  <div className="mt-1 font-medium">{selected.donorPhone ?? "—"}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-zinc-400">
+                    User ID
+                  </div>
+                  <div className="mt-1 font-mono text-xs">{selected.userId ?? "—"}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-zinc-400">
                     Amount
                   </div>
                   <div className="mt-1 font-medium">{formatMoney(selected.amountCents)}</div>
@@ -204,13 +244,6 @@ export default function AdminDonationsPage() {
                   </div>
                   <div className="mt-1 font-medium">{formatDate(selected.createdAt)}</div>
                 </div>
-              </div>
-
-              <div>
-                <div className="text-xs uppercase tracking-wide text-zinc-400">
-                  User ID
-                </div>
-                <div className="mt-1 font-mono text-xs">{selected.userId ?? "—"}</div>
               </div>
 
               <div>

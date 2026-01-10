@@ -155,13 +155,15 @@ export default function DonateClient({
             <div className="flex flex-wrap gap-3">
               {cause.predefinedOptions.map((opt) => {
                 const selected = selectedOption?.amountCents === opt.amountCents;
+                const styleProps = selected
+                  ? ({ color: "emerald" } as const)
+                  : ({ outline: true } as const);
                 return (
                   <Button
                     key={opt.amountCents}
                     type="button"
-                    color="emerald"
-                    outline={!selected}
                     className="w-full max-w-[180px]"
+                    {...styleProps}
                     onClick={() => {
                       setSelectedOption(opt);
                       setAmount(opt.amountCents / 100);

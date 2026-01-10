@@ -71,6 +71,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
+    const currentUser = user;
     let canceled = false;
     async function load() {
       setStatsLoading(true);
@@ -79,7 +80,7 @@ export default function ProfilePage() {
         const txSnap = await getDocs(
           query(
             collection(firestore, "transactions"),
-            where("userId", "==", user.uid),
+            where("userId", "==", currentUser.uid),
             orderBy("createdAt", "desc"),
             limit(50),
           ),
@@ -87,7 +88,7 @@ export default function ProfilePage() {
         const donationSnap = await getDocs(
           query(
             collection(firestore, "donations"),
-            where("userId", "==", user.uid),
+            where("userId", "==", currentUser.uid),
             orderBy("createdAt", "desc"),
             limit(50),
           ),
@@ -95,7 +96,7 @@ export default function ProfilePage() {
         const rewardSnap = await getDocs(
           query(
             collection(firestore, "reward_issues"),
-            where("userId", "==", user.uid),
+            where("userId", "==", currentUser.uid),
             orderBy("issuedAt", "desc"),
             limit(20),
           ),

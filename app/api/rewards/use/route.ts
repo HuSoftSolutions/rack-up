@@ -73,8 +73,8 @@ export async function POST(request: Request) {
       const current = fresh.data() as Record<string, unknown>;
 
       // Expire on read if past expiry.
-      const expiresAt = current.expiresAt;
-      if (expiresAt && typeof expiresAt.toMillis === "function") {
+      const expiresAt = current.expiresAt as { toMillis?: () => number } | undefined;
+      if (typeof expiresAt?.toMillis === "function") {
         const expired = expiresAt.toMillis() < Date.now();
         if (expired && current.status !== "expired") {
           tx.update(ref, { status: "expired", updatedAt: now });

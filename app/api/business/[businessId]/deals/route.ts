@@ -25,8 +25,8 @@ function serverError(message: string) {
   return NextResponse.json({ error: message }, { status: 500 });
 }
 
-function mapDeal(doc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>) {
-  const data = doc.data();
+function mapDeal(doc: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>) {
+  const data = doc.data() ?? {};
   return {
     id: doc.id,
     businessId: data.businessId ?? null,

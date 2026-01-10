@@ -49,12 +49,13 @@ export default function BusinessDonationsPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
+    const currentUser = user;
     let canceled = false;
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const idToken = await user.getIdToken();
+        const idToken = await currentUser.getIdToken();
         const res = await fetch(`/api/business/${businessId}/donations`, {
           headers: { Authorization: `Bearer ${idToken}` },
         });
