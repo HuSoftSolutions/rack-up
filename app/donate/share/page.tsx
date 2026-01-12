@@ -36,7 +36,7 @@ function buildTitle(data?: ShareData | null) {
   return `Support ${target} with Rack Up`;
 }
 
-function buildDescription(data?: ShareData | null) {
+function buildDescription() {
   return "Join me in supporting a great cause while earning rewards!";
 }
 
@@ -47,7 +47,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const data = await fetchShareData(searchParams.session_id);
   const title = buildTitle(data);
-  const description = buildDescription(data);
+  const description = buildDescription();
   return {
     title,
     description,
@@ -71,7 +71,7 @@ export default async function DonateSharePage({
 }) {
   const data = await fetchShareData(searchParams.session_id);
   const title = buildTitle(data);
-  const description = buildDescription(data);
+  const description = buildDescription();
 
   return (
     <PublicShell contentClassName="max-w-4xl space-y-6">

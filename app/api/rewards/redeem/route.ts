@@ -84,8 +84,6 @@ export async function POST(request: Request) {
       title: (deal.title as string | undefined) ?? "Reward",
       businessName: (deal.businessName as string | undefined) ?? businessId ?? "Partner",
       dealType: (deal.type as RewardIssue["displayPayload"]["dealType"]) ?? "amount_off",
-      terms: (deal.terms as string | undefined) ?? null,
-      logoUrl: null,
       locations: Array.isArray(deal.locations)
         ? (deal.locations as Array<{ label?: string } | string>)
             .map((loc) => (typeof loc === "string" ? loc : loc.label))
@@ -94,6 +92,7 @@ export async function POST(request: Request) {
         : [],
       expiresAt: expiresAt.toDate().toISOString(),
       code,
+      ...(deal.terms ? { terms: deal.terms as string } : {}),
     };
 
     await adminFirestore.runTransaction(async (tx) => {
