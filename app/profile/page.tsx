@@ -7,7 +7,9 @@ import { signOut } from "firebase/auth";
 import {
   Timestamp,
   collection,
+  doc,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   where,
@@ -19,6 +21,7 @@ import { useAdminStatus } from "@/lib/auth/admin";
 import { firestore } from "@/lib/firebase/client";
 import { useBusinessAccess } from "@/lib/auth/business";
 import { Button } from "@/ui-kit/button";
+import { Dialog, DialogBody, DialogTitle } from "@/ui-kit/dialog";
 import PublicShell from "@/app/_components/PublicNav";
 
 export default function ProfilePage() {
@@ -27,8 +30,27 @@ export default function ProfilePage() {
   const [signingOut, setSigningOut] = useState(false);
   const { isAdmin, loading: adminLoading } = useAdminStatus();
   const { membership, loading: bizLoading } = useBusinessAccess();
-  const [statsLoading, setStatsLoading] = useState(true);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
+  const [donationsLoading, setDonationsLoading] = useState(true);
+  const [rewardsLoading, setRewardsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"donations" | "rewards">("donations");
+  const [receiptId, setReceiptId] = useState<string | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptIssue, setReceiptIssue] = useState<{
+    id: string;
+    status: "issued" | "used" | "expired";
+    issuedAt?: Date;
+    expiresAt?: Date;
+    usedAt?: Date;
+    title?: string | null;
+    businessName?: string | null;
+    code?: string | null;
+    userName?: string | null;
+    userEmail?: string | null;
+    usedBy?: { staffId?: string | null; staffName?: string | null; staffEmail?: string | null } | null;
+  } | null>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<
     Array<{
       id: string;
@@ -49,6 +71,7 @@ export default function ProfilePage() {
       createdAt?: Date;
       causeTitle?: string;
       businessName?: string;
+      receiptUrl?: string | null;
     }>
   >([]);
   const [rewardIssues, setRewardIssues] = useState<
@@ -57,6 +80,7 @@ export default function ProfilePage() {
       status?: string;
       code?: string;
       dealId?: string;
+      rewardTitle?: string;
       businessId?: string;
       expiresAt?: Date;
       issuedAt?: Date;
@@ -73,9 +97,23 @@ export default function ProfilePage() {
     if (!user) return;
     const currentUser = user;
     let canceled = false;
-    async function load() {
-      setStatsLoading(true);
-      setStatsError(null);
+    setStatsError(null);
+    setTransactionsLoading(true);
+    setDonationsLoading(true);
+    setRewardsLoading(true);
+
+    const toDate = (val: unknown): Date | undefined => {
+      if (!val) return undefined;
+      if (val instanceof Date) return val;
+      if (val instanceof Timestamp) return val.toDate();
+      if (typeof val === "object" && val !== null && "_seconds" in val) {
+        const ts = val as { _seconds: number; _nanoseconds?: number };
+        return new Date(ts._seconds * 1000 + Math.floor((ts._nanoseconds ?? 0) / 1_000_000));
+      }
+      return undefined;
+    };
+
+    async function loadTransactions() {
       try {
         const txSnap = await getDocs(
           query(
@@ -85,34 +123,6 @@ export default function ProfilePage() {
             limit(50),
           ),
         );
-        const donationSnap = await getDocs(
-          query(
-            collection(firestore, "donations"),
-            where("userId", "==", currentUser.uid),
-            orderBy("createdAt", "desc"),
-            limit(50),
-          ),
-        );
-        const rewardSnap = await getDocs(
-          query(
-            collection(firestore, "reward_issues"),
-            where("userId", "==", currentUser.uid),
-            orderBy("issuedAt", "desc"),
-            limit(20),
-          ),
-        );
-
-        const toDate = (val: unknown): Date | undefined => {
-          if (!val) return undefined;
-          if (val instanceof Date) return val;
-          if (val instanceof Timestamp) return val.toDate();
-          if (typeof val === "object" && val !== null && "_seconds" in val) {
-            const ts = val as { _seconds: number; _nanoseconds?: number };
-            return new Date(ts._seconds * 1000 + Math.floor((ts._nanoseconds ?? 0) / 1_000_000));
-          }
-          return undefined;
-        };
-
         if (!canceled) {
           setTransactions(
             txSnap.docs.map((doc) => {
@@ -129,47 +139,129 @@ export default function ProfilePage() {
               };
             }),
           );
-          setDonations(
-            donationSnap.docs.map((doc) => {
-              const d = doc.data();
-              return {
-                id: doc.id,
-                amountCents: d.amountCents,
-                points: d.points,
-                createdAt: toDate(d.createdAt),
-                causeTitle: d.causeTitle ?? d.causeId,
-                businessName: d.businessName ?? d.businessId,
-              };
-            }),
-          );
-          setRewardIssues(
-            rewardSnap.docs.map((doc) => {
-              const d = doc.data();
-              return {
-                id: doc.id,
-                status: d.status,
-                code: d.code,
-                dealId: d.dealId,
-                businessId: d.businessId,
-                expiresAt: toDate(d.expiresAt),
-                issuedAt: toDate(d.issuedAt),
-              };
-            }),
-          );
         }
       } catch (err) {
         if (!canceled) {
           setStatsError(err instanceof Error ? err.message : "Failed to load activity.");
         }
       } finally {
-        if (!canceled) setStatsLoading(false);
+        if (!canceled) setTransactionsLoading(false);
       }
     }
-    void load();
+
+    const donationQuery = query(
+      collection(firestore, "donations"),
+      where("userId", "==", currentUser.uid),
+      orderBy("createdAt", "desc"),
+      limit(50),
+    );
+
+    const rewardsQuery = query(
+      collection(firestore, "reward_issues"),
+      where("userId", "==", currentUser.uid),
+      orderBy("issuedAt", "desc"),
+      limit(20),
+    );
+
+    const unsubscribeDonations = onSnapshot(
+      donationQuery,
+      (donationSnap) => {
+        if (canceled) return;
+        setDonations(
+          donationSnap.docs.map((doc) => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              amountCents: d.amountCents,
+              points: d.points,
+              createdAt: toDate(d.createdAt),
+              causeTitle: d.causeTitle ?? d.causeId,
+              businessName: d.businessName ?? d.businessId,
+              receiptUrl: d.stripe?.receiptUrl ?? null,
+            };
+          }),
+        );
+        setDonationsLoading(false);
+      },
+      (err) => {
+        if (!canceled) {
+          setStatsError(err.message);
+          setDonationsLoading(false);
+        }
+      },
+    );
+
+    const unsubscribeRewards = onSnapshot(
+      rewardsQuery,
+      (rewardSnap) => {
+        if (canceled) return;
+        setRewardIssues(
+          rewardSnap.docs.map((doc) => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              status: d.status,
+              code: d.code,
+              dealId: d.dealId,
+              rewardTitle: d.displayPayload?.title ?? d.title ?? d.dealId,
+              businessId: d.businessId,
+              expiresAt: toDate(d.expiresAt),
+              issuedAt: toDate(d.issuedAt),
+            };
+          }),
+        );
+        setRewardsLoading(false);
+      },
+      (err) => {
+        if (!canceled) {
+          setStatsError(err.message);
+          setRewardsLoading(false);
+        }
+      },
+    );
+
+    void loadTransactions();
+
     return () => {
       canceled = true;
+      unsubscribeDonations();
+      unsubscribeRewards();
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!receiptOpen || !receiptId) return;
+    const ref = doc(firestore, "reward_issues", receiptId);
+    const unsubscribe = onSnapshot(
+      ref,
+      (snap) => {
+        const data = snap.data();
+        if (!data) {
+          setReceiptIssue(null);
+          setReceiptError("Reward not found.");
+          return;
+        }
+        setReceiptError(null);
+        setReceiptIssue({
+          id: snap.id,
+          status: (data.status as "issued" | "used" | "expired") ?? "issued",
+          issuedAt: data.issuedAt instanceof Timestamp ? data.issuedAt.toDate() : undefined,
+          expiresAt: data.expiresAt instanceof Timestamp ? data.expiresAt.toDate() : undefined,
+          usedAt: data.usedAt instanceof Timestamp ? data.usedAt.toDate() : undefined,
+          title: data.displayPayload?.title ?? data.title ?? "Reward",
+          businessName: data.displayPayload?.businessName ?? data.businessName ?? data.businessId,
+          code: data.code ?? null,
+          userName: data.userName ?? null,
+          userEmail: data.userEmail ?? data.email ?? null,
+          usedBy: data.usedBy ?? null,
+        });
+      },
+      (err) => {
+        setReceiptError(err.message);
+      },
+    );
+    return () => unsubscribe();
+  }, [receiptId, receiptOpen]);
 
   const lifetimePoints = useMemo(() => {
     return transactions.reduce(
@@ -193,25 +285,23 @@ export default function ProfilePage() {
     return donations.reduce((sum, d) => sum + (d.amountCents ?? 0), 0);
   }, [donations]);
 
-  const causeTotals = useMemo(() => {
-    const map = new Map<string, { amountCents: number; points: number }>();
-    donations.forEach((d) => {
-      const key = d.causeTitle ?? "Unknown cause";
-      const entry = map.get(key) ?? { amountCents: 0, points: 0 };
-      entry.amountCents += d.amountCents ?? 0;
-      entry.points += d.points ?? 0;
-      map.set(key, entry);
-    });
-    return Array.from(map.entries()).map(([causeTitle, entry]) => ({
-      causeTitle,
-      ...entry,
-    }));
-  }, [donations]);
-
   const formatMoney = (cents?: number) =>
     typeof cents === "number" ? `$${(cents / 100).toFixed(2)}` : "—";
 
-  const recentCauses = useMemo(() => causeTotals.slice(0, 5), [causeTotals]);
+  const formatDate = (date?: Date) => (date ? date.toLocaleString() : "—");
+
+  const openReceipt = (id: string) => {
+    setReceiptId(id);
+    setReceiptOpen(true);
+  };
+
+  const receiptStatusText = receiptIssue
+    ? receiptIssue.status === "used"
+      ? `Marked used ${formatDate(receiptIssue.usedAt)}`
+      : receiptIssue.status === "expired"
+        ? `Expired ${formatDate(receiptIssue.expiresAt)}`
+        : `Active until ${formatDate(receiptIssue.expiresAt)}`
+    : "";
 
   if (loading || !user) {
     return (
@@ -227,7 +317,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <PublicShell contentClassName="w-full max-w-5xl space-y-6">
+    <>
+      <PublicShell contentClassName="w-full max-w-5xl space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 space-y-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
@@ -255,37 +346,9 @@ export default function ProfilePage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <StatCard label="Lifetime points" value={lifetimePoints} loading={statsLoading} />
-          <StatCard label="Current points" value={currentPoints} loading={statsLoading} />
-          <StatCard label="Total donated" value={formatMoney(spentCents)} loading={statsLoading} />
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <DataCard
-            title="Recent donations"
-            loading={statsLoading}
-            emptyLabel="No donations yet."
-            items={donations.slice(0, 5).map((d) => ({
-              id: d.id,
-              primary: d.causeTitle ?? "Donation",
-              secondary: d.businessName ?? "",
-              meta: d.createdAt?.toLocaleDateString() ?? "—",
-              value: formatMoney(d.amountCents),
-            }))}
-          />
-
-          <DataCard
-            title="Redeemed items"
-            loading={statsLoading}
-            emptyLabel="No redemptions yet."
-            items={rewardIssues.slice(0, 5).map((r) => ({
-              id: r.id,
-              primary: r.dealId ?? "Reward",
-              secondary: r.status ?? "",
-              meta: r.expiresAt ? `Expires ${r.expiresAt.toLocaleDateString()}` : "",
-              value: r.status === "used" ? "Used" : r.status === "expired" ? "Expired" : "Active",
-            }))}
-          />
+          <StatCard label="Lifetime points" value={lifetimePoints} loading={transactionsLoading} />
+          <StatCard label="Current points" value={currentPoints} loading={transactionsLoading} />
+          <StatCard label="Total donated" value={formatMoney(spentCents)} loading={donationsLoading} />
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-zinc-200">
@@ -302,56 +365,141 @@ export default function ProfilePage() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-white">
-          <div className="font-medium">Transaction history</div>
-          {statsLoading ? (
-            <div className="mt-2 space-y-2">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : transactions.length === 0 ? (
-            <div className="mt-2 text-zinc-400">No activity yet.</div>
-          ) : (
-            <div className="mt-3 space-y-2">
-              {transactions.slice(0, 10).map((tx) => (
-                <div
-                  key={tx.id}
-                  className="grid grid-cols-4 gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs"
-                >
-                  <div className="font-semibold capitalize">{tx.type}</div>
-                  <div>{tx.createdAt?.toLocaleDateString() ?? "—"}</div>
-                  <div>
-                    {typeof tx.amountCents === "number" ? formatMoney(tx.amountCents) : null}
-                    {typeof tx.pointsDelta === "number"
-                      ? ` · ${tx.pointsDelta > 0 ? "+" : ""}${tx.pointsDelta} pts`
-                      : null}
-                  </div>
-                  <div className="text-right">
-                    {tx.causeTitle ?? tx.businessName ?? tx.status ?? "—"}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("donations")}
+              className={[
+                "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wide transition",
+                activeTab === "donations"
+                  ? "bg-emerald-400/20 text-emerald-100"
+                  : "bg-white/5 text-zinc-300 hover:bg-white/10",
+              ].join(" ")}
+            >
+              Donations
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("rewards")}
+              className={[
+                "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wide transition",
+                activeTab === "rewards"
+                  ? "bg-emerald-400/20 text-emerald-100"
+                  : "bg-white/5 text-zinc-300 hover:bg-white/10",
+              ].join(" ")}
+            >
+              Rewards
+            </button>
+          </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-white">
-          <div className="font-medium">Recently donated causes</div>
-          {recentCauses.length === 0 ? (
-            <div className="mt-2 text-zinc-400">No causes yet.</div>
+          {activeTab === "donations" ? (
+            <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
+              {donationsLoading ? (
+                <div className="p-4 text-zinc-400">Loading donations…</div>
+              ) : donations.length === 0 ? (
+                <div className="p-4 text-zinc-400">No donations yet.</div>
+              ) : (
+                <table className="min-w-full text-left text-xs">
+                  <thead className="bg-black/40 text-xs uppercase tracking-wide text-zinc-400">
+                    <tr>
+                      <th className="px-4 py-2">Date</th>
+                      <th className="px-4 py-2">Cause</th>
+                      <th className="px-4 py-2">Business</th>
+                      <th className="px-4 py-2">Amount</th>
+                      <th className="px-4 py-2">Points</th>
+                      <th className="px-4 py-2">Receipt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {donations.map((donation) => (
+                      <tr key={donation.id} className="border-t border-white/10">
+                        <td className="px-4 py-2 text-zinc-300">
+                          {donation.createdAt?.toLocaleDateString() ?? "—"}
+                        </td>
+                        <td className="px-4 py-2 text-white">
+                          {donation.causeTitle ?? "Donation"}
+                        </td>
+                        <td className="px-4 py-2 text-zinc-300">
+                          {donation.businessName ?? "—"}
+                        </td>
+                        <td className="px-4 py-2 text-zinc-200">
+                          {formatMoney(donation.amountCents)}
+                        </td>
+                        <td className="px-4 py-2 text-zinc-200">
+                          {donation.points ?? "—"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {donation.receiptUrl ? (
+                            <a
+                              href={donation.receiptUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-emerald-200 underline"
+                            >
+                              View receipt
+                            </a>
+                          ) : (
+                            <span className="text-zinc-500">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           ) : (
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {recentCauses.map((cause) => (
-                <div
-                  key={cause.causeTitle}
-                  className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs"
-                >
-                  <div className="font-semibold">{cause.causeTitle}</div>
-                  <div className="text-zinc-400">
-                    {formatMoney(cause.amountCents)} · {cause.points} pts
-                  </div>
-                </div>
-              ))}
+            <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
+              {rewardsLoading ? (
+                <div className="p-4 text-zinc-400">Loading rewards…</div>
+              ) : rewardIssues.length === 0 ? (
+                <div className="p-4 text-zinc-400">No rewards yet.</div>
+              ) : (
+                <table className="min-w-full text-left text-xs">
+                  <thead className="bg-black/40 text-xs uppercase tracking-wide text-zinc-400">
+                    <tr>
+                      <th className="px-4 py-2">Reward</th>
+                      <th className="px-4 py-2">Status</th>
+                      <th className="px-4 py-2">Issued</th>
+                      <th className="px-4 py-2">Expires</th>
+                      <th className="px-4 py-2">Code</th>
+                      <th className="px-4 py-2">Receipt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rewardIssues.map((reward) => (
+                      <tr key={reward.id} className="border-t border-white/10">
+                        <td className="px-4 py-2 text-white">
+                          {reward.rewardTitle ?? reward.dealId ?? "Reward"}
+                        </td>
+                        <td className="px-4 py-2 text-zinc-300 capitalize">
+                          {reward.status ?? "—"}
+                        </td>
+                        <td className="px-4 py-2 text-zinc-300">
+                          {reward.issuedAt?.toLocaleDateString() ?? "—"}
+                        </td>
+                        <td className="px-4 py-2 text-zinc-300">
+                          {reward.expiresAt?.toLocaleDateString() ?? "—"}
+                        </td>
+                        <td className="px-4 py-2 text-emerald-200">{reward.code ?? "—"}</td>
+                        <td className="px-4 py-2">
+                          {reward.id ? (
+                            <button
+                              type="button"
+                              onClick={() => openReceipt(reward.id)}
+                              className="text-emerald-200 underline"
+                            >
+                              View status
+                            </button>
+                          ) : (
+                            <span className="text-zinc-500">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
         </div>
@@ -373,7 +521,68 @@ export default function ProfilePage() {
             </>
           ) : null}
         </div>
-    </PublicShell>
+      </PublicShell>
+
+      <Dialog open={receiptOpen} onClose={() => setReceiptOpen(false)} size="lg">
+        <div className="flex items-start justify-between gap-4">
+          <DialogTitle>Reward receipt</DialogTitle>
+          <button
+            type="button"
+            className="text-xs font-semibold text-zinc-500 hover:text-zinc-200"
+            onClick={() => setReceiptOpen(false)}
+          >
+            Close
+          </button>
+        </div>
+        <DialogBody className="space-y-4 text-sm text-white">
+          {receiptError ? (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+              {receiptError}
+            </div>
+          ) : !receiptIssue ? (
+            <div className="text-zinc-400">Loading receipt…</div>
+          ) : (
+            <>
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+                <div className="text-xs uppercase tracking-wide text-zinc-400">
+                  {receiptIssue.businessName ?? "Partner"}
+                </div>
+                <div className="text-lg font-semibold text-white">
+                  {receiptIssue.title ?? "Reward"}
+                </div>
+                <div className="text-xs text-zinc-500">Receipt #{receiptIssue.id}</div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+                <div className="text-sm font-semibold text-white">Status</div>
+                <div className="text-sm text-zinc-300">{receiptStatusText}</div>
+                <div className="mt-2 grid gap-2 text-xs text-zinc-400 sm:grid-cols-2">
+                  <div>Issued: {formatDate(receiptIssue.issuedAt)}</div>
+                  <div>Expires: {formatDate(receiptIssue.expiresAt)}</div>
+                  <div>Used: {formatDate(receiptIssue.usedAt)}</div>
+                  <div>Code: {receiptIssue.code ?? "—"}</div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+                <div className="text-sm font-semibold text-white">For staff</div>
+                <div className="mt-1 text-sm text-zinc-300">
+                  Confirm this screen with the customer and mark it used in the business console.
+                </div>
+                <div className="mt-2 grid gap-2 text-xs text-zinc-400 sm:grid-cols-2">
+                  <div>Customer: {receiptIssue.userName ?? "—"}</div>
+                  <div>Email: {receiptIssue.userEmail ?? "—"}</div>
+                  <div>
+                    Verifier: {receiptIssue.usedBy?.staffName ?? receiptIssue.usedBy?.staffId ?? "—"}
+                  </div>
+                  <div>Verifier email: {receiptIssue.usedBy?.staffEmail ?? "—"}</div>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogBody>
+      </Dialog>
+    </>
   );
 }
 
@@ -392,51 +601,6 @@ function StatCard({
       <div className="mt-2 text-2xl font-semibold text-white">
         {loading ? <Skeleton className="h-7 w-16" /> : value}
       </div>
-    </div>
-  );
-}
-
-function DataCard({
-  title,
-  loading,
-  emptyLabel,
-  items,
-}: {
-  title: string;
-  loading: boolean;
-  emptyLabel: string;
-  items: { id: string; primary: string; secondary?: string; meta?: string; value?: string }[];
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white">
-      <div className="font-medium">{title}</div>
-      {loading ? (
-        <div className="mt-2 space-y-2">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
-      ) : items.length === 0 ? (
-        <div className="mt-2 text-zinc-400">{emptyLabel}</div>
-      ) : (
-        <div className="mt-2 space-y-2">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center justify-between rounded-xl border border-white/10 bg-black/40 px-3 py-2"
-            >
-              <div>
-                <div className="text-sm font-semibold text-white">{item.primary}</div>
-                {item.secondary ? (
-                  <div className="text-xs text-zinc-400">{item.secondary}</div>
-                ) : null}
-                {item.meta ? <div className="text-xs text-zinc-500">{item.meta}</div> : null}
-              </div>
-              <div className="text-xs text-emerald-200">{item.value}</div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

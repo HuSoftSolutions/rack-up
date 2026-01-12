@@ -84,8 +84,8 @@ export async function POST(request: Request) {
       title: (deal.title as string | undefined) ?? "Reward",
       businessName: (deal.businessName as string | undefined) ?? businessId ?? "Partner",
       dealType: (deal.type as RewardIssue["displayPayload"]["dealType"]) ?? "amount_off",
-      terms: (deal.terms as string | undefined) ?? undefined,
-      logoUrl: undefined,
+      terms: (deal.terms as string | undefined) ?? null,
+      logoUrl: null,
       locations: Array.isArray(deal.locations)
         ? (deal.locations as Array<{ label?: string } | string>)
             .map((loc) => (typeof loc === "string" ? loc : loc.label))
@@ -131,6 +131,8 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     if (err instanceof AuthError) return unauthorized(err.message);
-    return serverError("Failed to redeem reward.");
+    console.error("Failed to redeem reward.", err);
+    const message = err instanceof Error ? err.message : "Failed to redeem reward.";
+    return serverError(message);
   }
 }

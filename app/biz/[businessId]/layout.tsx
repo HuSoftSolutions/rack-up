@@ -70,9 +70,6 @@ function BusinessNavbar({
       <NavbarSpacer />
       <NavbarSection>
         <NavbarLabel className="hidden text-sm text-zinc-300 sm:block">{userEmail}</NavbarLabel>
-        <NavbarItem href="/profile">
-          <NavbarLabel>Profile</NavbarLabel>
-        </NavbarItem>
         <NavbarItem onClick={onSignOut}>
           <NavbarLabel>Sign out</NavbarLabel>
         </NavbarItem>
@@ -130,9 +127,6 @@ function BusinessSidebar({
       <SidebarFooter>
         <SidebarSection>
           <Badge color="emerald">{role}</Badge>
-          <SidebarItem href="/profile">
-            <SidebarLabel>Profile</SidebarLabel>
-          </SidebarItem>
           <SidebarItem onClick={onSignOut}>
             <SidebarLabel>Sign out</SidebarLabel>
           </SidebarItem>
@@ -207,6 +201,7 @@ export default function BusinessLayout({
   return (
     <SidebarLayout
       className="bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] text-white"
+      contentClassName="max-w-none"
       navbar={
         <BusinessNavbar
           businessId={businessId}
@@ -232,9 +227,7 @@ export default function BusinessLayout({
         />
       }
     >
-      <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/30">
-        {children}
-      </div>
+      <div className="w-full">{children}</div>
     </SidebarLayout>
   );
 }

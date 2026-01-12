@@ -121,36 +121,36 @@ export default function BusinessDealsPage({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 text-white">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Deals</h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="text-xl font-semibold tracking-tight text-white">Deals</h1>
+        <p className="mt-2 text-sm text-zinc-300">
           Create rewards for this business. Active deals appear on the public rewards page.
         </p>
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-200">
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-black/10 bg-white p-5 dark:border-white/10 dark:bg-black">
-        <div className="text-sm font-semibold">Create a new deal</div>
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-lg shadow-black/20">
+        <div className="text-sm font-semibold text-white">Create a new deal</div>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           <label className="text-sm">
-            <div className="mb-1 text-zinc-600 dark:text-zinc-300">Title</div>
+            <div className="mb-1 text-zinc-300">Title</div>
             <input
-              className="h-10 w-full rounded-xl border border-black/10 bg-transparent px-3 outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:focus:ring-white/20"
+              className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white outline-none focus:ring-2 focus:ring-emerald-300/40"
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               placeholder="e.g. $10 Off Any Bay"
             />
           </label>
           <label className="text-sm">
-            <div className="mb-1 text-zinc-600 dark:text-zinc-300">Point cost</div>
+            <div className="mb-1 text-zinc-300">Point cost</div>
             <input
-              className="h-10 w-full rounded-xl border border-black/10 bg-transparent px-3 outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:focus:ring-white/20"
+              className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white outline-none focus:ring-2 focus:ring-emerald-300/40"
               type="number"
               value={form.pointCost}
               onChange={(e) => setForm((f) => ({ ...f, pointCost: e.target.value }))}
@@ -159,18 +159,18 @@ export default function BusinessDealsPage({
             />
           </label>
           <label className="text-sm md:col-span-2">
-            <div className="mb-1 text-zinc-600 dark:text-zinc-300">Description</div>
+            <div className="mb-1 text-zinc-300">Description</div>
             <textarea
-              className="min-h-[72px] w-full rounded-xl border border-black/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:focus:ring-white/20"
+              className="min-h-[72px] w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-emerald-300/40"
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               placeholder="Instant $10 off your next bay booking."
             />
           </label>
           <label className="text-sm">
-            <div className="mb-1 text-zinc-600 dark:text-zinc-300">Type</div>
+            <div className="mb-1 text-zinc-300">Type</div>
             <select
-              className="h-10 w-full rounded-xl border border-black/10 bg-transparent px-3 outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:focus:ring-white/20"
+              className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white outline-none focus:ring-2 focus:ring-emerald-300/40"
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
             >
@@ -181,18 +181,18 @@ export default function BusinessDealsPage({
             </select>
           </label>
           <label className="text-sm">
-            <div className="mb-1 text-zinc-600 dark:text-zinc-300">Terms</div>
+            <div className="mb-1 text-zinc-300">Terms</div>
             <input
-              className="h-10 w-full rounded-xl border border-black/10 bg-transparent px-3 outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:focus:ring-white/20"
+              className="h-10 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-white outline-none focus:ring-2 focus:ring-emerald-300/40"
               value={form.terms}
               onChange={(e) => setForm((f) => ({ ...f, terms: e.target.value }))}
               placeholder="One per visit. Not valid with other offers."
             />
           </label>
           <div className="text-sm md:col-span-2">
-            <div className="mb-1 text-zinc-600 dark:text-zinc-300">Locations</div>
+            <div className="mb-1 text-zinc-300">Locations</div>
             {locations.length === 0 ? (
-              <div className="rounded-xl border border-black/10 bg-black/5 px-3 py-2 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/5">
+              <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400">
                 No locations found for this business.
               </div>
             ) : (
@@ -202,11 +202,11 @@ export default function BusinessDealsPage({
                   return (
                     <label
                       key={loc.id}
-                      className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-black/5 px-3 py-2 text-xs font-medium dark:border-white/10 dark:bg-white/5"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white"
                     >
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border-black/20 text-black focus:ring-black dark:border-white/30 dark:text-white dark:focus:ring-white"
+                        className="h-4 w-4 rounded border-white/30 bg-black/40 text-emerald-300 focus:ring-emerald-300/40"
                         checked={checked}
                         onChange={(e) => {
                           const next = e.target.checked
@@ -221,36 +221,36 @@ export default function BusinessDealsPage({
                 })}
               </div>
             )}
-            <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="mt-2 text-xs text-zinc-400">
               Leave all unchecked to allow redemption at any location.
             </div>
           </div>
         </div>
         <div className="mt-4 flex items-center gap-3">
           <button
-            className="inline-flex h-10 items-center justify-center rounded-full bg-foreground px-5 text-sm font-semibold text-background transition hover:bg-[#383838] disabled:opacity-60 dark:hover:bg-[#ccc]"
+            className="inline-flex h-10 items-center justify-center rounded-full border border-emerald-300/40 bg-emerald-400/20 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/30 disabled:opacity-60"
             type="button"
             onClick={submit}
             disabled={saving}
           >
             {saving ? "Saving…" : "Create deal"}
           </button>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+          <div className="text-xs text-zinc-400">
             Deals go live immediately for this business.
           </div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-black">
-        <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 text-sm font-medium dark:border-white/10">
+      <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-sm font-medium">
           <div>Existing deals</div>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+          <div className="text-xs text-zinc-400">
             {loading ? "Loading…" : `${deals.length} loaded`}
           </div>
         </div>
         <div className="max-h-[70vh] overflow-auto">
           <table className="min-w-full text-sm">
-            <thead className="sticky top-0 border-b border-black/10 bg-white text-left text-xs uppercase tracking-wide text-zinc-500 dark:border-white/10 dark:bg-black dark:text-zinc-400">
+            <thead className="sticky top-0 border-b border-white/10 bg-black/40 text-left text-xs uppercase tracking-wide text-zinc-400">
               <tr>
                 <th className="px-4 py-2">Title</th>
                 <th className="px-4 py-2">Points</th>
@@ -260,25 +260,25 @@ export default function BusinessDealsPage({
             <tbody>
               {deals.length === 0 && !loading ? (
                 <tr>
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400" colSpan={3}>
+                  <td className="px-4 py-3 text-zinc-400" colSpan={3}>
                     No deals yet.
                   </td>
                 </tr>
               ) : null}
               {deals.map((deal) => (
-                <tr key={deal.id} className="border-b border-black/5 text-sm dark:border-white/5">
+                <tr key={deal.id} className="border-b border-white/5 text-sm">
                   <td className="px-4 py-2">
-                    <div className="font-semibold text-zinc-900 dark:text-white">
+                    <div className="font-semibold text-white">
                       {deal.title ?? "Untitled"}
                     </div>
-                    <div className="text-xs text-zinc-500">
+                    <div className="text-xs text-zinc-400">
                       {deal.description ?? "—"}
                     </div>
                   </td>
-                  <td className="px-4 py-2 text-zinc-600 dark:text-zinc-300">
+                  <td className="px-4 py-2 text-zinc-300">
                     {typeof deal.pointCost === "number" ? `${deal.pointCost} pts` : "—"}
                   </td>
-                  <td className="px-4 py-2 text-zinc-600 dark:text-zinc-300">
+                  <td className="px-4 py-2 text-zinc-300">
                     {deal.active ? "Active" : "Inactive"}
                   </td>
                 </tr>

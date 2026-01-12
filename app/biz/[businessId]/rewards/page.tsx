@@ -140,23 +140,23 @@ export default function BusinessRewardsPage({
   }, [rewards]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 text-white">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Rewards</h1>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <h1 className="text-xl font-semibold tracking-tight text-white">Rewards</h1>
+          <p className="mt-2 text-sm text-zinc-300">
             View rewards issued to customers and their in-person redemption status.
           </p>
         </div>
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-200">
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3">
         <Stat label="Total issued" value={summary.total} loading={loading} />
         <Stat label="Active" value={summary.issued} loading={loading} />
         <Stat label="Used" value={summary.used} loading={loading} />
@@ -167,10 +167,10 @@ export default function BusinessRewardsPage({
           <button
             key={option}
             className={[
-              "inline-flex h-9 items-center justify-center rounded-full border px-3 text-xs font-semibold transition",
+              "inline-flex h-9 items-center justify-center rounded-full border px-4 text-xs font-semibold uppercase tracking-wide transition",
               option === filter
-                ? "border-black/60 bg-black text-white dark:border-white/40 dark:bg-white/15"
-                : "border-black/10 bg-transparent text-zinc-700 hover:bg-black/[.04] dark:border-white/10 dark:text-zinc-200 dark:hover:bg-white/5",
+                ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100"
+                : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10",
             ].join(" ")}
             type="button"
             onClick={() => setFilter(option)}
@@ -186,18 +186,19 @@ export default function BusinessRewardsPage({
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-black">
-        <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 text-sm font-medium dark:border-white/10">
+      <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-sm font-medium">
           <div>Recent rewards</div>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+          <div className="text-xs text-zinc-400">
             {loading ? "Loading…" : `${rewards.length} loaded`}
           </div>
         </div>
         <div className="max-h-[70vh] overflow-auto">
           <table className="min-w-full text-sm">
-            <thead className="sticky top-0 border-b border-black/10 bg-white text-left text-xs uppercase tracking-wide text-zinc-500 dark:border-white/10 dark:bg-black dark:text-zinc-400">
+            <thead className="sticky top-0 border-b border-white/10 bg-black/40 text-left text-xs uppercase tracking-wide text-zinc-400">
               <tr>
                 <th className="px-4 py-2">Reward</th>
+                <th className="px-4 py-2">Code</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2">Issued</th>
                 <th className="px-4 py-2">Used/Expires</th>
@@ -209,41 +210,44 @@ export default function BusinessRewardsPage({
             <tbody>
               {rewards.length === 0 && !loading ? (
                 <tr>
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400" colSpan={7}>
+                  <td className="px-4 py-3 text-zinc-400" colSpan={8}>
                     No rewards to show.
                   </td>
                 </tr>
               ) : null}
               {rewards.map((r) => (
-                <tr key={r.id} className="border-b border-black/5 text-sm dark:border-white/5">
+                <tr key={r.id} className="border-b border-white/5 text-sm">
                   <td className="px-4 py-2">
-                    <div className="font-semibold text-zinc-900 dark:text-white">
+                    <div className="font-semibold text-white">
                       {r.title ?? r.dealId ?? "Reward"}
                     </div>
-                    <div className="text-xs text-zinc-500">
+                    <div className="text-xs text-zinc-400">
                       User: {r.userId ?? "unknown"}
                     </div>
+                  </td>
+                  <td className="px-4 py-2 text-emerald-200">
+                    {r.code ?? "—"}
                   </td>
                   <td className="px-4 py-2">
                     <StatusChip status={r.status} />
                   </td>
-                  <td className="px-4 py-2 text-zinc-600 dark:text-zinc-300">
+                  <td className="px-4 py-2 text-zinc-300">
                     {formatDate(r.issuedAt)}
                   </td>
-                  <td className="px-4 py-2 text-zinc-600 dark:text-zinc-300">
+                  <td className="px-4 py-2 text-zinc-300">
                     {r.status === "used"
                       ? `Used ${formatDate(r.usedAt)}`
                       : `Expires ${formatDate(r.expiresAt)}`}
                   </td>
-                  <td className="px-4 py-2 text-zinc-600 dark:text-zinc-300">
+                  <td className="px-4 py-2 text-zinc-300">
                     <div>{r.userName ?? "—"}</div>
-                    <div className="text-xs text-zinc-500">{r.userEmail ?? "—"}</div>
+                    <div className="text-xs text-zinc-400">{r.userEmail ?? "—"}</div>
                   </td>
-                  <td className="px-4 py-2 text-zinc-600 dark:text-zinc-300">
+                  <td className="px-4 py-2 text-zinc-300">
                     {r.usedBy ? (
                       <>
                         <div>{r.usedBy.staffName ?? r.usedBy.staffId ?? "—"}</div>
-                        <div className="text-xs text-zinc-500">
+                        <div className="text-xs text-zinc-400">
                           {r.usedBy.staffEmail ?? "—"}
                         </div>
                       </>
@@ -254,7 +258,7 @@ export default function BusinessRewardsPage({
                   <td className="px-4 py-2 text-right">
                     <button
                       type="button"
-                      className="inline-flex h-8 items-center justify-center rounded-full border border-black/10 px-3 text-xs font-semibold transition hover:bg-black/[.05] disabled:opacity-60 dark:border-white/10 dark:hover:bg-white/10"
+                      className="inline-flex h-8 items-center justify-center rounded-full border border-white/10 px-3 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-60"
                       onClick={() => markUsed(r)}
                       disabled={r.status !== "issued" || marking === r.id}
                     >
@@ -273,11 +277,11 @@ export default function BusinessRewardsPage({
 
 function Stat({ label, value, loading }: { label: string; value: number; loading: boolean }) {
   return (
-    <div className="rounded-xl border border-black/10 bg-white p-4 text-sm dark:border-white/10 dark:bg-black">
-      <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
+      <div className="text-xs uppercase tracking-wide text-zinc-400">
         {label}
       </div>
-      <div className="mt-1 text-2xl font-semibold text-zinc-900 dark:text-white">
+      <div className="mt-1 text-2xl font-semibold text-white">
         {loading ? "…" : value}
       </div>
     </div>

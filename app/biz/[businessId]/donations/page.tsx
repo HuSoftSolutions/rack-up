@@ -85,45 +85,47 @@ export default function BusinessDonationsPage({
   }, [donations]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 text-white">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Donations</h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="text-xl font-semibold tracking-tight text-white">Donations</h1>
+        <p className="mt-2 text-sm text-zinc-300">
           Recent donations for your business locations and causes.
         </p>
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-200">
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-black/10 bg-white p-4 text-sm dark:border-white/10 dark:bg-black">
-          <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
+          <div className="text-xs uppercase tracking-wide text-zinc-400">
             Total donations
           </div>
-          <div className="mt-1 text-2xl font-semibold">{summary.total}</div>
+          <div className="mt-1 text-2xl font-semibold text-white">{summary.total}</div>
         </div>
-        <div className="rounded-xl border border-black/10 bg-white p-4 text-sm dark:border-white/10 dark:bg-black">
-          <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
+          <div className="text-xs uppercase tracking-wide text-zinc-400">
             Processed volume
           </div>
-          <div className="mt-1 text-2xl font-semibold">{formatMoney(summary.totalVolume)}</div>
+          <div className="mt-1 text-2xl font-semibold text-white">
+            {formatMoney(summary.totalVolume)}
+          </div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-black/10 bg-white dark:border-white/10 dark:bg-black">
-        <div className="flex items-center justify-between border-b border-black/10 px-4 py-3 text-sm font-medium dark:border-white/10">
+      <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-sm font-medium">
           <div>Recent donations</div>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+          <div className="text-xs text-zinc-400">
             {loading ? "Loading…" : `${donations.length} loaded`}
           </div>
         </div>
         <div className="max-h-[70vh] overflow-auto">
           <table className="min-w-full text-sm">
-            <thead className="sticky top-0 border-b border-black/10 bg-white text-left text-xs uppercase tracking-wide text-zinc-500 dark:border-white/10 dark:bg-black dark:text-zinc-400">
+            <thead className="sticky top-0 border-b border-white/10 bg-black/40 text-left text-xs uppercase tracking-wide text-zinc-400">
               <tr>
                 <th className="px-4 py-2">Cause</th>
                 <th className="px-4 py-2">Location</th>
@@ -136,19 +138,19 @@ export default function BusinessDonationsPage({
             <tbody>
               {donations.length === 0 && !loading ? (
                 <tr>
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400" colSpan={6}>
+                  <td className="px-4 py-3 text-zinc-400" colSpan={6}>
                     No donations yet.
                   </td>
                 </tr>
               ) : null}
               {donations.map((d) => (
-                <tr key={d.id} className="border-b border-black/5 text-sm dark:border-white/5">
-                  <td className="px-4 py-2">{d.causeTitle ?? d.causeId ?? "—"}</td>
-                  <td className="px-4 py-2">{d.locationSlug ?? d.locationId ?? "—"}</td>
-                  <td className="px-4 py-2">{formatMoney(d.amountCents)}</td>
-                  <td className="px-4 py-2">{d.points ?? "—"}</td>
-                  <td className="px-4 py-2 capitalize">{d.status ?? "—"}</td>
-                  <td className="px-4 py-2">{formatDate(d.createdAt)}</td>
+                <tr key={d.id} className="border-b border-white/5 text-sm">
+                  <td className="px-4 py-2 text-white">{d.causeTitle ?? d.causeId ?? "—"}</td>
+                  <td className="px-4 py-2 text-zinc-300">{d.locationSlug ?? d.locationId ?? "—"}</td>
+                  <td className="px-4 py-2 text-zinc-200">{formatMoney(d.amountCents)}</td>
+                  <td className="px-4 py-2 text-zinc-200">{d.points ?? "—"}</td>
+                  <td className="px-4 py-2 text-zinc-300 capitalize">{d.status ?? "—"}</td>
+                  <td className="px-4 py-2 text-zinc-300">{formatDate(d.createdAt)}</td>
                 </tr>
               ))}
             </tbody>
