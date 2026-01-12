@@ -204,13 +204,14 @@ export default function BusinessRewardsPage({
                 <th className="px-4 py-2">Used/Expires</th>
                 <th className="px-4 py-2">Customer</th>
                 <th className="px-4 py-2">Marked by</th>
+                <th className="px-4 py-2">Receipt</th>
                 <th className="px-4 py-2 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {rewards.length === 0 && !loading ? (
                 <tr>
-                  <td className="px-4 py-3 text-zinc-400" colSpan={8}>
+                  <td className="px-4 py-3 text-zinc-400" colSpan={9}>
                     No rewards to show.
                   </td>
                 </tr>
@@ -240,8 +241,11 @@ export default function BusinessRewardsPage({
                       : `Expires ${formatDate(r.expiresAt)}`}
                   </td>
                   <td className="px-4 py-2 text-zinc-300">
-                    <div>{r.userName ?? "—"}</div>
+                    <div className="font-medium text-white">
+                      {r.userName ?? r.userEmail ?? r.userId ?? "—"}
+                    </div>
                     <div className="text-xs text-zinc-400">{r.userEmail ?? "—"}</div>
+                    <div className="text-xs text-zinc-500">ID: {r.userId ?? "—"}</div>
                   </td>
                   <td className="px-4 py-2 text-zinc-300">
                     {r.usedBy ? (
@@ -254,6 +258,14 @@ export default function BusinessRewardsPage({
                     ) : (
                       "—"
                     )}
+                  </td>
+                  <td className="px-4 py-2">
+                    <a
+                      href={`/rewards/receipt/${r.id}`}
+                      className="text-emerald-200 underline"
+                    >
+                      View receipt
+                    </a>
                   </td>
                   <td className="px-4 py-2 text-right">
                     <button
