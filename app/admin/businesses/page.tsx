@@ -659,7 +659,8 @@ export default function AdminBusinessesPage() {
                     <div className="text-sm font-semibold text-white">{combo.cause.title}</div>
                     <div className="text-xs text-zinc-300">{combo.url}</div>
                     <div className="text-xs text-zinc-400">
-                      Use this URL for the QR code for this location/cause.
+                      QR tokens are required for donations. Use the QR print pages to generate the
+                      secure links.
                     </div>
                   </div>
                 ))}

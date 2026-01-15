@@ -3,6 +3,7 @@ import LandingAuthActions from "@/app/_components/LandingAuthActions";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { ClientOnly } from "@/app/_components/ClientOnly";
 import PublicShell from "@/app/_components/PublicNav";
+import FeaturedPartners from "@/app/_components/FeaturedPartners";
 
 type LandingDonation = {
   id: string;
@@ -178,6 +179,8 @@ export default async function Home() {
             </div>
           </div>
         </section>
+
+        <FeaturedPartners />
 
         <section className="space-y-4">
           <div className="flex items-center justify-between">

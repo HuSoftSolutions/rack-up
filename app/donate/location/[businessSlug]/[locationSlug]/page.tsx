@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 import PublicShell from "@/app/_components/PublicNav";
+import QrAccessRequired from "@/app/donate/_components/QrAccessRequired";
 import { Badge } from "@/ui-kit/badge";
 import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
 import { Text } from "@/ui-kit/text";
 import { adminFirestore } from "@/lib/firebase/admin";
+import { createCauseQrToken, validateLocationQrToken } from "@/lib/server/qr-access";
 import type { CauseDoc, LocationDoc } from "@/lib/types/business";
 
 type CauseOption = CauseDoc & { id: string; linkId: string };
@@ -81,10 +83,17 @@ function pointsSummary(cause: CauseOption) {
 
 export default async function DonateLocationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ businessSlug: string; locationSlug: string }>;
+  searchParams?: { qr?: string | string[] };
 }) {
   const { businessSlug, locationSlug } = await params;
+  const qrParam = Array.isArray(searchParams?.qr) ? searchParams?.qr[0] : searchParams?.qr ?? null;
+  const hasAccess = validateLocationQrToken(qrParam, { businessSlug, locationSlug });
+  if (!hasAccess) {
+    return <QrAccessRequired />;
+  }
   const data = await fetchLocationDonations(businessSlug, locationSlug);
   if (!data) notFound();
 
@@ -123,7 +132,13 @@ export default async function DonateLocationPage({
                   <Text className="text-xs text-zinc-400">{pointsSummary(cause)}</Text>
                 </div>
                 <Button
-                  href={`/donate/${data.business.slug}/${cause.linkId}/${data.location.id}`}
+                  href={`/donate/${businessSlug}/${cause.linkId}/${locationSlug}?qr=${encodeURIComponent(
+                    createCauseQrToken({
+                      businessSlug,
+                      locationSlug,
+                      causeSlug: cause.linkId,
+                    }),
+                  )}`}
                   color="emerald"
                 >
                   Donate to this cause

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { fetchDonationConfig } from "@/lib/server/firestore";
+import { createCauseQrToken } from "@/lib/server/qr-access";
 import PrintableQr from "./printable-client";
 
 type Props = {
@@ -44,6 +45,7 @@ export default async function QRPrintablePage({ params }: Props) {
         business: serialize(config.business),
         cause: serialize(config.cause),
         location: serialize(config.location),
+        qrToken: createCauseQrToken({ businessSlug, causeSlug, locationSlug }),
       }}
     />
   );

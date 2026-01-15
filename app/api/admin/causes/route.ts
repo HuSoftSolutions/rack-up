@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminFirestore, firebaseAdminApp } from "@/lib/firebase/admin";
 import { getStorage } from "firebase-admin/storage";
 import { AuthError, requireAdmin } from "@/lib/server/auth";
+import { createCauseQrToken } from "@/lib/server/qr-access";
 import type { CauseDoc } from "@/lib/types/business";
 import { slugify } from "@/lib/utils/slugify";
 import { Timestamp } from "firebase-admin/firestore";
@@ -79,13 +80,24 @@ export async function GET(request: Request) {
         const data = doc.data() as CauseDoc;
         const links = linksSnap.docs.filter((l) => l.id === doc.id);
         const businessLinks = links.map((l) => {
-          const b = businesses.get(l.ref.parent.parent?.id ?? "");
+          const businessId = l.ref.parent.parent?.id ?? "";
+          const b = businesses.get(businessId);
+          const businessSlug = b?.slug ?? businessId;
           const linkData = l.data() as { locationIds?: string[] };
           return {
             businessId: b?.id ?? "",
-            businessName: b?.name ?? (l.ref.parent.parent?.id ?? ""),
-            businessSlug: b?.slug ?? (l.ref.parent.parent?.id ?? ""),
-            locations: (linkData.locationIds ?? []).map((locId) => ({ id: locId, slug: locId, name: locId })),
+            businessName: b?.name ?? businessId,
+            businessSlug,
+            locations: (linkData.locationIds ?? []).map((locId) => ({
+              id: locId,
+              slug: locId,
+              name: locId,
+              qrToken: createCauseQrToken({
+                businessSlug,
+                causeSlug: doc.id,
+                locationSlug: locId,
+              }),
+            })),
           };
         });
 

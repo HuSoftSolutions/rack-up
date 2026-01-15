@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
+import { createCauseQrToken, createLocationQrToken } from "@/lib/server/qr-access";
 import type { CauseDoc } from "@/lib/types/business";
 
 export const runtime = "nodejs";
@@ -42,13 +43,19 @@ export async function GET(
       adminFirestore.collection("causes").get(),
     ]);
 
-    const locations = locationsSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...(doc.data() as Record<string, unknown>),
-    }));
-
     const business = businessSnap.data() as { slug?: string; name?: string };
     const businessSlug = business.slug ?? businessId;
+
+    const locations = locationsSnap.docs.map((doc) => {
+      const locationSlug = doc.id;
+      return {
+        id: doc.id,
+        ...(doc.data() as Record<string, unknown>),
+        donationUrl: `/donate/location/${businessSlug}/${locationSlug}?qr=${encodeURIComponent(
+          createLocationQrToken({ businessSlug, locationSlug }),
+        )}`,
+      };
+    });
 
     const globalMap = new Map(
       globalCausesSnap.docs.map((d) => [d.id, { id: d.id, ...(d.data() as CauseDoc) }]),
@@ -73,7 +80,13 @@ export async function GET(
           urls: allowedLocations.map((loc) => ({
             locationId: loc.id,
             locationName: (loc as { name?: string }).name ?? loc.id,
-            url: `/donate/${businessSlug}/${linkDoc.id}/${loc.id}`,
+            url: `/donate/${businessSlug}/${linkDoc.id}/${loc.id}?qr=${encodeURIComponent(
+              createCauseQrToken({
+                businessSlug,
+                causeSlug: linkDoc.id,
+                locationSlug: loc.id,
+              }),
+            )}`,
           })),
         };
       })

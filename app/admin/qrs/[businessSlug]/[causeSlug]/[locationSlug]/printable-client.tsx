@@ -10,6 +10,7 @@ type Config = {
   business: BusinessDoc & { id: string };
   cause: CauseDoc & { id: string };
   location: LocationDoc & { id: string };
+  qrToken: string;
 };
 
 export default function PrintableQr({ config }: { config: Config }) {
@@ -18,13 +19,15 @@ export default function PrintableQr({ config }: { config: Config }) {
 
   useEffect(() => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${origin}/donate/${config.business.slug}/${config.cause.slug}/${config.location.slug}`;
+    const url = `${origin}/donate/${config.business.slug}/${config.cause.slug}/${config.location.slug}?qr=${encodeURIComponent(
+      config.qrToken,
+    )}`;
     async function generate() {
       const data = await QRCode.toDataURL(url, { margin: 1, width: 280 });
       setQrDataUrl(data);
     }
     void generate();
-  }, [config.business.slug, config.cause.slug, config.location.slug]);
+  }, [config.business.slug, config.cause.slug, config.location.slug, config.qrToken]);
 
   const pointsText =
     config.cause.mode === "predefined"

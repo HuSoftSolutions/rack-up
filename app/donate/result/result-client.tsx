@@ -112,10 +112,7 @@ export default function DonateResultClient() {
 
   const shareUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    if (status?.businessId && status?.causeId && status?.locationSlug) {
-      return `${window.location.origin}/donate/${status.businessId}/${status.causeId}/${status.locationSlug}`;
-    }
-    return `${window.location.origin}/donate`;
+    return `${window.location.origin}/donate/share`;
   }, [status?.businessId, status?.causeId, status?.locationSlug]);
 
   const facebookUrl = shareUrl

@@ -12,7 +12,7 @@ type CauseRow = (CauseDoc & { id: string }) & {
     businessId: string;
     businessName: string;
     businessSlug: string;
-    locations: { id: string; slug: string; name?: string }[];
+    locations: { id: string; slug: string; name?: string; qrToken?: string }[];
   }[];
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -68,11 +68,13 @@ export default function AdminCauseDetailPage() {
       const combos: QRItem[] = [];
       cause.businessLinks?.forEach((link) => {
         link.locations.forEach((loc) => {
+          const baseUrl = `/donate/${link.businessSlug}/${cause.id}/${loc.slug}`;
+          const url = loc.qrToken ? `${baseUrl}?qr=${encodeURIComponent(loc.qrToken)}` : baseUrl;
           combos.push({
             id: `${link.businessId}-${cause.id}-${loc.id}`,
             businessName: link.businessName,
             locationName: loc.name ?? loc.id,
-            url: `/donate/${link.businessSlug}/${cause.id}/${loc.slug}`,
+            url,
           });
         });
       });

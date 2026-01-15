@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
-import { fetchDonationConfig } from "@/lib/server/firestore";
 import DonateClient from "../../../start-donation";
+import QrAccessRequired from "@/app/donate/_components/QrAccessRequired";
+import { fetchDonationConfig } from "@/lib/server/firestore";
+import { validateCauseQrToken } from "@/lib/server/qr-access";
 
 type Props = {
   params: Promise<{ businessSlug: string; causeSlug: string; locationSlug: string }>;
+  searchParams?: { qr?: string | string[] };
 };
 
 type TimestampLike = {
@@ -38,8 +41,13 @@ function serializeDoc<T extends Record<string, unknown>>(doc: T) {
   };
 }
 
-export default async function DonationPage({ params }: Props) {
+export default async function DonationPage({ params, searchParams }: Props) {
   const { businessSlug, causeSlug, locationSlug } = await params;
+  const qrParam = Array.isArray(searchParams?.qr) ? searchParams?.qr[0] : searchParams?.qr ?? null;
+  const hasAccess = validateCauseQrToken(qrParam, { businessSlug, causeSlug, locationSlug });
+  if (!hasAccess) {
+    return <QrAccessRequired />;
+  }
   const config = await fetchDonationConfig({ businessSlug, causeSlug, locationSlug });
   if (!config) notFound();
 

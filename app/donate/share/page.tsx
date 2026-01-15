@@ -89,7 +89,7 @@ export default async function DonateSharePage({
 
       <div className="flex flex-wrap gap-3">
         <Button href="/donate" color="emerald">
-          Donate again
+          How to donate in person
         </Button>
         <Button href="/rewards" outline>
           See rewards

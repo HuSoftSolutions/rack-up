@@ -23,6 +23,7 @@ type LocationRow = {
   name?: string;
   slug?: string;
   address?: string;
+  donationUrl?: string;
 };
 
 type BusinessRow = {
@@ -124,7 +125,8 @@ export default function LocationPrintPage({
   const publicUrl = useMemo(() => {
     if (!business || !location) return null;
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return `${origin}/donate/location/${business.slug}/${location.id}`;
+    const path = location.donationUrl ?? `/donate/location/${business.slug}/${location.id}`;
+    return `${origin}${path}`;
   }, [business, location]);
 
   useEffect(() => {
