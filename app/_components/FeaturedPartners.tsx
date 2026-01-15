@@ -9,18 +9,16 @@ const partners = [
 
 export default function FeaturedPartners() {
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-black/30">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-2xl font-semibold tracking-tight text-white">Featured partners</div>
-        <div className="text-xs uppercase tracking-wide text-emerald-200">
-          In-store experiences
-        </div>
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold tracking-tight text-white">Featured partners</h2>
+        <span className="text-sm text-emerald-300">In-store experiences</span>
       </div>
-      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {partners.map((partner) => (
           <div
             key={partner.name}
-            className="flex items-center justify-center rounded-2xl border border-white/10 bg-black/30 px-6 py-4"
+            className="group flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:-translate-y-1 hover:border-emerald-300/60 hover:shadow-2xl"
           >
             <Image
               src={partner.logo}
