@@ -153,7 +153,7 @@ export default function BusinessLayout({
   const pathname = usePathname();
   const [resolvedParams, setResolvedParams] = useState<{ businessId: string } | null>(null);
   const { membership, loading } = useBusinessAccess();
-  const { isAdmin } = useAdminStatus();
+  const { isAdmin, loading: adminLoading } = useAdminStatus();
 
   useEffect(() => {
     params.then((p) => setResolvedParams(p));
@@ -161,7 +161,7 @@ export default function BusinessLayout({
 
   const businessId = resolvedParams?.businessId;
 
-  if (loading || !businessId) {
+  if (loading || adminLoading || !businessId) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6">
         <div className="text-sm text-zinc-200">Loading…</div>
@@ -169,7 +169,10 @@ export default function BusinessLayout({
     );
   }
 
-  if (!user || !membership || membership.businessId !== businessId) {
+  const canAccess = !!user && (isAdmin || (membership && membership.businessId === businessId));
+  const roleLabel = membership?.role ?? (isAdmin ? "admin" : "staff");
+
+  if (!canAccess) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6">
         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-200 shadow-sm">
@@ -205,7 +208,7 @@ export default function BusinessLayout({
       navbar={
         <BusinessNavbar
           businessId={businessId}
-          membershipRole={membership.role}
+          membershipRole={roleLabel}
           userEmail={user.email ?? ""}
           onSignOut={() => {
             void signOut(firebaseAuth);
@@ -216,7 +219,7 @@ export default function BusinessLayout({
       sidebar={
         <BusinessSidebar
           businessId={businessId}
-          role={membership.role}
+          role={roleLabel}
           pathname={pathname}
           onSignOut={() => {
             void signOut(firebaseAuth);

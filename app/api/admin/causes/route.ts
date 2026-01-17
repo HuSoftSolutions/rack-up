@@ -169,10 +169,14 @@ export async function POST(request: Request) {
       slug,
       mode,
       businessId: "",
-      pointsPerDollar: mode === "custom" ? Number(pointsPerDollar || 0) : undefined,
-      minAmountCents: mode === "custom" ? Number(minAmountCents) || undefined : undefined,
-      maxAmountCents: mode === "custom" ? Number(maxAmountCents) || undefined : undefined,
-      predefinedOptions: mode === "predefined" ? predefinedOptions ?? [] : undefined,
+      ...(mode === "custom"
+        ? {
+            pointsPerDollar: Number(pointsPerDollar || 0),
+            minAmountCents: Number(minAmountCents) || undefined,
+            maxAmountCents: Number(maxAmountCents) || undefined,
+          }
+        : {}),
+      ...(mode === "predefined" ? { predefinedOptions: predefinedOptions ?? [] } : {}),
       locationIds: [],
       active: true,
       imageUrl,

@@ -30,6 +30,7 @@ type BusinessRow = {
   id: string;
   name: string;
   slug: string;
+  logoUrl?: string;
 };
 
 type LocationCause = {
@@ -203,7 +204,7 @@ export default function LocationPrintPage({
 
         <div className="overflow-hidden rounded-3xl border border-black/10 shadow-sm print:border-none print:shadow-none">
           <div className="grid gap-0 md:grid-cols-2">
-            <div className="flex flex-col gap-3 bg-white p-6">
+            <div className="flex flex-col gap-4 bg-white p-6">
               <div className="text-xs uppercase tracking-wide text-zinc-500">
                 {toTitle(business.name)} · {toTitle(location.name)}
               </div>
@@ -242,6 +243,21 @@ export default function LocationPrintPage({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        <div className="w-full rounded-3xl bg-zinc-700 px-8 py-4">
+          <div className="flex items-center justify-center gap-8">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/RackUp-01.svg" alt="Rack Up" className="h-14 w-auto" />
+            {business.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={business.logoUrl}
+                alt={`${business.name} logo`}
+                className="h-16 w-auto max-w-[220px] object-contain"
+              />
+            ) : null}
           </div>
         </div>
 

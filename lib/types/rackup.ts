@@ -33,6 +33,7 @@ export type Business = {
   name: string;
   active: boolean;
   logoPath?: string; // Firebase Storage path
+  logoUrl?: string;
   locations: LocationInfo[];
   createdAt: FirestoreTimestamp;
   updatedAt?: FirestoreTimestamp;

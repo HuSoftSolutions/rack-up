@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { collection, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
-import { firestore } from "@/lib/firebase/client";
+import { collection, doc, getDocs, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
+import { firebaseStorage, firestore } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { slugify } from "@/lib/utils/slugify";
 import type { BusinessDoc, LocationDoc } from "@/lib/types/business";
@@ -93,6 +94,10 @@ export default function AdminBusinessesPage() {
   const [staffMembers, setStaffMembers] = useState<
     { uid: string; email: string | null; role: string }[]
   >([]);
+  const [logoBusinessId, setLogoBusinessId] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoMessage, setLogoMessage] = useState<string | null>(null);
 
   // business form
   const [bizName, setBizName] = useState("");
@@ -169,6 +174,7 @@ export default function AdminBusinessesPage() {
       }
       setBusinesses(next);
       setCauseBusinessId((prev) => prev || next[0]?.id || "");
+      setLogoBusinessId((prev) => prev || next[0]?.id || "");
       await Promise.all(next.map((biz) => fetchCauseLinks(biz.id)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load businesses.");
@@ -238,6 +244,41 @@ export default function AdminBusinessesPage() {
       setError(err instanceof Error ? err.message : "Failed to create location.");
     } finally {
       setLocSubmitting(false);
+    }
+  }
+
+  async function submitLogo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!logoBusinessId) {
+      setLogoMessage("Select a business first.");
+      return;
+    }
+    if (!logoFile) {
+      setLogoMessage("Choose an image to upload.");
+      return;
+    }
+    setLogoUploading(true);
+    setLogoMessage(null);
+    try {
+      const ext = logoFile.name.split(".").pop() || "png";
+      const path = `business-logos/${logoBusinessId}/${Date.now()}.${ext}`;
+      const logoRef = storageRef(firebaseStorage, path);
+      await uploadBytes(logoRef, logoFile, {
+        contentType: logoFile.type || "image/png",
+      });
+      const logoUrl = await getDownloadURL(logoRef);
+      await updateDoc(doc(firestore, "businesses", logoBusinessId), {
+        logoPath: path,
+        logoUrl,
+        updatedAt: serverTimestamp(),
+      } satisfies Partial<BusinessDoc>);
+      setLogoFile(null);
+      setLogoMessage("Logo uploaded.");
+      void load();
+    } catch (err) {
+      setLogoMessage(err instanceof Error ? err.message : "Failed to upload logo.");
+    } finally {
+      setLogoUploading(false);
     }
   }
 
@@ -640,6 +681,87 @@ export default function AdminBusinessesPage() {
         </div>
 
         <div className="space-y-3">
+          <form
+            onSubmit={submitLogo}
+            className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-xl shadow-black/20 backdrop-blur"
+          >
+            <div className="text-sm font-semibold text-white">Business logo</div>
+            <Select
+              label="Business"
+              value={logoBusinessId}
+              onChange={(v) => setLogoBusinessId(v)}
+              options={businessOptions}
+            />
+            <label className="block text-sm text-zinc-200">
+              <div className="mb-1 font-semibold text-white">Logo image</div>
+              <input
+                type="file"
+                accept="image/*"
+                className="block w-full text-xs text-zinc-200 file:mr-3 file:rounded-full file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white"
+                onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            {logoBusinessId ? (
+              <div className="text-xs text-zinc-400">
+                {businesses.find((b) => b.id === logoBusinessId)?.data.logoUrl
+                  ? "Logo on file."
+                  : "No logo uploaded yet."}
+              </div>
+            ) : null}
+            {logoMessage ? <div className="text-xs text-zinc-300">{logoMessage}</div> : null}
+            <button
+              type="submit"
+              className="inline-flex h-10 items-center justify-center rounded-full bg-emerald-400 px-5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:opacity-60"
+              disabled={logoUploading}
+            >
+              {logoUploading ? "Uploading…" : "Upload logo"}
+            </button>
+          </form>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-xl shadow-black/20 backdrop-blur">
+            <div className="text-sm font-semibold text-white">Print location QR sheets</div>
+            {loading ? (
+              <div className="mt-2 text-zinc-300">Loading…</div>
+            ) : businesses.length === 0 ? (
+              <div className="mt-2 text-zinc-300">No businesses yet.</div>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {businesses.map((biz) => (
+                  <div key={biz.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-xs uppercase tracking-wide text-zinc-400">
+                      {biz.data.name ?? biz.id}
+                    </div>
+                    {biz.locations.length === 0 ? (
+                      <div className="mt-2 text-xs text-zinc-300">No locations yet.</div>
+                    ) : (
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {biz.locations.map((loc) => (
+                          <div
+                            key={loc.id}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+                          >
+                            <div>
+                              <div className="text-sm font-semibold text-white">
+                                {loc.name ?? loc.id}
+                              </div>
+                              <div className="text-xs text-zinc-400">{loc.id}</div>
+                            </div>
+                            <Link
+                              className="text-xs font-semibold text-emerald-300 underline hover:text-emerald-200"
+                              href={`/biz/${biz.id}/locations/${loc.id}/print`}
+                            >
+                              Print sheet
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-xl shadow-black/20 backdrop-blur">
             <div className="text-sm font-semibold text-white">Donation URLs (per location & cause)</div>
             {loading ? (

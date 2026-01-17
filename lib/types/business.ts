@@ -3,6 +3,7 @@ export type BusinessDoc = {
   description?: string;
   slug: string;
   logoPath?: string;
+  logoUrl?: string;
   active: boolean;
   createdAt: FirebaseTimestamp;
   updatedAt?: FirebaseTimestamp;

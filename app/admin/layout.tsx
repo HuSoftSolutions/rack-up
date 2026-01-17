@@ -31,7 +31,6 @@ const navItems: NavItem[] = [
   { href: "/admin/causes", label: "Charities" },
   { href: "/admin/businesses", label: "Businesses" },
   { href: "/admin/donations", label: "Donations" },
-  { href: "/admin/qrs", label: "QRs" },
 ];
 
 function AdminNavbar({
@@ -153,6 +152,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <SidebarLayout
       className="bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] text-white"
+      mainClassName="pt-0 pb-0 lg:pt-0 lg:pr-0 lg:pl-64"
+      frameClassName="p-0 lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none lg:ring-0 dark:lg:bg-transparent"
       navbar={
         <AdminNavbar
           userEmail={user.email ?? ""}
@@ -173,9 +174,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         />
       }
     >
-      <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl shadow-black/30">
-        {children}
-      </div>
+      <div className="space-y-4">{children}</div>
     </SidebarLayout>
   );
 }

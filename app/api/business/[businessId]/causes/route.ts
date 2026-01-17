@@ -43,7 +43,7 @@ export async function GET(
       adminFirestore.collection("causes").get(),
     ]);
 
-    const business = businessSnap.data() as { slug?: string; name?: string };
+    const business = businessSnap.data() as { slug?: string; name?: string; logoUrl?: string };
     const businessSlug = business.slug ?? businessId;
 
     const locations = locationsSnap.docs.map((doc) => {
@@ -96,7 +96,12 @@ export async function GET(
     const causes = linkedCauses;
 
     return NextResponse.json({
-      business: { id: businessId, name: business.name ?? businessId, slug: businessSlug },
+      business: {
+        id: businessId,
+        name: business.name ?? businessId,
+        slug: businessSlug,
+        logoUrl: business.logoUrl ?? undefined,
+      },
       locations,
       causes,
     });

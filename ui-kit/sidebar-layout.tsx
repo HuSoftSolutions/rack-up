@@ -51,11 +51,15 @@ export function SidebarLayout({
   children,
   className,
   contentClassName,
+  mainClassName,
+  frameClassName,
 }: React.PropsWithChildren<{
   navbar: React.ReactNode;
   sidebar: React.ReactNode;
   className?: string;
   contentClassName?: string;
+  mainClassName?: string;
+  frameClassName?: string;
 }>) {
   const [showSidebar, setShowSidebar] = useState(false)
 
@@ -85,8 +89,13 @@ export function SidebarLayout({
       </header>
 
       {/* Content */}
-      <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-64">
-        <div className="grow p-6 lg:rounded-lg lg:bg-white lg:p-10 lg:shadow-xs lg:ring-1 lg:ring-zinc-950/5 dark:lg:bg-zinc-900 dark:lg:ring-white/10">
+      <main className={clsx("flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-64", mainClassName)}>
+        <div
+          className={clsx(
+            "grow p-6 lg:rounded-lg lg:bg-white lg:p-10 lg:shadow-xs lg:ring-1 lg:ring-zinc-950/5 dark:lg:bg-zinc-900 dark:lg:ring-white/10",
+            frameClassName
+          )}
+        >
           <div className={clsx("mx-auto max-w-6xl", contentClassName)}>{children}</div>
         </div>
       </main>

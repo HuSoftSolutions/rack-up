@@ -259,7 +259,7 @@ export default function BusinessCausesPage({
                         className="rounded-lg border border-white/10 bg-white/5 px-3 py-2"
                       >
                         <div className="font-medium text-white">{u.locationName}</div>
-                        <div className="text-zinc-300">{u.url}</div>
+                        <div className="break-words text-zinc-300">{u.url}</div>
                       </div>
                     ))}
                   </div>
