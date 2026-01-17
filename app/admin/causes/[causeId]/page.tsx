@@ -205,7 +205,7 @@ export default function AdminCauseDetailPage() {
                     <div className="text-xs uppercase tracking-wide text-zinc-400">
                       {item.businessName} · {item.locationName}
                     </div>
-                    <div className="text-xs text-zinc-300">{item.url}</div>
+                    <div className="break-words text-xs text-zinc-300">{item.url}</div>
                     <div className="flex flex-col items-center gap-2">
                       {item.imageDataUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
