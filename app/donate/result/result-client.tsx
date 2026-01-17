@@ -113,7 +113,7 @@ export default function DonateResultClient() {
   const shareUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
     return `${window.location.origin}/donate/share`;
-  }, [status?.businessId, status?.causeId, status?.locationSlug]);
+  }, []);
 
   const facebookUrl = shareUrl
     ? `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
