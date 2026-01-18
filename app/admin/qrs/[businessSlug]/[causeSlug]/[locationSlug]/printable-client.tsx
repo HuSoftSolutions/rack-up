@@ -18,7 +18,10 @@ export default function PrintableQr({ config }: { config: Config }) {
   const printableRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const origin =
+      typeof window !== "undefined"
+        ? (process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin).replace(/\/$/, "")
+        : "";
     const url = `${origin}/donate/${config.business.slug}/${config.cause.slug}/${config.location.slug}?qr=${encodeURIComponent(
       config.qrToken,
     )}`;

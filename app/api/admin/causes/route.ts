@@ -130,6 +130,7 @@ export async function GET(request: Request) {
     );
     return NextResponse.json({ causes });
   } catch (err) {
+    console.error(err);
     if (err instanceof AuthError) {
       const status = err.message.includes("Admin") ? 403 : 401;
       return NextResponse.json({ error: err.message }, { status });

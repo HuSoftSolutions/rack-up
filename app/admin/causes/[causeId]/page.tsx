@@ -85,9 +85,10 @@ export default function AdminCauseDetailPage() {
       }
 
       const withQr: QRItem[] = [];
+      const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin).replace(/\/$/, "");
       for (const combo of combos) {
         try {
-          const dataUrl = await QRCode.toDataURL(window.location.origin + combo.url, {
+          const dataUrl = await QRCode.toDataURL(origin + combo.url, {
             margin: 1,
             width: 240,
           });

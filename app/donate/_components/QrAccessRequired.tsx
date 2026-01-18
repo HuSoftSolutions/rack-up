@@ -21,9 +21,6 @@ export default function QrAccessRequired() {
         Need help? Ask a staff member for the donation QR code.
       </div>
       <div className="flex flex-wrap gap-3">
-        <Button href="/donate" color="emerald">
-          How to donate
-        </Button>
         <Button href="/" outline>
           Back to home
         </Button>

@@ -39,7 +39,6 @@ type PublicShellProps = {
 const mainNav = [
   { label: "Home", href: "/" },
   { label: "Rewards", href: "/rewards" },
-  { label: "Donate", href: "/donate" },
 ];
 
 function PublicNavbar() {

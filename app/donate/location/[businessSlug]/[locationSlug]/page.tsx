@@ -6,7 +6,7 @@ import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
 import { Text } from "@/ui-kit/text";
 import { adminFirestore } from "@/lib/firebase/admin";
-import { createCauseQrToken, validateLocationQrToken } from "@/lib/server/qr-access";
+import { createCauseQrToken } from "@/lib/server/qr-access";
 import type { CauseDoc, LocationDoc } from "@/lib/types/business";
 
 type CauseOption = CauseDoc & { id: string; linkId: string };
@@ -90,8 +90,7 @@ export default async function DonateLocationPage({
 }) {
   const { businessSlug, locationSlug } = await params;
   const qrParam = Array.isArray(searchParams?.qr) ? searchParams?.qr[0] : searchParams?.qr ?? null;
-  const hasAccess = validateLocationQrToken(qrParam, { businessSlug, locationSlug });
-  if (!hasAccess) {
+  if (!qrParam) {
     return <QrAccessRequired />;
   }
   const data = await fetchLocationDonations(businessSlug, locationSlug);

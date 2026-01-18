@@ -125,7 +125,10 @@ export default function LocationPrintPage({
 
   const publicUrl = useMemo(() => {
     if (!business || !location) return null;
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const origin =
+      typeof window !== "undefined"
+        ? (process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin).replace(/\/$/, "")
+        : "";
     const path = location.donationUrl ?? `/donate/location/${business.slug}/${location.id}`;
     return `${origin}${path}`;
   }, [business, location]);
