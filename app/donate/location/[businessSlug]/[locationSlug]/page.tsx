@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import PublicShell from "@/app/_components/PublicNav";
-import QrAccessRequired from "@/app/donate/_components/QrAccessRequired";
 import { Badge } from "@/ui-kit/badge";
 import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
@@ -83,16 +82,10 @@ function pointsSummary(cause: CauseOption) {
 
 export default async function DonateLocationPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ businessSlug: string; locationSlug: string }>;
-  searchParams?: { qr?: string | string[] };
 }) {
   const { businessSlug, locationSlug } = await params;
-  const qrParam = Array.isArray(searchParams?.qr) ? searchParams?.qr[0] : searchParams?.qr ?? null;
-  if (!qrParam) {
-    return <QrAccessRequired />;
-  }
   const data = await fetchLocationDonations(businessSlug, locationSlug);
   if (!data) notFound();
 
