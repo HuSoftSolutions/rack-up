@@ -226,8 +226,9 @@ export default async function Home() {
               </div>
             ) : (
               causes.map((cause) => (
-                <div
+                <Link
                   key={cause.id}
+                  href={`/causes/${cause.id}`}
                   className="group h-full rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:-translate-y-1 hover:border-emerald-300/60 hover:shadow-2xl"
                 >
                   <div className="text-xs uppercase tracking-wide text-zinc-400">
@@ -251,7 +252,8 @@ export default async function Home() {
                       Min {formatMoney(cause.minAmountCents)} · Max {formatMoney(cause.maxAmountCents)}
                     </span>
                   </div>
-                </div>
+                  <div className="mt-3 text-xs font-semibold text-emerald-200">View details →</div>
+                </Link>
               ))
             )}
           </div>
