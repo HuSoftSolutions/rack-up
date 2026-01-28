@@ -4,8 +4,11 @@ import { adminFirestore } from "@/lib/firebase/admin";
 import { ClientOnly } from "@/app/_components/ClientOnly";
 import PublicShell from "@/app/_components/PublicNav";
 import FeaturedPartners from "@/app/_components/FeaturedPartners";
+import { unstable_noStore as noStore } from "next/cache";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const revalidate = 0;
 
 type LandingDonation = {
   id: string;
@@ -30,7 +33,9 @@ async function fetchLandingData(): Promise<{
   donations: LandingDonation[];
   causes: LandingCause[];
   totalDonationCents: number;
+  error?: string | null;
 }> {
+  noStore();
   try {
     const donationSnap = await adminFirestore
       .collection("donations")
@@ -77,9 +82,15 @@ async function fetchLandingData(): Promise<{
       .filter((cause) => cause.active)
       .slice(0, 8);
 
-    return { donations, causes, totalDonationCents };
-  } catch {
-    return { donations: [], causes: [], totalDonationCents: 0 };
+    return { donations, causes, totalDonationCents, error: null };
+  } catch (err) {
+    console.error("Landing data fetch failed:", err);
+    return {
+      donations: [],
+      causes: [],
+      totalDonationCents: 0,
+      error: err instanceof Error ? err.message : "Failed to load landing data.",
+    };
   }
 }
 
@@ -100,7 +111,7 @@ function formatDate(value: string | null) {
 }
 
 export default async function Home() {
-  const { donations, causes, totalDonationCents } = await fetchLandingData();
+  const { donations, causes, totalDonationCents, error } = await fetchLandingData();
 
   return (
     <PublicShell contentClassName="flex flex-col gap-12">
@@ -203,6 +214,11 @@ export default async function Home() {
               See rewards
             </Link>
           </div>
+          {error ? (
+            <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+              Unable to load causes: {error}
+            </div>
+          ) : null}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {causes.length === 0 ? (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
