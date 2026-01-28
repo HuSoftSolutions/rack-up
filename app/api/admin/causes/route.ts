@@ -10,6 +10,10 @@ import { Timestamp } from "firebase-admin/firestore";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function omitUndefined<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T;
+}
+
 function toIso(value: unknown): string | null {
   if (!value) return null;
   if (value instanceof Date) return value.toISOString();
@@ -164,7 +168,7 @@ export async function POST(request: Request) {
       imageUrl = await uploadImage(imageFile);
     }
 
-    const payload: CauseDoc = {
+    const payload = omitUndefined({
       title,
       description,
       slug,
@@ -183,7 +187,7 @@ export async function POST(request: Request) {
       imageUrl,
       createdAt: now,
       updatedAt: now,
-    };
+    }) as CauseDoc;
 
     await ref.set(payload, { merge: true });
     return NextResponse.json({ ok: true, id: ref.id, slug });
@@ -192,11 +196,8 @@ export async function POST(request: Request) {
       const status = err.message.includes("Admin") ? 403 : 401;
       return NextResponse.json({ error: err.message }, { status });
     }
+    const message = err instanceof Error ? err.message : "Failed to save cause.";
     console.error(err);
-    const message =
-      err instanceof Error && err.message.includes("Storage bucket not configured")
-        ? err.message
-        : "Failed to save cause.";
     const status = message.includes("Storage bucket") ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
@@ -241,7 +242,7 @@ export async function PATCH(request: Request) {
         ? Number(pointsPerDollar)
         : 0;
 
-    const payload: Partial<CauseDoc> = {
+    const payload = omitUndefined({
       title: title ?? snap.data()?.title,
       description,
       mode,
@@ -252,7 +253,7 @@ export async function PATCH(request: Request) {
       active,
       imageUrl,
       updatedAt: Timestamp.now(),
-    };
+    }) as Partial<CauseDoc>;
 
     await ref.set(payload, { merge: true });
     return NextResponse.json({ ok: true });
@@ -261,11 +262,8 @@ export async function PATCH(request: Request) {
       const status = err.message.includes("Admin") ? 403 : 401;
       return NextResponse.json({ error: err.message }, { status });
     }
+    const message = err instanceof Error ? err.message : "Failed to update cause.";
     console.error(err);
-    const message =
-      err instanceof Error && err.message.includes("Storage bucket not configured")
-        ? err.message
-        : "Failed to update cause.";
     const status = message.includes("Storage bucket") ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
@@ -298,7 +296,8 @@ export async function DELETE(request: Request) {
       const status = err.message.includes("Admin") ? 403 : 401;
       return NextResponse.json({ error: err.message }, { status });
     }
+    const message = err instanceof Error ? err.message : "Failed to delete cause.";
     console.error(err);
-    return NextResponse.json({ error: "Failed to delete cause." }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -57,19 +57,23 @@ async function fetchLandingData(): Promise<{
       0,
     );
 
-    const causeSnap = await adminFirestore.collectionGroup("causes").limit(8).get();
-    const causes = causeSnap.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        title: data.title ?? doc.id,
-        description: data.description ?? "",
-        businessId: data.businessId ?? doc.ref.parent.parent?.id,
-        pointsPerDollar: data.pointsPerDollar ?? null,
-        minAmountCents: data.minAmountCents ?? null,
-        maxAmountCents: data.maxAmountCents ?? null,
-      } satisfies LandingCause;
-    });
+    const causeSnap = await adminFirestore.collection("causes").orderBy("createdAt", "desc").limit(20).get();
+    const causes = causeSnap.docs
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.title ?? doc.id,
+          description: data.description ?? "",
+          businessId: data.businessId ?? doc.ref.parent.parent?.id,
+          pointsPerDollar: data.pointsPerDollar ?? null,
+          minAmountCents: data.minAmountCents ?? null,
+          maxAmountCents: data.maxAmountCents ?? null,
+          active: data.active ?? true,
+        } satisfies LandingCause & { active?: boolean };
+      })
+      .filter((cause) => cause.active)
+      .slice(0, 8);
 
     return { donations, causes, totalDonationCents };
   } catch {
