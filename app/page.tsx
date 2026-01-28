@@ -5,6 +5,8 @@ import { ClientOnly } from "@/app/_components/ClientOnly";
 import PublicShell from "@/app/_components/PublicNav";
 import FeaturedPartners from "@/app/_components/FeaturedPartners";
 
+export const dynamic = "force-dynamic";
+
 type LandingDonation = {
   id: string;
   amountCents: number | null;
