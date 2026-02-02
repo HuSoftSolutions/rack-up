@@ -3,7 +3,7 @@ import LandingAuthActions from "@/app/_components/LandingAuthActions";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { ClientOnly } from "@/app/_components/ClientOnly";
 import PublicShell from "@/app/_components/PublicNav";
-import FeaturedPartners from "@/app/_components/FeaturedPartners";
+import FeaturedPartners, { type PartnerLogo } from "@/app/_components/FeaturedPartners";
 import { unstable_noStore as noStore } from "next/cache";
 
 export const dynamic = "force-dynamic";
@@ -33,16 +33,35 @@ async function fetchLandingData(): Promise<{
   donations: LandingDonation[];
   causes: LandingCause[];
   totalDonationCents: number;
+  partners: PartnerLogo[];
   error?: string | null;
 }> {
   noStore();
   try {
-    const donationSnap = await adminFirestore
+    const donationSnapPromise = adminFirestore
       .collection("donations")
       .where("status", "==", "completed")
       .orderBy("createdAt", "desc")
       .limit(20)
       .get();
+
+    const causeSnapPromise = adminFirestore
+      .collection("causes")
+      .orderBy("createdAt", "desc")
+      .limit(20)
+      .get();
+
+    const businessesSnapPromise = adminFirestore
+      .collection("businesses")
+      .where("active", "==", true)
+      .get();
+
+    const [donationSnap, causeSnap, businessesSnap, locationsSnap] = await Promise.all([
+      donationSnapPromise,
+      causeSnapPromise,
+      businessesSnapPromise,
+      adminFirestore.collectionGroup("locations").get(),
+    ]);
 
     const donations = donationSnap.docs.map((doc) => {
       const data = doc.data();
@@ -64,7 +83,6 @@ async function fetchLandingData(): Promise<{
       0,
     );
 
-    const causeSnap = await adminFirestore.collection("causes").orderBy("createdAt", "desc").limit(20).get();
     const causes = causeSnap.docs
       .map((doc) => {
         const data = doc.data();
@@ -82,13 +100,47 @@ async function fetchLandingData(): Promise<{
       .filter((cause) => cause.active)
       .slice(0, 8);
 
-    return { donations, causes, totalDonationCents, error: null };
+    const businessMap = new Map(
+      businessesSnap.docs.map((doc) => {
+        const data = doc.data() as { name?: string; logoUrl?: string };
+        return [doc.id, { name: data.name ?? doc.id, logoUrl: data.logoUrl ?? null }];
+      }),
+    );
+
+    const partners: PartnerLogo[] = [];
+    const seenLogos = new Set<string>();
+
+    businessMap.forEach((biz, id) => {
+      if (!biz.logoUrl || seenLogos.has(biz.logoUrl)) return;
+      seenLogos.add(biz.logoUrl);
+      partners.push({ name: biz.name ?? id, logo: biz.logoUrl });
+    });
+
+    locationsSnap.docs.forEach((doc) => {
+      const data = doc.data() as { name?: string; logoUrl?: string; businessId?: string };
+      if (!data.logoUrl || seenLogos.has(data.logoUrl)) return;
+      seenLogos.add(data.logoUrl);
+      const businessId = data.businessId ?? doc.ref.parent.parent?.id;
+      const businessName = businessId ? businessMap.get(businessId)?.name : null;
+      const locationName = data.name ?? doc.id;
+      const displayName = businessName ? `${businessName} · ${locationName}` : locationName;
+      partners.push({ name: displayName, logo: data.logoUrl });
+    });
+
+    partners.sort((a, b) => {
+      const nameCompare = a.name.localeCompare(b.name);
+      if (nameCompare !== 0) return nameCompare;
+      return a.logo.localeCompare(b.logo);
+    });
+
+    return { donations, causes, totalDonationCents, partners, error: null };
   } catch (err) {
     console.error("Landing data fetch failed:", err);
     return {
       donations: [],
       causes: [],
       totalDonationCents: 0,
+      partners: [],
       error: err instanceof Error ? err.message : "Failed to load landing data.",
     };
   }
@@ -111,7 +163,7 @@ function formatDate(value: string | null) {
 }
 
 export default async function Home() {
-  const { donations, causes, totalDonationCents, error } = await fetchLandingData();
+  const { donations, causes, totalDonationCents, partners, error } = await fetchLandingData();
 
   return (
     <PublicShell contentClassName="flex flex-col gap-12">
@@ -200,7 +252,7 @@ export default async function Home() {
           </div>
         </section>
 
-        <FeaturedPartners />
+        <FeaturedPartners partners={partners} />
 
         <section className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

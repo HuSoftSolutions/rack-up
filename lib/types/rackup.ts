@@ -46,6 +46,7 @@ export type LocationInfo = {
   state?: string;
   zip?: string;
   notes?: string;
+  logoUrl?: string;
 };
 
 export type DealType = "percent_off" | "amount_off" | "bogo" | "free_item";

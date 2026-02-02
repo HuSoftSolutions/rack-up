@@ -18,34 +18,6 @@ type AdminBusiness = {
   locations: { id: string; name: string }[];
 };
 
-function StatCard({
-  label,
-  value,
-  hint,
-  loading,
-}: {
-  label: string;
-  value: React.ReactNode;
-  hint: string;
-  loading?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-2xl shadow-black/30 backdrop-blur">
-      <div className="text-xs font-semibold uppercase tracking-wide text-zinc-300">
-        {label}
-      </div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight text-white">
-        {loading ? (
-          <span className="inline-flex h-7 w-16 animate-pulse rounded-lg bg-white/10" />
-        ) : (
-          value
-        )}
-      </div>
-      <div className="mt-2 text-sm text-zinc-300">{hint}</div>
-    </div>
-  );
-}
-
 function formatNumber(value?: number) {
   return typeof value === "number" && Number.isFinite(value)
     ? value.toLocaleString("en-US")
@@ -201,37 +173,32 @@ export default function AdminOverviewPage() {
   }, [businesses, locationOptions, selectedBusinessId, selectedLocationId]);
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-8 text-white shadow-2xl">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.06),transparent_35%),radial-gradient(circle_at_85%_10%,rgba(52,211,153,0.1),transparent_35%)]" />
-      <div className="relative space-y-6">
-        <div className="space-y-3">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
-            Admin dashboard
-          </span>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-            <p className="mt-2 text-sm text-zinc-200">
-              Live admin metrics pulled from donation activity and reward balances. Scope: {scopeLabel}.
-            </p>
-          </div>
+    <div className="space-y-6 text-white">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Admin</p>
+        <h1 className="text-2xl font-bold tracking-tight text-white">Overview</h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          Scope: {scopeLabel}
+        </p>
+      </div>
+
+      {error ? (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+          {error}
         </div>
+      ) : null}
+      {entitiesError ? (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+          {entitiesError}
+        </div>
+      ) : null}
 
-        {error ? (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
-            {error}
-          </div>
-        ) : null}
-        {entitiesError ? (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
-            {entitiesError}
-          </div>
-        ) : null}
-
-        <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg shadow-black/30 backdrop-blur sm:grid-cols-2 lg:grid-cols-4">
-          <label className="text-sm text-zinc-200">
-            <div className="mb-1 font-semibold text-white">Business scope</div>
+      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="text-sm text-zinc-400">
+            <div className="mb-1 font-medium text-white">Business scope</div>
             <select
-              className="h-11 w-full rounded-xl border border-white/15 bg-black/20 px-3 text-white outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/40"
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400"
               value={selectedBusinessId}
               onChange={(e) => {
                 setSelectedBusinessId(e.target.value);
@@ -246,10 +213,10 @@ export default function AdminOverviewPage() {
               ))}
             </select>
           </label>
-          <label className="text-sm text-zinc-200">
-            <div className="mb-1 font-semibold text-white">Location scope</div>
+          <label className="text-sm text-zinc-400">
+            <div className="mb-1 font-medium text-white">Location scope</div>
             <select
-              className="h-11 w-full rounded-xl border border-white/15 bg-black/20 px-3 text-white outline-none disabled:opacity-50 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/40"
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none disabled:opacity-50 placeholder:text-zinc-500 focus:border-emerald-400"
               value={selectedLocationId}
               onChange={(e) => setSelectedLocationId(e.target.value)}
               disabled={!selectedBusinessId || locationOptions.length === 0}
@@ -262,26 +229,36 @@ export default function AdminOverviewPage() {
               ))}
             </select>
           </label>
-          <div className="flex items-center text-xs text-zinc-400 sm:col-span-2 lg:col-span-2">
+          <div className="flex items-center text-xs text-zinc-500 sm:col-span-2 lg:col-span-2">
             Filter to a business or specific location to see donation volume and points scoped to that entity.
           </div>
         </div>
+      </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {statCards.map((card) => (
-            <StatCard key={card.label} {...card} loading={loading} />
-          ))}
-        </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {statCards.map((card) => (
+          <div key={card.label} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">{card.label}</div>
+            <div className="mt-1 text-2xl font-bold text-white">
+              {loading ? (
+                <span className="inline-flex h-7 w-16 animate-pulse rounded-lg bg-white/10" />
+              ) : (
+                card.value
+              )}
+            </div>
+            <div className="mt-0.5 text-xs text-zinc-500">{card.hint}</div>
+          </div>
+        ))}
+      </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-2xl shadow-black/30 backdrop-blur">
-          <div className="text-sm font-semibold text-white">What&apos;s included</div>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-300">
-            <li>Users: total registered accounts</li>
-            <li>Points issued/redeemed: completed balance transactions</li>
-            <li>Donations: completed checkouts + recorded entries</li>
-            <li>Scope filters: narrow by business and location for targeted views</li>
-          </ul>
-        </div>
+      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+        <div className="text-sm font-semibold text-white">What&apos;s included</div>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
+          <li>Users: total registered accounts</li>
+          <li>Points issued/redeemed: completed balance transactions</li>
+          <li>Donations: completed checkouts + recorded entries</li>
+          <li>Scope filters: narrow by business and location for targeted views</li>
+        </ul>
       </div>
     </div>
   );

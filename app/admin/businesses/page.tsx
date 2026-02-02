@@ -24,109 +24,121 @@ type CauseLink = {
   selectedLocationIds?: string[];
 };
 
-function TextInput({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (next: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <label className="block text-sm text-zinc-200">
-      <div className="mb-1 font-semibold text-white">{label}</div>
-      <input
-        className="h-11 w-full rounded-xl border border-white/15 bg-white/5 px-3 text-white outline-none placeholder:text-zinc-500 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/40"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-      />
-    </label>
-  );
-}
+type SubAction =
+  | "addLocation"
+  | "causesFullView"
+  | "uploadLogo"
+  | "uploadLocationLogo"
+  | "manageStaff"
+  | "donationUrls"
+  | "qrLinks"
+  | null;
 
-function Select({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (next: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <label className="block text-sm text-zinc-200">
-      <div className="mb-1 font-semibold text-white">{label}</div>
-      <select
-        className="h-11 w-full rounded-xl border border-white/15 bg-white/5 px-3 text-white outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/40"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value="">Select…</option>
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
+const INPUT_CLS =
+  "h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400";
+const BTN_PRIMARY =
+  "inline-flex h-10 items-center justify-center rounded-lg bg-emerald-500 px-5 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-60";
 
 export default function AdminBusinessesPage() {
   const [businesses, setBusinesses] = useState<BusinessNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
-  const [expandedSection, setExpandedSection] = useState<"create" | "locations" | "causes">(
-    "create",
-  );
+
+  // Dashboard state
+  const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [activeSubAction, setActiveSubAction] = useState<SubAction>(null);
+
+  // Business create form
+  const [bizName, setBizName] = useState("");
+  const [bizDescription, setBizDescription] = useState("");
+  const [bizSlug, setBizSlug] = useState("");
+  const [bizSubmitting, setBizSubmitting] = useState(false);
+
+  // Location form
+  const [locName, setLocName] = useState("");
+  const [locSlug, setLocSlug] = useState("");
+  const [locSubmitting, setLocSubmitting] = useState(false);
+
+  // Cause assignment
+  const [causeAssignments, setCauseAssignments] = useState<Record<string, CauseLink[]>>({});
+  const [causeLoadingId, setCauseLoadingId] = useState<string | null>(null);
+  const [causeSavingId, setCauseSavingId] = useState<string | null>(null);
+  const [causeMessage, setCauseMessage] = useState<string | null>(null);
+
+  // Logo upload
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoMessage, setLogoMessage] = useState<string | null>(null);
+
+  // Location logo upload
+  const [locationLogoId, setLocationLogoId] = useState("");
+  const [locationLogoFile, setLocationLogoFile] = useState<File | null>(null);
+  const [locationLogoUploading, setLocationLogoUploading] = useState(false);
+  const [locationLogoMessage, setLocationLogoMessage] = useState<string | null>(null);
+
+  // Staff
   const [staffEmail, setStaffEmail] = useState("");
-  const [staffBusinessId, setStaffBusinessId] = useState("");
   const [staffRole, setStaffRole] = useState<"owner" | "staff">("staff");
   const [staffSubmitting, setStaffSubmitting] = useState(false);
   const [staffMessage, setStaffMessage] = useState<string | null>(null);
   const [staffMembers, setStaffMembers] = useState<
     { uid: string; email: string | null; role: string }[]
   >([]);
-  const [logoBusinessId, setLogoBusinessId] = useState("");
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoUploading, setLogoUploading] = useState(false);
-  const [logoMessage, setLogoMessage] = useState<string | null>(null);
+  const [staffCounts, setStaffCounts] = useState<Record<string, number>>({});
 
-  // business form
-  const [bizName, setBizName] = useState("");
-  const [bizDescription, setBizDescription] = useState("");
-  const [bizSlug, setBizSlug] = useState("");
-  const [bizSubmitting, setBizSubmitting] = useState(false);
+  /* ── Memos ── */
 
-  // location form
-  const [locBusinessId, setLocBusinessId] = useState("");
-  const [locName, setLocName] = useState("");
-  const [locSlug, setLocSlug] = useState("");
-  const [locSubmitting, setLocSubmitting] = useState(false);
-
-  // cause assignment
-  const [causeBusinessId, setCauseBusinessId] = useState("");
-  const [causeAssignments, setCauseAssignments] = useState<Record<string, CauseLink[]>>({});
-  const [causeLoadingId, setCauseLoadingId] = useState<string | null>(null);
-  const [causeSavingId, setCauseSavingId] = useState<string | null>(null);
-  const [causeMessage, setCauseMessage] = useState<string | null>(null);
-
-  const businessOptions = useMemo(
-    () => businesses.map((b) => ({ value: b.id, label: b.data.name })),
-    [businesses],
+  const filtered = useMemo(
+    () => businesses.filter((b) => b.data.name.toLowerCase().includes(search.toLowerCase())),
+    [businesses, search],
   );
 
   const currentBusiness = useMemo(
-    () => businesses.find((b) => b.id === causeBusinessId),
-    [businesses, causeBusinessId],
+    () => businesses.find((b) => b.id === expandedId),
+    [businesses, expandedId],
   );
+
+  const stats = useMemo(() => {
+    const locCount = businesses.reduce((s, b) => s + b.locations.length, 0);
+    const causeSet = new Set<string>();
+    for (const biz of businesses) {
+      for (const c of causeAssignments[biz.id] ?? []) {
+        if (c.linked) causeSet.add(c.id);
+      }
+    }
+    const staffTotal = Object.values(staffCounts).reduce((s, n) => s + n, 0);
+    return [
+      { label: "Businesses", value: String(businesses.length) },
+      { label: "Locations", value: String(locCount) },
+      { label: "Active Causes", value: String(causeSet.size) },
+      {
+        label: "Staff",
+        value: Object.keys(staffCounts).length ? String(staffTotal) : "\u2014",
+      },
+    ];
+  }, [businesses, causeAssignments, staffCounts]);
+
+  const donationCombos = useMemo(() => {
+    return businesses.flatMap((biz) => {
+      const links = causeAssignments[biz.id]?.filter((c) => c.linked) ?? [];
+      return links.flatMap((cause) => {
+        const allowed = cause.selectedLocationIds?.length
+          ? biz.locations.filter((loc) => cause.selectedLocationIds?.includes(loc.id))
+          : biz.locations;
+        return allowed.map((loc) => ({
+          business: biz,
+          cause,
+          location: loc,
+          url: `/donate/${biz.data.slug}/${cause.slug ?? cause.id}/${loc.slug}`,
+        }));
+      });
+    });
+  }, [businesses, causeAssignments]);
+
+  /* ── Core functions ── */
 
   const fetchCauseLinks = useCallback(
     async (businessId: string) => {
@@ -173,8 +185,6 @@ export default function AdminBusinessesPage() {
         });
       }
       setBusinesses(next);
-      setCauseBusinessId((prev) => prev || next[0]?.id || "");
-      setLogoBusinessId((prev) => prev || next[0]?.id || "");
       await Promise.all(next.map((biz) => fetchCauseLinks(biz.id)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load businesses.");
@@ -182,15 +192,6 @@ export default function AdminBusinessesPage() {
       setLoading(false);
     }
   }, [fetchCauseLinks, user]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    if (!causeBusinessId || causeAssignments[causeBusinessId]) return;
-    void fetchCauseLinks(causeBusinessId);
-  }, [causeAssignments, causeBusinessId, fetchCauseLinks]);
 
   async function submitBusiness(e: React.FormEvent) {
     e.preventDefault();
@@ -210,6 +211,7 @@ export default function AdminBusinessesPage() {
       setBizName("");
       setBizDescription("");
       setBizSlug("");
+      setShowNewForm(false);
       void load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create business.");
@@ -220,17 +222,17 @@ export default function AdminBusinessesPage() {
 
   async function submitLocation(e: React.FormEvent) {
     e.preventDefault();
-    if (!locBusinessId) {
-      setError("Select a business for the location.");
+    if (!expandedId) {
+      setError("Expand a business first.");
       return;
     }
     setLocSubmitting(true);
     setError(null);
     try {
       const slug = (locSlug || slugify(locName)).toLowerCase();
-      const ref = doc(firestore, "businesses", locBusinessId, "locations", slug);
+      const ref = doc(firestore, "businesses", expandedId, "locations", slug);
       await setDoc(ref, {
-        businessId: locBusinessId,
+        businessId: expandedId,
         name: locName,
         slug,
         active: true,
@@ -249,8 +251,8 @@ export default function AdminBusinessesPage() {
 
   async function submitLogo(e: React.FormEvent) {
     e.preventDefault();
-    if (!logoBusinessId) {
-      setLogoMessage("Select a business first.");
+    if (!expandedId) {
+      setLogoMessage("Expand a business first.");
       return;
     }
     if (!logoFile) {
@@ -261,13 +263,13 @@ export default function AdminBusinessesPage() {
     setLogoMessage(null);
     try {
       const ext = logoFile.name.split(".").pop() || "png";
-      const path = `business-logos/${logoBusinessId}/${Date.now()}.${ext}`;
+      const path = `business-logos/${expandedId}/${Date.now()}.${ext}`;
       const logoRef = storageRef(firebaseStorage, path);
       await uploadBytes(logoRef, logoFile, {
         contentType: logoFile.type || "image/png",
       });
       const logoUrl = await getDownloadURL(logoRef);
-      await updateDoc(doc(firestore, "businesses", logoBusinessId), {
+      await updateDoc(doc(firestore, "businesses", expandedId), {
         logoPath: path,
         logoUrl,
         updatedAt: serverTimestamp(),
@@ -282,35 +284,60 @@ export default function AdminBusinessesPage() {
     }
   }
 
-  const donationCombos = useMemo(() => {
-    return businesses.flatMap((biz) => {
-      const links = causeAssignments[biz.id]?.filter((c) => c.linked) ?? [];
-      return links.flatMap((cause) => {
-        const allowed = cause.selectedLocationIds?.length
-          ? biz.locations.filter((loc) => cause.selectedLocationIds?.includes(loc.id))
-          : biz.locations;
-        return allowed.map((loc) => ({
-          business: biz,
-          cause,
-          location: loc,
-          url: `/donate/${biz.data.slug}/${cause.slug ?? cause.id}/${loc.slug}`,
-        }));
+  async function submitLocationLogo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!expandedId) {
+      setLocationLogoMessage("Expand a business first.");
+      return;
+    }
+    if (!locationLogoId) {
+      setLocationLogoMessage("Select a location.");
+      return;
+    }
+    if (!locationLogoFile) {
+      setLocationLogoMessage("Choose an image to upload.");
+      return;
+    }
+    setLocationLogoUploading(true);
+    setLocationLogoMessage(null);
+    try {
+      const ext = locationLogoFile.name.split(".").pop() || "png";
+      const path = `location-logos/${expandedId}/${locationLogoId}/${Date.now()}.${ext}`;
+      const logoRef = storageRef(firebaseStorage, path);
+      await uploadBytes(logoRef, locationLogoFile, {
+        contentType: locationLogoFile.type || "image/png",
       });
-    });
-  }, [businesses, causeAssignments]);
+      const logoUrl = await getDownloadURL(logoRef);
+      await updateDoc(
+        doc(firestore, "businesses", expandedId, "locations", locationLogoId),
+        {
+          logoPath: path,
+          logoUrl,
+          updatedAt: serverTimestamp(),
+        } satisfies Partial<LocationDoc>,
+      );
+      setLocationLogoFile(null);
+      setLocationLogoMessage("Logo uploaded.");
+      void load();
+    } catch (err) {
+      setLocationLogoMessage(err instanceof Error ? err.message : "Failed to upload logo.");
+    } finally {
+      setLocationLogoUploading(false);
+    }
+  }
 
   async function saveLocations(causeId: string) {
-    if (!user || !causeBusinessId) {
+    if (!user || !expandedId) {
       setCauseMessage("Select a business first.");
       return;
     }
-    const selected = causeAssignments[causeBusinessId]?.find((c) => c.id === causeId)
-      ?.selectedLocationIds ?? [];
+    const selected =
+      causeAssignments[expandedId]?.find((c) => c.id === causeId)?.selectedLocationIds ?? [];
     setCauseSavingId(causeId);
     setCauseMessage(null);
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch(`/api/business/${causeBusinessId}/cause-links`, {
+      const res = await fetch(`/api/business/${expandedId}/cause-links`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -329,12 +356,12 @@ export default function AdminBusinessesPage() {
   }
 
   function toggleLocation(causeId: string, locationId: string) {
-    if (!causeBusinessId) return;
+    if (!expandedId) return;
     setCauseAssignments((prev) => {
-      const list = prev[causeBusinessId] ?? [];
+      const list = prev[expandedId] ?? [];
       return {
         ...prev,
-        [causeBusinessId]: list.map((c) =>
+        [expandedId]: list.map((c) =>
           c.id === causeId
             ? {
                 ...c,
@@ -350,32 +377,26 @@ export default function AdminBusinessesPage() {
   }
 
   function enableAllLocations(causeId: string) {
-    if (!causeBusinessId) return;
+    if (!expandedId) return;
     const allIds = currentBusiness?.locations.map((l) => l.id) ?? [];
     setCauseAssignments((prev) => {
-      const list = prev[causeBusinessId] ?? [];
+      const list = prev[expandedId] ?? [];
       return {
         ...prev,
-        [causeBusinessId]: list.map((c) =>
-          c.id === causeId
-            ? {
-                ...c,
-                linked: true,
-                selectedLocationIds: allIds,
-              }
-            : c,
+        [expandedId]: list.map((c) =>
+          c.id === causeId ? { ...c, linked: true, selectedLocationIds: allIds } : c,
         ),
       };
     });
   }
 
   async function removeLink(causeId: string) {
-    if (!user || !causeBusinessId) return;
+    if (!user || !expandedId) return;
     setCauseSavingId(causeId);
     setCauseMessage(null);
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch(`/api/business/${causeBusinessId}/cause-links`, {
+      const res = await fetch(`/api/business/${expandedId}/cause-links`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -386,10 +407,10 @@ export default function AdminBusinessesPage() {
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Failed to remove link.");
       setCauseAssignments((prev) => {
-        const list = prev[causeBusinessId] ?? [];
+        const list = prev[expandedId] ?? [];
         return {
           ...prev,
-          [causeBusinessId]: list.map((c) =>
+          [expandedId]: list.map((c) =>
             c.id === causeId ? { ...c, linked: false, selectedLocationIds: [] } : c,
           ),
         };
@@ -414,22 +435,18 @@ export default function AdminBusinessesPage() {
         error?: string;
       };
       if (!res.ok) throw new Error(json.error ?? "Failed to load staff.");
-      setStaffMembers(json.members ?? []);
+      const members = json.members ?? [];
+      setStaffMembers(members);
+      setStaffCounts((prev) => ({ ...prev, [businessId]: members.length }));
     } catch (err) {
       setStaffMessage(err instanceof Error ? err.message : "Failed to load staff.");
     }
   }
 
-  useEffect(() => {
-    if (staffBusinessId) void loadStaff(staffBusinessId);
-    else setStaffMembers([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staffBusinessId, user]);
-
   async function addStaff(e: React.FormEvent) {
     e.preventDefault();
-    if (!staffBusinessId) {
-      setStaffMessage("Pick a business.");
+    if (!expandedId) {
+      setStaffMessage("No business selected.");
       return;
     }
     if (!user) {
@@ -440,7 +457,7 @@ export default function AdminBusinessesPage() {
     setStaffMessage(null);
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch(`/api/admin/businesses/${staffBusinessId}/staff`, {
+      const res = await fetch(`/api/admin/businesses/${expandedId}/staff`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
         body: JSON.stringify({ email: staffEmail, role: staffRole }),
@@ -449,7 +466,7 @@ export default function AdminBusinessesPage() {
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Failed to add staff.");
       setStaffMessage("Staff access granted.");
       setStaffEmail("");
-      void loadStaff(staffBusinessId);
+      void loadStaff(expandedId);
     } catch (err) {
       setStaffMessage(err instanceof Error ? err.message : "Failed to add staff.");
     } finally {
@@ -457,411 +474,859 @@ export default function AdminBusinessesPage() {
     }
   }
 
+  /* ── Effects ── */
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!expandedId || causeAssignments[expandedId]) return;
+    void fetchCauseLinks(expandedId);
+  }, [causeAssignments, expandedId, fetchCauseLinks]);
+
+  useEffect(() => {
+    if (activeSubAction === "manageStaff" && expandedId) {
+      void loadStaff(expandedId);
+    } else {
+      setStaffMembers([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSubAction, expandedId, user]);
+
+  useEffect(() => {
+    if (activeSubAction !== "uploadLocationLogo" || !currentBusiness) return;
+    if (locationLogoId && currentBusiness.locations.some((l) => l.id === locationLogoId)) return;
+    setLocationLogoId(currentBusiness.locations[0]?.id ?? "");
+  }, [activeSubAction, currentBusiness, locationLogoId]);
+
+  /* ── Handlers ── */
+
+  function toggleExpand(bizId: string) {
+    if (expandedId === bizId) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(bizId);
+      setActiveSubAction(null);
+      setCauseMessage(null);
+      setLogoMessage(null);
+      setLocationLogoMessage(null);
+      setStaffMessage(null);
+    }
+  }
+
+  /* ── Render ── */
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-sm text-zinc-400">Loading businesses&hellip;</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 text-white">
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-white">Businesses & Locations</h1>
-        <p className="mt-2 text-sm text-zinc-300">
-          Create businesses, add locations, and assign global causes to each location for donations.
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Admin</p>
+        <h1 className="text-2xl font-bold tracking-tight text-white">Business Management</h1>
       </div>
 
-      {error ? (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-200">
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3"
+          >
+            <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              {stat.label}
+            </div>
+            <div className="mt-1 text-2xl font-bold text-white">{stat.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
         </div>
-      ) : null}
+      )}
 
-      <div className="grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                expandedSection === "create"
-                  ? "border-emerald-300 bg-emerald-300 text-emerald-950 shadow-lg shadow-emerald-400/30"
-                  : "border-white/15 bg-white/5 text-white hover:border-white/25"
-              }`}
-              onClick={() => setExpandedSection("create")}
-            >
-              Create business
-            </button>
-            <button
-              type="button"
-              className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                expandedSection === "locations"
-                  ? "border-emerald-300 bg-emerald-300 text-emerald-950 shadow-lg shadow-emerald-400/30"
-                  : "border-white/15 bg-white/5 text-white hover:border-white/25"
-              }`}
-              onClick={() => setExpandedSection("locations")}
-            >
-              Add location
-            </button>
-            <button
-              type="button"
-              className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                expandedSection === "causes"
-                  ? "border-emerald-300 bg-emerald-300 text-emerald-950 shadow-lg shadow-emerald-400/30"
-                  : "border-white/15 bg-white/5 text-white hover:border-white/25"
-              }`}
-              onClick={() => setExpandedSection("causes")}
-            >
-              Assign causes to locations
-            </button>
-          </div>
+      {/* Search + New Business */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <svg
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"
+            />
+          </svg>
+          <input
+            className="h-10 w-full rounded-lg border border-white/10 bg-white/5 pl-10 pr-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-400"
+            placeholder="Search businesses..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowNewForm(!showNewForm)}
+          className={BTN_PRIMARY}
+        >
+          + New Business
+        </button>
+      </div>
 
-          {expandedSection === "create" ? (
-            <form
-              onSubmit={submitBusiness}
-              className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur"
-            >
-              <div className="text-sm font-semibold text-white">Create business</div>
-              <TextInput label="Name" value={bizName} onChange={setBizName} />
-              <TextInput
-                label="Description (optional)"
-                value={bizDescription}
-                onChange={setBizDescription}
-              />
-              <TextInput
-                label="Slug (optional)"
+      {/* Inline Create Form */}
+      {showNewForm && (
+        <form
+          onSubmit={submitBusiness}
+          className="rounded-xl border border-emerald-400/30 bg-emerald-500/5 p-5"
+        >
+          <h3 className="mb-3 text-sm font-semibold text-emerald-300">Create New Business</h3>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <input
+              className={INPUT_CLS}
+              placeholder="Business name"
+              value={bizName}
+              onChange={(e) => setBizName(e.target.value)}
+            />
+            <input
+              className={INPUT_CLS}
+              placeholder="Description (optional)"
+              value={bizDescription}
+              onChange={(e) => setBizDescription(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <input
+                className={`${INPUT_CLS} flex-1 font-mono`}
+                placeholder="slug (auto)"
                 value={bizSlug}
-                onChange={setBizSlug}
-                placeholder="auto-generated from name"
+                onChange={(e) => setBizSlug(e.target.value)}
               />
-              <button
-                type="submit"
-                className="inline-flex h-10 items-center justify-center rounded-full bg-emerald-400 px-5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:opacity-60"
-                disabled={bizSubmitting}
-              >
-                {bizSubmitting ? "Creating…" : "Create business"}
+              <button type="submit" className={BTN_PRIMARY} disabled={bizSubmitting}>
+                {bizSubmitting ? "Creating\u2026" : "Create"}
               </button>
-            </form>
-          ) : null}
+            </div>
+          </div>
+        </form>
+      )}
 
-          {expandedSection === "locations" ? (
-            <form
-              onSubmit={submitLocation}
-              className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur"
-            >
-              <div className="text-sm font-semibold text-white">Add location</div>
-              <Select
-                label="Business"
-                value={locBusinessId}
-                onChange={setLocBusinessId}
-                options={businessOptions}
-              />
-              <TextInput label="Name" value={locName} onChange={setLocName} />
-              <TextInput
-                label="Slug (optional)"
-                value={locSlug}
-                onChange={setLocSlug}
-                placeholder="auto-generated from name"
-              />
-              <button
-                type="submit"
-                className="inline-flex h-10 items-center justify-center rounded-full bg-emerald-400 px-5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:opacity-60"
-                disabled={locSubmitting}
+      {/* Business List */}
+      {businesses.length === 0 ? (
+        <div className="py-10 text-center text-sm text-zinc-500">
+          No businesses yet. Click &quot;+ New Business&quot; to create one.
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="py-10 text-center text-sm text-zinc-500">
+          No businesses match &quot;{search}&quot;.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((biz) => {
+            const isExpanded = expandedId === biz.id;
+            const linkedCauses = (causeAssignments[biz.id] ?? []).filter((c) => c.linked);
+            const bizDonationCombos = isExpanded
+              ? donationCombos.filter((c) => c.business.id === biz.id)
+              : [];
+
+            return (
+              <div
+                key={biz.id}
+                className={`rounded-xl border transition ${
+                  isExpanded
+                    ? "border-emerald-400/20 bg-white/[0.03]"
+                    : "border-white/5 bg-white/[0.02] hover:border-white/10"
+                }`}
               >
-                {locSubmitting ? "Saving…" : "Add location"}
-              </button>
-            </form>
-          ) : null}
+                {/* Row Header */}
+                <button
+                  type="button"
+                  onClick={() => toggleExpand(biz.id)}
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left"
+                >
+                  {/* Avatar */}
+                  <div
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${
+                      biz.data.logoUrl
+                        ? "bg-emerald-500/20 text-emerald-300"
+                        : "bg-zinc-800 text-zinc-500"
+                    }`}
+                  >
+                    {biz.data.name.charAt(0)}
+                  </div>
 
-          {expandedSection === "causes" ? (
-            <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur">
-              <div className="text-sm font-semibold text-white">Assign causes to locations</div>
-              <Select
-                label="Business"
-                value={causeBusinessId}
-                onChange={(v) => {
-                  setCauseBusinessId(v);
-                  setCauseMessage(null);
-                }}
-                options={businessOptions}
-              />
-              {causeBusinessId ? (
-                <div className="space-y-3">
-                  {causeLoadingId === causeBusinessId ? (
-                    <div className="text-sm text-zinc-300">Loading causes…</div>
-                  ) : (causeAssignments[causeBusinessId] ?? []).length === 0 ? (
-                    <div className="text-sm text-zinc-300">
-                      No causes available yet. Add causes in the Causes section first.
-                    </div>
-                  ) : (
-                    (causeAssignments[causeBusinessId] ?? []).map((cause) => (
-                      <div
-                        key={cause.id}
-                        className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3 shadow-inner shadow-black/20"
+                  {/* Info */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-white">{biz.data.name}</span>
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          biz.data.active
+                            ? "bg-emerald-400/15 text-emerald-300"
+                            : "bg-red-500/15 text-red-300"
+                        }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-semibold text-white">
-                              {cause.title ?? cause.id}
+                        {biz.data.active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 font-mono text-xs text-zinc-500">/{biz.data.slug}</div>
+                  </div>
+
+                  {/* Quick stats */}
+                  <div className="hidden items-center gap-6 text-xs text-zinc-500 sm:flex">
+                    <div className="text-center">
+                      <div className="font-semibold text-zinc-300">{biz.locations.length}</div>
+                      <div>locations</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-zinc-300">{linkedCauses.length}</div>
+                      <div>causes</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-zinc-300">
+                        {staffCounts[biz.id] != null ? staffCounts[biz.id] : "\u2014"}
+                      </div>
+                      <div>staff</div>
+                    </div>
+                  </div>
+
+                  {/* Chevron */}
+                  <svg
+                    className={`h-4 w-4 shrink-0 text-zinc-500 transition ${isExpanded ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Expanded Content */}
+                {isExpanded && (
+                  <div className="border-t border-white/5 px-5 py-4">
+                    {/* ===== Overview Grid ===== */}
+                    {!activeSubAction && (
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {/* Locations Card */}
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                              Locations
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => setActiveSubAction("addLocation")}
+                              className="text-xs font-medium text-emerald-400 hover:text-emerald-300"
+                            >
+                              + Add
+                            </button>
+                          </div>
+                          {biz.locations.length === 0 ? (
+                            <p className="py-4 text-center text-xs text-zinc-600">
+                              No locations yet
+                            </p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {biz.locations.map((loc) => (
+                                <div
+                                  key={loc.id}
+                                  className="flex items-center justify-between rounded-md bg-white/[0.03] px-3 py-2"
+                                >
+                                  <span className="text-sm text-white">{loc.name ?? loc.id}</span>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setLocationLogoId(loc.id);
+                                        setActiveSubAction("uploadLocationLogo");
+                                      }}
+                                      className="text-xs text-zinc-400 hover:text-white"
+                                    >
+                                      Logo
+                                    </button>
+                                    <Link
+                                      href={`/biz/${biz.id}/locations/${loc.id}/print`}
+                                      className="text-xs text-emerald-300 hover:text-emerald-200"
+                                    >
+                                      QR
+                                    </Link>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            {cause.description ? (
-                              <div className="text-xs text-zinc-300">{cause.description}</div>
-                            ) : null}
-                          </div>
-                          <div className="flex items-center gap-2">
+                          )}
+                        </div>
+
+                        {/* Causes Card */}
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                              Linked Causes
+                            </h4>
                             <button
                               type="button"
-                              className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white hover:border-white/25"
-                              onClick={() => {
-                                enableAllLocations(cause.id);
-                                void saveLocations(cause.id);
-                              }}
-                              disabled={causeSavingId === cause.id}
+                              onClick={() => setActiveSubAction("causesFullView")}
+                              className="text-xs font-medium text-emerald-400 hover:text-emerald-300"
                             >
-                              {cause.linked ? "Save all locations" : "Add (all locations)"}
+                              + Assign
                             </button>
+                          </div>
+                          {linkedCauses.length === 0 ? (
+                            <p className="py-4 text-center text-xs text-zinc-600">
+                              No causes linked
+                            </p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {linkedCauses.map((cause) => (
+                                <div
+                                  key={cause.id}
+                                  className="flex items-center justify-between rounded-md bg-white/[0.03] px-3 py-2"
+                                >
+                                  <span className="text-sm text-white">
+                                    {cause.title ?? cause.id}
+                                  </span>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveSubAction("causesFullView")}
+                                      className="text-xs text-emerald-300 hover:text-emerald-200"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeLink(cause.id)}
+                                      disabled={causeSavingId === cause.id}
+                                      className="text-xs text-red-400 hover:text-red-300"
+                                    >
+                                      {causeSavingId === cause.id ? "\u2026" : "Remove"}
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {causeMessage && (
+                            <div className="mt-2 text-xs text-zinc-400">{causeMessage}</div>
+                          )}
+                        </div>
+
+                        {/* Quick Actions Card */}
+                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                            Quick Actions
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
-                              className="text-xs font-semibold text-emerald-300 underline underline-offset-2 hover:text-emerald-200"
-                              onClick={() => saveLocations(cause.id)}
-                              disabled={causeSavingId === cause.id}
+                              onClick={() => setActiveSubAction("uploadLogo")}
+                              className="flex flex-col items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-3 text-xs text-zinc-300 transition hover:border-white/15 hover:text-white"
                             >
-                              {causeSavingId === cause.id ? "Saving…" : "Save"}
-                            </button>
-                            {cause.linked ? (
-                              <button
-                                type="button"
-                                className="text-xs font-semibold text-red-300 underline underline-offset-2 hover:text-red-200"
-                                onClick={() => removeLink(cause.id)}
-                                disabled={causeSavingId === cause.id}
+                              <svg
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={1.5}
                               >
-                                Remove
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div className="text-xs uppercase tracking-wide text-zinc-400">
-                          Locations {cause.linked ? "(enabled)" : "(not added yet)"}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {currentBusiness?.locations.map((loc) => {
-                            const checked = cause.selectedLocationIds?.includes(loc.id);
-                            return (
-                              <label
-                                key={loc.id}
-                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition ${
-                                  checked
-                                    ? "border-emerald-300 bg-emerald-300 text-emerald-950 shadow-lg shadow-emerald-400/30"
-                                    : "border-white/15 bg-white/5 text-white hover:border-white/25"
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="hidden"
-                                  checked={checked}
-                                  onChange={() => toggleLocation(cause.id, loc.id)}
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
                                 />
-                                {loc.name}
-                              </label>
-                            );
-                          })}
-                        </div>
-                        <div className="text-xs text-zinc-400">
-                          Save to generate donation URLs for the selected locations. Use &quot;Remove&quot; to
-                          detach this charity from the business.
+                              </svg>
+                              Upload Logo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveSubAction("manageStaff")}
+                              className="flex flex-col items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-3 text-xs text-zinc-300 transition hover:border-white/15 hover:text-white"
+                            >
+                              <svg
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={1.5}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
+                                />
+                              </svg>
+                              Manage Staff
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveSubAction("qrLinks")}
+                              className="flex flex-col items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-3 text-xs text-zinc-300 transition hover:border-white/15 hover:text-white"
+                            >
+                              <svg
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={1.5}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5z"
+                                />
+                              </svg>
+                              Print QR
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveSubAction("donationUrls")}
+                              className="flex flex-col items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-3 text-xs text-zinc-300 transition hover:border-white/15 hover:text-white"
+                            >
+                              <svg
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={1.5}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.193-5.188a4.5 4.5 0 00-6.364-6.364L3.75 6.38a4.5 4.5 0 006.364 6.364l4.5-4.5z"
+                                />
+                              </svg>
+                              Donation URLs
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    ))
-                  )}
-                  {causeMessage ? (
-                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200">
-                      {causeMessage}
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="text-sm text-zinc-300">Select a business to manage causes.</div>
-              )}
-            </div>
-          ) : null}
-        </div>
+                    )}
 
-        <div className="space-y-3">
-          <form
-            onSubmit={submitLogo}
-            className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-xl shadow-black/20 backdrop-blur"
-          >
-            <div className="text-sm font-semibold text-white">Business logo</div>
-            <Select
-              label="Business"
-              value={logoBusinessId}
-              onChange={(v) => setLogoBusinessId(v)}
-              options={businessOptions}
-            />
-            <label className="block text-sm text-zinc-200">
-              <div className="mb-1 font-semibold text-white">Logo image</div>
-              <input
-                type="file"
-                accept="image/*"
-                className="block w-full text-xs text-zinc-200 file:mr-3 file:rounded-full file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white"
-                onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
-            {logoBusinessId ? (
-              <div className="text-xs text-zinc-400">
-                {businesses.find((b) => b.id === logoBusinessId)?.data.logoUrl
-                  ? "Logo on file."
-                  : "No logo uploaded yet."}
-              </div>
-            ) : null}
-            {logoMessage ? <div className="text-xs text-zinc-300">{logoMessage}</div> : null}
-            <button
-              type="submit"
-              className="inline-flex h-10 items-center justify-center rounded-full bg-emerald-400 px-5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:opacity-60"
-              disabled={logoUploading}
-            >
-              {logoUploading ? "Uploading…" : "Upload logo"}
-            </button>
-          </form>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-xl shadow-black/20 backdrop-blur">
-            <div className="text-sm font-semibold text-white">Print location QR sheets</div>
-            {loading ? (
-              <div className="mt-2 text-zinc-300">Loading…</div>
-            ) : businesses.length === 0 ? (
-              <div className="mt-2 text-zinc-300">No businesses yet.</div>
-            ) : (
-              <div className="mt-3 space-y-3">
-                {businesses.map((biz) => (
-                  <div key={biz.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                    <div className="text-xs uppercase tracking-wide text-zinc-400">
-                      {biz.data.name ?? biz.id}
-                    </div>
-                    {biz.locations.length === 0 ? (
-                      <div className="mt-2 text-xs text-zinc-300">No locations yet.</div>
-                    ) : (
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {biz.locations.map((loc) => (
-                          <div
-                            key={loc.id}
-                            className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+                    {/* ===== Sub-action: Add Location ===== */}
+                    {activeSubAction === "addLocation" && (
+                      <div>
+                        <div className="mb-4 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSubAction(null)}
+                            className="text-xs text-zinc-400 hover:text-white"
                           >
-                            <div>
-                              <div className="text-sm font-semibold text-white">
-                                {loc.name ?? loc.id}
-                              </div>
-                              <div className="text-xs text-zinc-400">{loc.id}</div>
-                            </div>
-                            <Link
-                              className="text-xs font-semibold text-emerald-300 underline hover:text-emerald-200"
-                              href={`/biz/${biz.id}/locations/${loc.id}/print`}
-                            >
-                              Print sheet
-                            </Link>
+                            &larr; Back
+                          </button>
+                          <h3 className="text-sm font-semibold text-white">Add Location</h3>
+                        </div>
+                        <form onSubmit={submitLocation} className="grid gap-3 sm:grid-cols-3">
+                          <input
+                            className={INPUT_CLS}
+                            placeholder="Location name"
+                            value={locName}
+                            onChange={(e) => setLocName(e.target.value)}
+                          />
+                          <input
+                            className={`${INPUT_CLS} font-mono`}
+                            placeholder="Slug (auto)"
+                            value={locSlug}
+                            onChange={(e) => setLocSlug(e.target.value)}
+                          />
+                          <button type="submit" className={BTN_PRIMARY} disabled={locSubmitting}>
+                            {locSubmitting ? "Saving\u2026" : "Add Location"}
+                          </button>
+                        </form>
+                      </div>
+                    )}
+
+                    {/* ===== Sub-action: Cause Assignment ===== */}
+                    {activeSubAction === "causesFullView" && (
+                      <div>
+                        <div className="mb-4 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSubAction(null)}
+                            className="text-xs text-zinc-400 hover:text-white"
+                          >
+                            &larr; Back
+                          </button>
+                          <h3 className="text-sm font-semibold text-white">Cause Assignment</h3>
+                        </div>
+                        {causeLoadingId === expandedId ? (
+                          <div className="text-sm text-zinc-400">Loading causes&hellip;</div>
+                        ) : (causeAssignments[biz.id] ?? []).length === 0 ? (
+                          <div className="text-sm text-zinc-400">
+                            No causes available yet. Add causes in the Causes section first.
                           </div>
-                        ))}
+                        ) : (
+                          <div className="space-y-3">
+                            {(causeAssignments[biz.id] ?? []).map((cause) => (
+                              <div
+                                key={cause.id}
+                                className="rounded-xl border border-white/10 bg-white/[0.02] p-4"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="text-sm font-semibold text-white">
+                                      {cause.title ?? cause.id}
+                                    </div>
+                                    {cause.description && (
+                                      <div className="text-xs text-zinc-400">
+                                        {cause.description}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white hover:border-white/25"
+                                      onClick={() => {
+                                        enableAllLocations(cause.id);
+                                        void saveLocations(cause.id);
+                                      }}
+                                      disabled={causeSavingId === cause.id}
+                                    >
+                                      {cause.linked ? "Save all locations" : "Add (all locations)"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="text-xs font-semibold text-emerald-300 underline underline-offset-2 hover:text-emerald-200"
+                                      onClick={() => saveLocations(cause.id)}
+                                      disabled={causeSavingId === cause.id}
+                                    >
+                                      {causeSavingId === cause.id ? "Saving\u2026" : "Save"}
+                                    </button>
+                                    {cause.linked && (
+                                      <button
+                                        type="button"
+                                        className="text-xs font-semibold text-red-300 underline underline-offset-2 hover:text-red-200"
+                                        onClick={() => removeLink(cause.id)}
+                                        disabled={causeSavingId === cause.id}
+                                      >
+                                        Remove
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="mt-2 text-xs uppercase tracking-wide text-zinc-500">
+                                  Locations {cause.linked ? "(enabled)" : "(not added yet)"}
+                                </div>
+                                <div className="mt-1 flex flex-wrap gap-2">
+                                  {currentBusiness?.locations.map((loc) => {
+                                    const checked = cause.selectedLocationIds?.includes(loc.id);
+                                    return (
+                                      <label
+                                        key={loc.id}
+                                        className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs transition ${
+                                          checked
+                                            ? "border-emerald-300 bg-emerald-300 text-emerald-950 shadow-lg shadow-emerald-400/30"
+                                            : "border-white/15 bg-white/5 text-white hover:border-white/25"
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          className="hidden"
+                                          checked={!!checked}
+                                          onChange={() => toggleLocation(cause.id, loc.id)}
+                                        />
+                                        {loc.name}
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                                <div className="mt-2 text-xs text-zinc-500">
+                                  Save to generate donation URLs. Use &quot;Remove&quot; to detach
+                                  this charity.
+                                </div>
+                              </div>
+                            ))}
+                            {causeMessage && (
+                              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200">
+                                {causeMessage}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ===== Sub-action: Upload Business Logo ===== */}
+                    {activeSubAction === "uploadLogo" && (
+                      <div>
+                        <div className="mb-4 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSubAction(null)}
+                            className="text-xs text-zinc-400 hover:text-white"
+                          >
+                            &larr; Back
+                          </button>
+                          <h3 className="text-sm font-semibold text-white">Upload Business Logo</h3>
+                        </div>
+                        <form onSubmit={submitLogo} className="space-y-3">
+                          <div className="text-xs text-zinc-400">
+                            {currentBusiness?.data.logoUrl
+                              ? "Current logo on file."
+                              : "No logo uploaded yet."}
+                          </div>
+                          <label className="block text-sm text-zinc-200">
+                            <div className="mb-1 font-semibold text-white">Logo image</div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="block w-full text-xs text-zinc-200 file:mr-3 file:rounded-full file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white"
+                              onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                            />
+                          </label>
+                          {logoMessage && (
+                            <div className="text-xs text-zinc-300">{logoMessage}</div>
+                          )}
+                          <button type="submit" className={BTN_PRIMARY} disabled={logoUploading}>
+                            {logoUploading ? "Uploading\u2026" : "Upload Logo"}
+                          </button>
+                        </form>
+                      </div>
+                    )}
+
+                    {/* ===== Sub-action: Upload Location Logo ===== */}
+                    {activeSubAction === "uploadLocationLogo" && (
+                      <div>
+                        <div className="mb-4 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSubAction(null)}
+                            className="text-xs text-zinc-400 hover:text-white"
+                          >
+                            &larr; Back
+                          </button>
+                          <h3 className="text-sm font-semibold text-white">
+                            Upload Location Logo
+                          </h3>
+                        </div>
+                        <form onSubmit={submitLocationLogo} className="space-y-3">
+                          <label className="block text-sm text-zinc-200">
+                            <div className="mb-1 font-semibold text-white">Location</div>
+                            <select
+                              className={INPUT_CLS}
+                              value={locationLogoId}
+                              onChange={(e) => setLocationLogoId(e.target.value)}
+                            >
+                              <option value="">Select&hellip;</option>
+                              {(currentBusiness?.locations ?? []).map((loc) => (
+                                <option key={loc.id} value={loc.id}>
+                                  {loc.name ?? loc.id}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          {locationLogoId && (
+                            <div className="text-xs text-zinc-400">
+                              {currentBusiness?.locations.find((l) => l.id === locationLogoId)
+                                ?.logoUrl
+                                ? "Logo on file."
+                                : "No logo uploaded yet."}
+                            </div>
+                          )}
+                          <label className="block text-sm text-zinc-200">
+                            <div className="mb-1 font-semibold text-white">Logo image</div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="block w-full text-xs text-zinc-200 file:mr-3 file:rounded-full file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white"
+                              onChange={(e) =>
+                                setLocationLogoFile(e.target.files?.[0] ?? null)
+                              }
+                            />
+                          </label>
+                          {locationLogoMessage && (
+                            <div className="text-xs text-zinc-300">{locationLogoMessage}</div>
+                          )}
+                          <button
+                            type="submit"
+                            className={BTN_PRIMARY}
+                            disabled={locationLogoUploading || !locationLogoId}
+                          >
+                            {locationLogoUploading ? "Uploading\u2026" : "Upload Logo"}
+                          </button>
+                        </form>
+                      </div>
+                    )}
+
+                    {/* ===== Sub-action: Manage Staff ===== */}
+                    {activeSubAction === "manageStaff" && (
+                      <div>
+                        <div className="mb-4 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSubAction(null)}
+                            className="text-xs text-zinc-400 hover:text-white"
+                          >
+                            &larr; Back
+                          </button>
+                          <h3 className="text-sm font-semibold text-white">Manage Staff</h3>
+                        </div>
+                        <form onSubmit={addStaff} className="space-y-3">
+                          <input
+                            className={INPUT_CLS}
+                            placeholder="Staff email"
+                            value={staffEmail}
+                            onChange={(e) => setStaffEmail(e.target.value)}
+                          />
+                          <div className="flex items-center gap-4 text-sm">
+                            <label className="inline-flex items-center gap-2 text-zinc-300">
+                              <input
+                                type="radio"
+                                name="staffRole"
+                                value="staff"
+                                checked={staffRole === "staff"}
+                                onChange={() => setStaffRole("staff")}
+                              />
+                              Staff
+                            </label>
+                            <label className="inline-flex items-center gap-2 text-zinc-300">
+                              <input
+                                type="radio"
+                                name="staffRole"
+                                value="owner"
+                                checked={staffRole === "owner"}
+                                onChange={() => setStaffRole("owner")}
+                              />
+                              Owner
+                            </label>
+                          </div>
+                          <button
+                            type="submit"
+                            className={BTN_PRIMARY}
+                            disabled={staffSubmitting}
+                          >
+                            {staffSubmitting ? "Saving\u2026" : "Grant Access"}
+                          </button>
+                        </form>
+                        {staffMessage && (
+                          <div className="mt-2 text-xs text-zinc-300">{staffMessage}</div>
+                        )}
+                        {staffMembers.length > 0 ? (
+                          <div className="mt-4 space-y-2">
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                              Current Staff
+                            </h4>
+                            {staffMembers.map((m) => (
+                              <div
+                                key={m.uid}
+                                className="flex items-center justify-between rounded-md bg-white/[0.03] px-3 py-2"
+                              >
+                                <span className="text-sm text-white">{m.email ?? m.uid}</span>
+                                <span className="text-xs text-zinc-500">{m.role}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-3 text-xs text-zinc-500">No staff members yet.</div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ===== Sub-action: Donation URLs ===== */}
+                    {activeSubAction === "donationUrls" && (
+                      <div>
+                        <div className="mb-4 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSubAction(null)}
+                            className="text-xs text-zinc-400 hover:text-white"
+                          >
+                            &larr; Back
+                          </button>
+                          <h3 className="text-sm font-semibold text-white">Donation URLs</h3>
+                        </div>
+                        {bizDonationCombos.length === 0 ? (
+                          <div className="text-sm text-zinc-500">
+                            No donation URLs yet. Assign causes to locations first.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {bizDonationCombos.map((combo) => (
+                              <div
+                                key={`${combo.cause.id}-${combo.location.id}`}
+                                className="rounded-lg bg-white/[0.03] px-3 py-2"
+                              >
+                                <div className="text-xs uppercase tracking-wide text-zinc-500">
+                                  {combo.location.name} &middot; {combo.cause.title}
+                                </div>
+                                <div className="mt-0.5 font-mono text-xs text-zinc-300">
+                                  {combo.url}
+                                </div>
+                                <div className="text-xs text-zinc-500">
+                                  QR tokens required. Use QR print pages for secure links.
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ===== Sub-action: QR Links ===== */}
+                    {activeSubAction === "qrLinks" && (
+                      <div>
+                        <div className="mb-4 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSubAction(null)}
+                            className="text-xs text-zinc-400 hover:text-white"
+                          >
+                            &larr; Back
+                          </button>
+                          <h3 className="text-sm font-semibold text-white">Print QR Sheets</h3>
+                        </div>
+                        {biz.locations.length === 0 ? (
+                          <div className="text-sm text-zinc-500">No locations yet.</div>
+                        ) : (
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {biz.locations.map((loc) => (
+                              <div
+                                key={loc.id}
+                                className="flex items-center justify-between rounded-md bg-white/[0.03] px-3 py-2"
+                              >
+                                <div>
+                                  <div className="text-sm font-semibold text-white">
+                                    {loc.name ?? loc.id}
+                                  </div>
+                                  <div className="text-xs text-zinc-500">{loc.id}</div>
+                                </div>
+                                <Link
+                                  href={`/biz/${biz.id}/locations/${loc.id}/print`}
+                                  className="text-xs font-semibold text-emerald-300 underline hover:text-emerald-200"
+                                >
+                                  Print sheet
+                                </Link>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-xl shadow-black/20 backdrop-blur">
-            <div className="text-sm font-semibold text-white">Donation URLs (per location & cause)</div>
-            {loading ? (
-              <div className="mt-2 text-zinc-300">Loading…</div>
-            ) : donationCombos.length === 0 ? (
-              <div className="mt-2 text-zinc-300">None yet.</div>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {donationCombos.map((combo) => (
-                  <div
-                    key={`${combo.business.id}-${combo.cause.id}-${combo.location.id}`}
-                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 shadow-inner shadow-black/30"
-                  >
-                    <div className="text-xs uppercase tracking-wide text-zinc-400">
-                      {combo.business.data.name} · {combo.location.name}
-                    </div>
-                    <div className="text-sm font-semibold text-white">{combo.cause.title}</div>
-                    <div className="text-xs text-zinc-300">{combo.url}</div>
-                    <div className="text-xs text-zinc-400">
-                      QR tokens are required for donations. Use the QR print pages to generate the
-                      secure links.
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white shadow-xl shadow-black/20 backdrop-blur">
-            <div className="text-sm font-semibold text-white">Business staff</div>
-            <form className="mt-3 space-y-2" onSubmit={addStaff}>
-              <Select
-                label="Business"
-                value={staffBusinessId}
-                onChange={(v) => setStaffBusinessId(v)}
-                options={businessOptions}
-              />
-              <TextInput
-                label="Staff email"
-                value={staffEmail}
-                onChange={setStaffEmail}
-                placeholder="user@example.com"
-              />
-              <div className="flex items-center gap-3 text-sm">
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="staff"
-                    checked={staffRole === "staff"}
-                    onChange={() => setStaffRole("staff")}
-                  />
-                  Staff
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="owner"
-                    checked={staffRole === "owner"}
-                    onChange={() => setStaffRole("owner")}
-                  />
-                  Owner
-                </label>
-              </div>
-              <button
-                type="submit"
-                className="inline-flex h-10 items-center justify-center rounded-full bg-emerald-400 px-5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:opacity-60"
-                disabled={staffSubmitting}
-              >
-                {staffSubmitting ? "Saving…" : "Grant access"}
-              </button>
-            </form>
-            {staffMessage ? (
-              <div className="mt-2 text-xs text-zinc-300">{staffMessage}</div>
-            ) : null}
-            {staffMembers.length > 0 ? (
-              <div className="mt-3 space-y-2">
-                {staffMembers.map((m) => (
-                  <div
-                    key={m.uid}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white shadow-inner shadow-black/30"
-                  >
-                    <div className="font-medium">{m.email ?? m.uid}</div>
-                    <div className="text-zinc-400">Role: {m.role}</div>
-                  </div>
-                ))}
-              </div>
-            ) : staffBusinessId ? (
-              <div className="mt-3 text-xs text-zinc-300">No staff yet.</div>
-            ) : null}
-          </div>
+            );
+          })}
         </div>
-      </div>
+      )}
 
       <Link
         className="text-sm font-semibold text-emerald-300 underline hover:text-emerald-200"
         href="/admin"
       >
-        ← Back to admin overview
+        &larr; Back to admin overview
       </Link>
     </div>
   );

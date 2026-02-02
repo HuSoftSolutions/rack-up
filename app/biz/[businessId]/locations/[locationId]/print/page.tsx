@@ -24,6 +24,7 @@ type LocationRow = {
   slug?: string;
   address?: string;
   donationUrl?: string;
+  logoUrl?: string;
 };
 
 type BusinessRow = {
@@ -261,12 +262,20 @@ export default function LocationPrintPage({
                 className="h-16 w-auto max-w-[220px] object-contain"
               />
             ) : null}
+            {location.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={location.logoUrl}
+                alt={`${location.name ?? location.id} logo`}
+                className="h-16 w-auto max-w-[220px] object-contain"
+              />
+            ) : null}
           </div>
         </div>
 
         <div className="print:hidden">
-          <Link className="text-sm underline" href={`/biz/${business.id}/causes`}>
-            ← Back to causes
+          <Link className="text-sm underline" href={`/biz/${business.id}/locations`}>
+            ← Back to locations
           </Link>
         </div>
 

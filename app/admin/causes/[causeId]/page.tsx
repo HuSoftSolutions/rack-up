@@ -104,29 +104,29 @@ export default function AdminCauseDetailPage() {
 
   return (
     <div className="space-y-6 text-white">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <Link href="/admin/causes" className="text-xs font-semibold text-emerald-300 underline underline-offset-2">
-            ← Back to causes
-          </Link>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">{cause?.title ?? "Cause details"}</h1>
-          <p className="text-sm text-zinc-300">
-            Stats, placements, and QR codes for this cause.
-          </p>
+      <div>
+        <Link href="/admin/causes" className="text-xs font-semibold text-emerald-300 underline underline-offset-2 hover:text-emerald-200">
+          ← Back to causes
+        </Link>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Admin</p>
+            <h1 className="text-2xl font-bold tracking-tight text-white">{cause?.title ?? "Cause details"}</h1>
+          </div>
+          {cause ? (
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                cause.active === false ? "bg-red-500/15 text-red-300" : "bg-emerald-400/15 text-emerald-300"
+              }`}
+            >
+              {cause.active === false ? "Inactive" : "Active"}
+            </span>
+          ) : null}
         </div>
-        {cause ? (
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              cause.active === false ? "bg-red-500/20 text-red-200" : "bg-emerald-400/20 text-emerald-200"
-            }`}
-          >
-            {cause.active === false ? "Inactive" : "Active"}
-          </span>
-        ) : null}
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">{error}</div>
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>
       ) : null}
 
       {loading ? (
@@ -136,12 +136,12 @@ export default function AdminCauseDetailPage() {
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-black/30">
-              <div className="text-xs uppercase tracking-wide text-zinc-400">Description</div>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Description</div>
               <div className="mt-1 text-sm text-white">{cause.description || "—"}</div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-black/30">
-              <div className="text-xs uppercase tracking-wide text-zinc-400">Mode</div>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Mode</div>
               <div className="mt-1 font-semibold capitalize text-white">{cause.mode}</div>
               {cause.mode === "predefined" ? (
                 <div className="mt-2 space-y-1 text-xs text-zinc-300">
@@ -165,30 +165,30 @@ export default function AdminCauseDetailPage() {
                 </div>
               )}
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-black/30">
-              <div className="text-xs uppercase tracking-wide text-zinc-400">Linked businesses</div>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Linked businesses</div>
               <div className="mt-1 text-lg font-semibold text-white">
                 {cause.businessLinks?.length ?? 0} businesses · {locationCount} locations
               </div>
-              <div className="text-xs text-zinc-400">Locations determine available donation URLs.</div>
+              <div className="text-xs text-zinc-500">Locations determine available donation URLs.</div>
             </div>
           </div>
 
           {cause.imageUrl ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-black/30">
-              <div className="text-xs uppercase tracking-wide text-zinc-400">Image</div>
-              <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Image</div>
+              <div className="mt-3 overflow-hidden rounded-xl border border-white/5 bg-white/[0.02]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={cause.imageUrl} alt={cause.title} className="h-64 w-full object-contain bg-black" />
               </div>
             </div>
           ) : null}
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur">
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-white">Placement & QR codes</div>
-                <div className="text-xs text-zinc-400">
+                <div className="text-xs text-zinc-500">
                   {cause.businessLinks?.length ?? 0} businesses · {locationCount} locations
                 </div>
               </div>
@@ -201,9 +201,9 @@ export default function AdminCauseDetailPage() {
                 {qrItems.map((item) => (
                   <div
                     key={item.id}
-                    className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-black/30"
+                    className="flex flex-col gap-2 rounded-xl border border-white/5 bg-white/[0.03] p-4"
                   >
-                    <div className="text-xs uppercase tracking-wide text-zinc-400">
+                    <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
                       {item.businessName} · {item.locationName}
                     </div>
                     <div className="break-words text-xs text-zinc-300">{item.url}</div>

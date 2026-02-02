@@ -52,6 +52,18 @@ export default function AdminCausesPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+  const stats = useMemo(() => {
+    const total = causes.length;
+    const activeCauses = causes.filter((c) => c.active !== false).length;
+    const inactive = causes.filter((c) => c.active === false).length;
+    const linkedLocations = causes.reduce(
+      (sum, c) =>
+        sum + (c.businessLinks?.reduce((s, link) => s + (link.locations?.length ?? 0), 0) ?? 0),
+      0,
+    );
+    return { total, activeCauses, inactive, linkedLocations };
+  }, [causes]);
+
   function resetForm(cause?: CauseRow | null) {
     setTitle(cause?.title ?? "");
     setDescription(cause?.description ?? "");
@@ -166,13 +178,21 @@ export default function AdminCausesPage() {
     }
   }
 
+  if (loading && causes.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-sm text-zinc-400">Loading&hellip;</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 text-white">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="text-xs uppercase tracking-wide text-emerald-200">Charities</div>
-          <h1 className="text-2xl font-semibold tracking-tight">Rack Up causes</h1>
-          <p className="mt-1 text-sm text-zinc-300">
+          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Admin</p>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Rack Up Causes</h1>
+          <p className="mt-1 text-sm text-zinc-500">
             All public-facing causes. Manage them here and assign them to businesses in the Businesses page.
           </p>
         </div>
@@ -184,26 +204,45 @@ export default function AdminCausesPage() {
             setModalOpen(true);
             setSaveMessage(null);
           }}
-          className="inline-flex h-10 items-center justify-center rounded-full bg-emerald-400 px-4 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-400/30 transition hover:bg-emerald-300"
+          className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-500 px-5 text-sm font-semibold text-white hover:bg-emerald-400"
         >
-          New cause
+          + New Cause
         </button>
       </div>
 
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total causes</div>
+          <div className="mt-1 text-2xl font-bold text-white">{stats.total}</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Active</div>
+          <div className="mt-1 text-2xl font-bold text-white">{stats.activeCauses}</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Inactive</div>
+          <div className="mt-1 text-2xl font-bold text-white">{stats.inactive}</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Linked locations</div>
+          <div className="mt-1 text-2xl font-bold text-white">{stats.linkedLocations}</div>
+        </div>
+      </div>
+
       {error ? (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-xl shadow-black/20 backdrop-blur">
+      <div className="overflow-hidden rounded-xl border border-white/5 bg-white/[0.02]">
         <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 text-sm">
           <div className="font-semibold text-white">All causes</div>
-          {loading ? <div className="text-xs text-zinc-300">Loading…</div> : null}
+          <div className="text-xs text-zinc-500">{loading ? "Loading\u2026" : `${causes.length} causes`}</div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-sm">
-            <thead className="bg-white/5 text-left text-xs uppercase tracking-wide text-zinc-400">
+            <thead className="bg-white/[0.02] text-left text-xs uppercase tracking-wide text-zinc-400">
               <tr>
                 <th className="px-4 py-3">Title</th>
                 <th className="px-4 py-3">Mode</th>
@@ -214,15 +253,9 @@ export default function AdminCausesPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {causes.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-4 text-center text-zinc-300">
-                    Loading…
-                  </td>
-                </tr>
-              ) : causes.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-4 text-center text-zinc-300">
+                  <td colSpan={6} className="px-4 py-4 text-center text-zinc-400">
                     No causes yet.
                   </td>
                 </tr>
@@ -231,7 +264,7 @@ export default function AdminCausesPage() {
                   const linkedCount =
                     cause.businessLinks?.reduce((sum, link) => sum + (link.locations?.length ?? 0), 0) ?? 0;
                   return (
-                    <tr key={cause.id} className="border-t border-white/5 hover:bg-white/5">
+                    <tr key={cause.id} className="border-t border-white/5 hover:bg-white/[0.02]">
                       <td className="px-4 py-3">
                         <div className="font-semibold text-white">{cause.title}</div>
                         <div className="text-xs text-zinc-400 line-clamp-2">{cause.description}</div>
@@ -247,10 +280,10 @@ export default function AdminCausesPage() {
                       <td className="px-4 py-3 text-white">{linkedCount}</td>
                       <td className="px-4 py-3">
                         <span
-                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                             cause.active === false
-                              ? "bg-red-500/20 text-red-200"
-                              : "bg-emerald-400/20 text-emerald-200"
+                              ? "bg-red-500/15 text-red-300"
+                              : "bg-emerald-400/15 text-emerald-300"
                           }`}
                         >
                           {cause.active === false ? "Inactive" : "Active"}
@@ -266,7 +299,7 @@ export default function AdminCausesPage() {
                           </Link>
                           <button
                             type="button"
-                            className="text-xs font-semibold text-white underline underline-offset-2 hover:text-emerald-200"
+                            className="text-xs font-semibold text-emerald-300 underline underline-offset-2 hover:text-emerald-200"
                             onClick={() => {
                               setEditingId(cause.id);
                               setModalOpen(true);
@@ -292,7 +325,7 @@ export default function AdminCausesPage() {
               <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0f1217] p-6 text-white shadow-2xl">
                 <button
                   type="button"
-                  className="absolute right-4 top-4 text-sm text-zinc-300 underline"
+                  className="absolute right-4 top-4 text-xs text-zinc-400 hover:text-white"
                   onClick={() => {
                     setModalOpen(false);
                     setSaveMessage(null);
@@ -301,7 +334,7 @@ export default function AdminCausesPage() {
                   Close
                 </button>
                 <div className="mb-4">
-                  <div className="text-xs uppercase tracking-wide text-emerald-200">
+                  <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
                     {editing ? "Edit cause" : "New cause"}
                   </div>
                   <div className="text-xl font-semibold">{editing ? editing.title : "Create cause"}</div>
@@ -309,18 +342,18 @@ export default function AdminCausesPage() {
 
                 <div className="space-y-3 text-sm">
                   <label className="block">
-                    <div className="text-xs uppercase tracking-wide text-zinc-400">Title</div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Title</div>
                     <input
-                      className="mt-1 w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-white outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/40"
+                      className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                     />
                   </label>
 
                   <label className="block">
-                    <div className="text-xs uppercase tracking-wide text-zinc-400">Description</div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Description</div>
                     <textarea
-                      className="mt-1 w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-white outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/40"
+                      className="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
                       rows={3}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
@@ -328,14 +361,14 @@ export default function AdminCausesPage() {
                   </label>
 
                   <div className="space-y-2 text-sm">
-                    <div className="text-xs uppercase tracking-wide text-zinc-400">Image</div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Image</div>
                     {imagePreview ? (
-                      <div className="overflow-hidden rounded-xl border border-white/10 bg-white/10">
+                      <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={imagePreview} alt="Preview" className="h-32 w-full object-cover" />
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-dashed border-white/20 bg-white/10 p-3 text-xs text-zinc-400">
+                      <div className="rounded-xl border border-dashed border-white/10 bg-white/5 p-3 text-xs text-zinc-400">
                         No image selected.
                       </div>
                     )}
@@ -350,7 +383,7 @@ export default function AdminCausesPage() {
                     />
                   </div>
 
-                  <div className="text-xs uppercase tracking-wide text-zinc-400">Mode</div>
+                  <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Mode</div>
                   <div className="flex items-center gap-3 text-sm">
                     <label className="inline-flex items-center gap-2">
                       <input
@@ -377,9 +410,9 @@ export default function AdminCausesPage() {
                   {mode === "custom" ? (
                     <div className="grid grid-cols-3 gap-3 text-sm">
                       <label className="flex flex-col gap-1">
-                        Points per $
+                        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Points per $</span>
                         <input
-                          className="h-10 rounded-lg border border-white/15 bg-white/10 px-2 text-white outline-none focus:ring-2 focus:ring-emerald-300/40"
+                          className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
                           type="number"
                           min="0"
                           value={pointsPerDollar === "" ? "" : String(pointsPerDollar)}
@@ -387,9 +420,9 @@ export default function AdminCausesPage() {
                         />
                       </label>
                       <label className="flex flex-col gap-1">
-                        Min amount (cents)
+                        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Min amount (cents)</span>
                         <input
-                          className="h-10 rounded-lg border border-white/15 bg-white/10 px-2 text-white outline-none focus:ring-2 focus:ring-emerald-300/40"
+                          className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
                           type="number"
                           min="0"
                           value={minAmountCents === "" ? "" : String(minAmountCents)}
@@ -397,9 +430,9 @@ export default function AdminCausesPage() {
                         />
                       </label>
                       <label className="flex flex-col gap-1">
-                        Max amount (cents)
+                        <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Max amount (cents)</span>
                         <input
-                          className="h-10 rounded-lg border border-white/15 bg-white/10 px-2 text-white outline-none focus:ring-2 focus:ring-emerald-300/40"
+                          className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
                           type="number"
                           min="0"
                           value={maxAmountCents === "" ? "" : String(maxAmountCents)}
@@ -409,12 +442,12 @@ export default function AdminCausesPage() {
                     </div>
                   ) : (
                     <div className="space-y-2 text-sm">
-                      <div className="text-xs uppercase tracking-wide text-zinc-400">Predefined options</div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Predefined options</div>
                       <div className="flex flex-wrap gap-2">
                         {predefinedOptions.map((opt) => (
                           <span
                             key={`${opt.amountCents}-${opt.points}-${opt.label ?? "opt"}`}
-                            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white"
+                            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white"
                           >
                             {opt.label ?? `${formatMoney(opt.amountCents)} → ${opt.points} pts`}
                             <button
@@ -440,9 +473,9 @@ export default function AdminCausesPage() {
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-xs">
                         <label className="flex flex-col gap-1">
-                          Amount (USD)
+                          <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Amount (USD)</span>
                           <input
-                            className="h-10 rounded-lg border border-white/15 bg-white/10 px-2 text-white outline-none focus:ring-2 focus:ring-emerald-300/40"
+                            className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
                             type="number"
                             min="0.5"
                             step="0.5"
@@ -451,9 +484,9 @@ export default function AdminCausesPage() {
                           />
                         </label>
                         <label className="flex flex-col gap-1">
-                          Points
+                          <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Points</span>
                           <input
-                            className="h-10 rounded-lg border border-white/15 bg-white/10 px-2 text-white outline-none focus:ring-2 focus:ring-emerald-300/40"
+                            className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
                             type="number"
                             min="0"
                             step="10"
@@ -464,7 +497,7 @@ export default function AdminCausesPage() {
                         <div className="flex items-end">
                           <button
                             type="button"
-                            className="inline-flex h-10 w-full items-center justify-center rounded-full bg-emerald-400 px-3 text-xs font-semibold text-emerald-950 transition hover:bg-emerald-300"
+                            className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-emerald-500 px-3 text-xs font-semibold text-white hover:bg-emerald-400"
                             onClick={() =>
                               setPredefinedOptions((prev) => [
                                 ...prev,
@@ -491,23 +524,23 @@ export default function AdminCausesPage() {
                   <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button
                       type="button"
-                      className="inline-flex h-11 items-center justify-center rounded-full bg-emerald-400 px-5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:opacity-60"
+                      className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-500 px-5 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-60"
                       onClick={saveCause}
                       disabled={saving || deleting}
                     >
-                      {saving ? "Saving…" : editing ? "Update cause" : "Create cause"}
+                      {saving ? "Saving\u2026" : editing ? "Update cause" : "Create cause"}
                     </button>
                     {editing ? (
                       <button
                         type="button"
-                        className="inline-flex h-11 items-center justify-center rounded-full border border-red-400/60 bg-red-500/20 px-4 text-sm font-semibold text-red-100 transition hover:bg-red-500/30 disabled:opacity-60"
+                        className="inline-flex h-10 items-center justify-center rounded-lg border border-red-400/40 bg-red-500/10 px-5 text-sm font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-60"
                         onClick={deleteCause}
                         disabled={deleting || saving}
                       >
-                        {deleting ? "Deleting…" : "Delete cause"}
+                        {deleting ? "Deleting\u2026" : "Delete cause"}
                       </button>
                     ) : null}
-                    {saveMessage ? <span className="text-xs text-zinc-300">{saveMessage}</span> : null}
+                    {saveMessage ? <span className="text-xs text-zinc-400">{saveMessage}</span> : null}
                   </div>
                 </div>
               </div>

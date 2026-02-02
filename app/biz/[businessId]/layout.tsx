@@ -28,13 +28,23 @@ import { useAdminStatus } from "@/lib/auth/admin";
 
 type NavItem = { href: (businessId: string) => string; label: string };
 
-const navItems: NavItem[] = [
-  { href: (id) => `/biz/${id}`, label: "Overview" },
-  { href: (id) => `/biz/${id}/donations`, label: "Donations" },
-  { href: (id) => `/biz/${id}/deals`, label: "Deals" },
-  { href: (id) => `/biz/${id}/rewards`, label: "Rewards" },
-  { href: (id) => `/biz/${id}/causes`, label: "Causes" },
+const quickActions: NavItem[] = [
+  { href: (id) => `/biz/${id}`, label: "Dashboard" },
+  { href: (id) => `/biz/${id}/redeem`, label: "Redeem" },
 ];
+
+const manageItems: NavItem[] = [
+  { href: (id) => `/biz/${id}/offers`, label: "Offers" },
+  { href: (id) => `/biz/${id}/donations`, label: "Donations" },
+  { href: (id) => `/biz/${id}/charities`, label: "Charities" },
+  { href: (id) => `/biz/${id}/locations`, label: "Locations" },
+];
+
+function isCurrent(pathname: string, href: string, businessId: string) {
+  // Dashboard is exact match only (so /biz/[id]/redeem doesn't highlight Dashboard)
+  if (href === `/biz/${businessId}`) return pathname === href;
+  return pathname.startsWith(href);
+}
 
 function BusinessNavbar({
   businessId,
@@ -112,11 +122,22 @@ function BusinessSidebar({
       </SidebarHeader>
       <SidebarBody>
         <SidebarSection>
-          <SidebarHeading>Navigation</SidebarHeading>
-          {navItems.map((item) => {
+          <SidebarHeading>Quick Actions</SidebarHeading>
+          {quickActions.map((item) => {
             const href = item.href(businessId);
             return (
-              <SidebarItem key={href} href={href} current={pathname === href}>
+              <SidebarItem key={href} href={href} current={isCurrent(pathname, href, businessId)}>
+                <SidebarLabel>{item.label}</SidebarLabel>
+              </SidebarItem>
+            );
+          })}
+        </SidebarSection>
+        <SidebarSection>
+          <SidebarHeading>Manage</SidebarHeading>
+          {manageItems.map((item) => {
+            const href = item.href(businessId);
+            return (
+              <SidebarItem key={href} href={href} current={isCurrent(pathname, href, businessId)}>
                 <SidebarLabel>{item.label}</SidebarLabel>
               </SidebarItem>
             );

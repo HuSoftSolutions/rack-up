@@ -14,6 +14,8 @@ export type LocationDoc = {
   name: string;
   slug: string;
   address?: string;
+  logoPath?: string;
+  logoUrl?: string;
   active: boolean;
   createdAt: FirebaseTimestamp;
   updatedAt?: FirebaseTimestamp;

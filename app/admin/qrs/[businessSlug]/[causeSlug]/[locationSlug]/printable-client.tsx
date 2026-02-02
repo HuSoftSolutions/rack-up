@@ -104,14 +104,24 @@ export default function PrintableQr({ config }: { config: Config }) {
               <div className="flex items-center justify-between gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/RackUp-01.svg" alt="Rack Up" className="h-7 w-auto" />
-                {config.business.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={config.business.logoUrl}
-                    alt={`${config.business.name} logo`}
-                    className="h-10 w-auto max-w-[140px] object-contain"
-                  />
-                ) : null}
+                <div className="flex items-center gap-2">
+                  {config.business.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={config.business.logoUrl}
+                      alt={`${config.business.name} logo`}
+                      className="h-10 w-auto max-w-[140px] object-contain"
+                    />
+                  ) : null}
+                  {config.location.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={config.location.logoUrl}
+                      alt={`${config.location.name ?? config.location.id} logo`}
+                      className="h-10 w-auto max-w-[140px] object-contain"
+                    />
+                  ) : null}
+                </div>
               </div>
               <div className="text-xs uppercase tracking-wide text-zinc-600">
                 {config.business.name} · {config.location.name}
