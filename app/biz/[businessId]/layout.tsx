@@ -185,7 +185,10 @@ export default function BusinessLayout({
   if (loading || adminLoading || !businessId) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6">
-        <div className="text-sm text-zinc-200">Loading…</div>
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 shadow-lg">
+          <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-emerald-300" />
+          Loading business…
+        </div>
       </div>
     );
   }
@@ -225,7 +228,8 @@ export default function BusinessLayout({
   return (
     <SidebarLayout
       className="bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] text-white"
-      contentClassName="max-w-none"
+      mainClassName="pt-0 pb-0 lg:pt-0 lg:pr-0 lg:pl-64"
+      frameClassName="p-0 lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none lg:ring-0 dark:lg:bg-transparent"
       navbar={
         <BusinessNavbar
           businessId={businessId}
@@ -251,7 +255,7 @@ export default function BusinessLayout({
         />
       }
     >
-      <div className="w-full">{children}</div>
+      <div className="space-y-4">{children}</div>
     </SidebarLayout>
   );
 }
