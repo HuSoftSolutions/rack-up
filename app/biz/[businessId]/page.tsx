@@ -27,10 +27,6 @@ type DonationRow = {
   createdAt: string | null;
 };
 
-type Deal = {
-  id: string;
-  active: boolean;
-};
 
 function formatMoney(cents: number | null) {
   if (typeof cents !== "number" || !Number.isFinite(cents)) return "—";
@@ -55,7 +51,6 @@ export default function BusinessDashboardPage() {
 
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [rewards, setRewards] = useState<RewardRow[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,26 +72,20 @@ export default function BusinessDashboardPage() {
       setError(null);
       try {
         const idToken = await currentUser.getIdToken();
-        const [donationsRes, rewardsRes, dealsRes] = await Promise.all([
+        const [donationsRes, rewardsRes] = await Promise.all([
           fetch(`/api/business/${businessId}/donations`, {
             headers: { Authorization: `Bearer ${idToken}` },
           }),
           fetch(`/api/business/${businessId}/rewards/issues`, {
             headers: { Authorization: `Bearer ${idToken}` },
           }),
-          fetch(`/api/business/${businessId}/deals`, {
-            headers: { Authorization: `Bearer ${idToken}` },
-          }),
         ]);
 
         const donationsJson = (await donationsRes.json()) as { donations?: DonationRow[]; error?: string };
         const rewardsJson = (await rewardsRes.json()) as { issues?: RewardRow[]; error?: string };
-        const dealsJson = (await dealsRes.json()) as { deals?: Deal[]; error?: string };
-
         if (!canceled) {
           setDonations(donationsJson.donations ?? []);
           setRewards(rewardsJson.issues ?? []);
-          setDeals(dealsJson.deals ?? []);
         }
       } catch (err) {
         if (!canceled) setError(err instanceof Error ? err.message : "Failed to load dashboard.");

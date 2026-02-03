@@ -26,7 +26,7 @@ export default async function DonateIndexPage() {
         </div>
       </div>
 
-      <FeaturedPartners />
+      <FeaturedPartners partners={[]} />
     </PublicShell>
   );
 }
