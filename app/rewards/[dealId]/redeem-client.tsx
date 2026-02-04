@@ -27,6 +27,7 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
     issueId?: string;
     code?: string | null;
   } | null>(null);
+  const [redeemed, setRedeemed] = useState(false);
   const { user, loading } = useAuth();
   const [points, setPoints] = useState<number | null>(null);
   const [pointsError, setPointsError] = useState<string | null>(null);
@@ -94,6 +95,7 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
       if (!response.ok) throw new Error(json.error ?? "Redemption failed.");
       setResult(json.message ?? "Redeemed (stubbed).");
       setIssued({ expiresAt: json.expiresAt, issueId: json.issueId, code: json.code ?? null });
+      setRedeemed(true);
       if (typeof json.pointsRemaining === "number") {
         setPoints(json.pointsRemaining);
       }
@@ -163,10 +165,16 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
             <button
               className="inline-flex h-11 items-center justify-center rounded-full bg-foreground px-6 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-60 dark:hover:bg-[#ccc]"
               onClick={onRedeem}
-              disabled={redeeming || loading}
+              disabled={redeeming || loading || redeemed}
               type="button"
             >
-              {redeeming ? "Redeeming…" : !user ? "Sign in required" : "Redeem now"}
+              {redeeming
+                ? "Redeeming…"
+                : redeemed
+                  ? "Redeemed"
+                  : !user
+                    ? "Sign in required"
+                    : "Redeem now"}
             </button>
           </div>
 
@@ -179,7 +187,8 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
             <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-white dark:border-white/10 dark:bg-black/60">
               <div className="font-semibold">Added to your rewards</div>
               <div className="text-sm text-zinc-300">
-                Show this code or receipt at the location. Staff can also find it in their console.
+                Next step: show this code or receipt to a staff member at the location so they can
+                mark the reward used and give you the benefit.
               </div>
               {issued.code ? (
                 <div className="rounded-lg border border-white/10 bg-black/40 px-3 py-2">
@@ -202,6 +211,13 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
                     View all my rewards
                   </Link>
                 )}
+              </div>
+              <div className="text-xs text-zinc-400">
+                Want to redeem again? Go back to{" "}
+                <Link className="underline" href="/rewards">
+                  rewards
+                </Link>{" "}
+                and start a new redemption.
               </div>
             </div>
           ) : null}
