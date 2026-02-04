@@ -4,6 +4,8 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { firestore } from "@/lib/firebase/client";
 
 type RewardRow = {
   id: string;
@@ -44,6 +46,17 @@ function formatDate(value: string | null) {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
 }
 
+function toIso(value: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (typeof value === "object" && value !== null && "_seconds" in value) {
+    const ts = value as { _seconds: number; _nanoseconds?: number };
+    return new Date(ts._seconds * 1000 + Math.floor((ts._nanoseconds ?? 0) / 1_000_000)).toISOString();
+  }
+  return null;
+}
+
 export default function BusinessDashboardPage() {
   const { user } = useAuth();
   const pathname = usePathname();
@@ -51,7 +64,8 @@ export default function BusinessDashboardPage() {
 
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [rewards, setRewards] = useState<RewardRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingDonations, setLoadingDonations] = useState(true);
+  const [loadingRewards, setLoadingRewards] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Quick redeem state
@@ -65,44 +79,107 @@ export default function BusinessDashboardPage() {
 
   useEffect(() => {
     if (!user || !businessId) return;
-    const currentUser = user;
     let canceled = false;
-    let interval: ReturnType<typeof setInterval> | null = null;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const idToken = await currentUser.getIdToken();
-        const [donationsRes, rewardsRes] = await Promise.all([
-          fetch(`/api/business/${businessId}/donations`, {
-            headers: { Authorization: `Bearer ${idToken}` },
-          }),
-          fetch(`/api/business/${businessId}/rewards/issues`, {
-            headers: { Authorization: `Bearer ${idToken}` },
-          }),
-        ]);
-
-        const donationsJson = (await donationsRes.json()) as { donations?: DonationRow[]; error?: string };
-        const rewardsJson = (await rewardsRes.json()) as { issues?: RewardRow[]; error?: string };
-        if (!canceled) {
-          setDonations(donationsJson.donations ?? []);
-          setRewards(rewardsJson.issues ?? []);
-        }
-      } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load dashboard.");
-      } finally {
-        if (!canceled) setLoading(false);
-      }
-    }
-    void load();
-    interval = setInterval(() => {
-      if (!canceled) void load();
-    }, 15000);
+    setError(null);
+    setLoadingDonations(true);
+    const donationsQuery = query(
+      collection(firestore, "donations"),
+      where("businessId", "==", businessId),
+      orderBy("createdAt", "desc"),
+      limit(200),
+    );
+    const unsubscribe = onSnapshot(
+      donationsQuery,
+      (snap) => {
+        if (canceled) return;
+        const next = snap.docs.map((doc) => {
+          const data = doc.data() as Record<string, unknown>;
+          return {
+            id: doc.id,
+            amountCents: (data.amountCents as number | null) ?? null,
+            points: (data.points as number | null) ?? null,
+            causeTitle: (data.causeTitle as string | null) ?? null,
+            locationSlug: (data.locationSlug as string | null) ?? null,
+            locationId: (data.locationId as string | null) ?? null,
+            createdAt: toIso(data.createdAt),
+          } satisfies DonationRow;
+        });
+        setDonations(next);
+        setLoadingDonations(false);
+      },
+      (err) => {
+        if (canceled) return;
+        const message = err instanceof Error ? err.message : "Failed to load donations.";
+        const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
+        setError(
+          missingIndex
+            ? "Donations are temporarily unavailable. Please try again shortly."
+            : message,
+        );
+        setLoadingDonations(false);
+      },
+    );
     return () => {
       canceled = true;
-      if (interval) clearInterval(interval);
+      unsubscribe();
     };
   }, [businessId, user]);
+
+  useEffect(() => {
+    if (!user || !businessId) return;
+    let canceled = false;
+    setError(null);
+    setLoadingRewards(true);
+    const rewardsQuery = query(
+      collection(firestore, "reward_issues"),
+      where("businessId", "==", businessId),
+      orderBy("issuedAt", "desc"),
+      limit(200),
+    );
+    const unsubscribe = onSnapshot(
+      rewardsQuery,
+      (snap) => {
+        if (canceled) return;
+        const next = snap.docs.map((doc) => {
+          const data = doc.data() as Record<string, unknown>;
+          return {
+            id: doc.id,
+            code: (data.code as string | null) ?? null,
+            userId: (data.userId as string | null) ?? null,
+            userEmail: (data.userEmail as string | null) ?? (data.email as string | null) ?? null,
+            userName: (data.userName as string | null) ?? null,
+            dealId: (data.dealId as string | null) ?? null,
+            status: (data.status as RewardRow["status"]) ?? "issued",
+            issuedAt: toIso(data.issuedAt),
+            usedAt: toIso(data.usedAt),
+            title:
+              (data.displayPayload as { title?: string } | undefined)?.title ??
+              (data.title as string | undefined) ??
+              null,
+          } satisfies RewardRow;
+        });
+        setRewards(next);
+        setLoadingRewards(false);
+      },
+      (err) => {
+        if (canceled) return;
+        const message = err instanceof Error ? err.message : "Failed to load rewards.";
+        const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
+        setError(
+          missingIndex
+            ? "Rewards are temporarily unavailable. Please try again shortly."
+            : message,
+        );
+        setLoadingRewards(false);
+      },
+    );
+    return () => {
+      canceled = true;
+      unsubscribe();
+    };
+  }, [businessId, user]);
+
+  const loading = loadingDonations || loadingRewards;
 
   async function redeemByCode() {
     if (!user || !businessId || !redeemCode.trim()) return;

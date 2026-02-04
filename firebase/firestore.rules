@@ -63,12 +63,16 @@ service cloud.firestore {
     }
 
     match /donations/{donationId} {
-      allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow read: if isSignedIn()
+        && (request.auth.uid == resource.data.userId
+          || businessAdminFor(resource.data.businessId));
       allow write: if isAdmin();
     }
 
     match /reward_issues/{issueId} {
-      allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow read: if isSignedIn()
+        && (request.auth.uid == resource.data.userId
+          || businessAdminFor(resource.data.businessId));
       allow write: if isAdmin();
     }
 

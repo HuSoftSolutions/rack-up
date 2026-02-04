@@ -22,11 +22,6 @@ type RewardRow = {
   usedBy: { staffId: string | null; staffEmail: string | null; staffName: string | null } | null;
 };
 
-type RewardResponse = {
-  issues?: RewardRow[];
-  error?: string;
-};
-
 type Filter = "all" | "issued" | "used" | "expired";
 
 function formatDate(value: string | null) {
