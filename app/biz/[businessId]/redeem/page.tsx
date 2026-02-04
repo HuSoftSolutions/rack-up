@@ -58,6 +58,7 @@ export default function BusinessRedeemPage({
   const [rewards, setRewards] = useState<RewardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [indexWarning, setIndexWarning] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [marking, setMarking] = useState<string | null>(null);
 
@@ -136,11 +137,8 @@ export default function BusinessRedeemPage({
         if (canceled) return;
         const message = err instanceof Error ? err.message : "Failed to load rewards.";
         const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
-        setError(
-          missingIndex
-            ? "Rewards are temporarily unavailable. Please try again shortly."
-            : message,
-        );
+        if (missingIndex) setIndexWarning(true);
+        setError(missingIndex ? null : message);
         setLoading(false);
       },
     );
@@ -280,6 +278,12 @@ export default function BusinessRedeemPage({
       {error ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
+        </div>
+      ) : null}
+      {indexWarning ? (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+          Realtime updates are limited because a required Firestore index is missing. Create a composite index for
+          rewards (businessId + issuedAt).
         </div>
       ) : null}
 

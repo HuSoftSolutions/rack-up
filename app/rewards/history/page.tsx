@@ -82,6 +82,7 @@ export default function RewardHistoryPage() {
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [loadingDonations, setLoadingDonations] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [indexWarning, setIndexWarning] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -133,11 +134,8 @@ export default function RewardHistoryPage() {
         if (canceled) return;
         const message = err instanceof Error ? err.message : "Failed to load rewards.";
         const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
-        setError(
-          missingIndex
-            ? "Rewards are temporarily unavailable. Please try again shortly."
-            : message,
-        );
+        if (missingIndex) setIndexWarning(true);
+        setError(missingIndex ? null : message);
         setLoadingIssues(false);
       },
     );
@@ -232,6 +230,12 @@ export default function RewardHistoryPage() {
       {error ? (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
           {error}
+        </div>
+      ) : null}
+      {indexWarning ? (
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+          Realtime updates are limited because a required Firestore index is missing. Create a composite index for
+          rewards (userId + issuedAt).
         </div>
       ) : null}
 

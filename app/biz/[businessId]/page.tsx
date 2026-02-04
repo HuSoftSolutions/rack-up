@@ -67,6 +67,7 @@ export default function BusinessDashboardPage() {
   const [loadingDonations, setLoadingDonations] = useState(true);
   const [loadingRewards, setLoadingRewards] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [indexWarnings, setIndexWarnings] = useState<string[]>([]);
 
   // Quick redeem state
   const [redeemCode, setRedeemCode] = useState("");
@@ -111,11 +112,14 @@ export default function BusinessDashboardPage() {
         if (canceled) return;
         const message = err instanceof Error ? err.message : "Failed to load donations.";
         const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
-        setError(
-          missingIndex
-            ? "Donations are temporarily unavailable. Please try again shortly."
-            : message,
-        );
+        if (missingIndex) {
+          setIndexWarnings((prev) =>
+            prev.includes("donations")
+              ? prev
+              : [...prev, "donations"],
+          );
+        }
+        setError(missingIndex ? null : message);
         setLoadingDonations(false);
       },
     );
@@ -165,11 +169,14 @@ export default function BusinessDashboardPage() {
         if (canceled) return;
         const message = err instanceof Error ? err.message : "Failed to load rewards.";
         const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
-        setError(
-          missingIndex
-            ? "Rewards are temporarily unavailable. Please try again shortly."
-            : message,
-        );
+        if (missingIndex) {
+          setIndexWarnings((prev) =>
+            prev.includes("rewards")
+              ? prev
+              : [...prev, "rewards"],
+          );
+        }
+        setError(missingIndex ? null : message);
         setLoadingRewards(false);
       },
     );
@@ -314,6 +321,14 @@ export default function BusinessDashboardPage() {
       {error ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
+        </div>
+      ) : null}
+      {indexWarnings.length > 0 ? (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+          Realtime updates are limited because required Firestore indexes are missing. Create composite indexes for{" "}
+          {indexWarnings.includes("donations") ? "donations (businessId + createdAt)" : ""}
+          {indexWarnings.includes("donations") && indexWarnings.includes("rewards") ? " and " : ""}
+          {indexWarnings.includes("rewards") ? "rewards (businessId + issuedAt)" : ""}.
         </div>
       ) : null}
 
