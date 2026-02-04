@@ -98,7 +98,6 @@ export default function BusinessDashboardPage() {
           return {
             id: doc.id,
             amountCents: (data.amountCents as number | null) ?? null,
-            points: (data.points as number | null) ?? null,
             causeTitle: (data.causeTitle as string | null) ?? null,
             locationSlug: (data.locationSlug as string | null) ?? null,
             locationId: (data.locationId as string | null) ?? null,
