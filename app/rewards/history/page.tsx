@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Timestamp, collection, getDocs, limit, orderBy, query, where } from "firebase/firestore";
+import {
+  Timestamp,
+  collection,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from "firebase/firestore";
 import { Badge } from "@/ui-kit/badge";
 import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
@@ -78,28 +87,64 @@ export default function RewardHistoryPage() {
     if (!user) return;
     const currentUser = user;
     let canceled = false;
-    async function load() {
-      setLoadingIssues(true);
-      setError(null);
-      try {
-        const idToken = await currentUser.getIdToken();
-        const res = await fetch("/api/rewards/issues", {
-          headers: { Authorization: `Bearer ${idToken}` },
+
+    setLoadingIssues(true);
+    setError(null);
+    const rewardsQuery = query(
+      collection(firestore, "reward_issues"),
+      where("userId", "==", currentUser.uid),
+      orderBy("issuedAt", "desc"),
+      limit(50),
+    );
+
+    const unsubscribe = onSnapshot(
+      rewardsQuery,
+      (snap) => {
+        if (canceled) return;
+        const issues = snap.docs.map((doc) => {
+          const data = doc.data();
+          const toIso = (val: unknown): string | null => {
+            if (!val) return null;
+            if (val instanceof Date) return val.toISOString();
+            if (val instanceof Timestamp) return val.toDate().toISOString();
+            if (typeof val === "object" && val !== null && "_seconds" in val) {
+              const ts = val as { _seconds: number; _nanoseconds?: number };
+              return new Date(ts._seconds * 1000 + Math.floor((ts._nanoseconds ?? 0) / 1_000_000)).toISOString();
+            }
+            return null;
+          };
+          return {
+            id: doc.id,
+            dealId: data.dealId ?? null,
+            businessId: data.businessId ?? null,
+            code: data.code ?? null,
+            status: (data.status as RewardIssue["status"]) ?? "issued",
+            issuedAt: toIso(data.issuedAt),
+            expiresAt: toIso(data.expiresAt),
+            usedAt: toIso(data.usedAt),
+            title: data.displayPayload?.title ?? data.title ?? null,
+            businessName: data.displayPayload?.businessName ?? data.businessName ?? data.businessId ?? null,
+          } satisfies RewardIssue;
         });
-        const json = (await res.json()) as RewardResponse;
-        if (!res.ok || !json.issues) {
-          throw new Error(json.error ?? "Failed to load rewards.");
-        }
-        if (!canceled) setIssues(json.issues);
-      } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load rewards.");
-      } finally {
-        if (!canceled) setLoadingIssues(false);
-      }
-    }
-    void load();
+        setIssues(issues);
+        setLoadingIssues(false);
+      },
+      (err) => {
+        if (canceled) return;
+        const message = err instanceof Error ? err.message : "Failed to load rewards.";
+        const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
+        setError(
+          missingIndex
+            ? "Rewards are temporarily unavailable. Please try again shortly."
+            : message,
+        );
+        setLoadingIssues(false);
+      },
+    );
+
     return () => {
       canceled = true;
+      unsubscribe();
     };
   }, [user]);
 
@@ -222,7 +267,13 @@ export default function RewardHistoryPage() {
                   <span>Expires {formatDate(issue.expiresAt)}</span>
                 </div>
                 <div className="text-xs text-zinc-300">
-                  Staff can see this reward in their console; they’ll mark it used when you show up. No code needed.
+                  Show this code or receipt at the location so staff can mark it used.
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400">
+                  <span className="font-mono text-emerald-200">{issue.code ?? "—"}</span>
+                  <a className="text-emerald-200 underline" href={`/rewards/receipt/${issue.id}`}>
+                    View receipt
+                  </a>
                 </div>
               </div>
             ))}

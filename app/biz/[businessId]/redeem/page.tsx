@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { firestore } from "@/lib/firebase/client";
 
 type RewardRow = {
   id: string;
@@ -76,35 +78,82 @@ export default function BusinessRedeemPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
-    const currentUser = user;
     let canceled = false;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const idToken = await currentUser.getIdToken();
-        const query = filter === "all" ? "" : `?status=${filter}`;
-        const res = await fetch(`/api/business/${businessId}/rewards/issues${query}`, {
-          headers: { Authorization: `Bearer ${idToken}` },
+    setLoading(true);
+    setError(null);
+    const rewardsQuery = query(
+      collection(firestore, "reward_issues"),
+      where("businessId", "==", businessId),
+      orderBy("issuedAt", "desc"),
+      limit(200),
+    );
+
+    const unsubscribe = onSnapshot(
+      rewardsQuery,
+      (snap) => {
+        if (canceled) return;
+        const toIso = (val: unknown): string | null => {
+          if (!val) return null;
+          if (val instanceof Date) return val.toISOString();
+          if (val instanceof Timestamp) return val.toDate().toISOString();
+          if (typeof val === "object" && val !== null && "_seconds" in val) {
+            const ts = val as { _seconds: number; _nanoseconds?: number };
+            return new Date(ts._seconds * 1000 + Math.floor((ts._nanoseconds ?? 0) / 1_000_000)).toISOString();
+          }
+          return null;
+        };
+        const issues = snap.docs.map((doc) => {
+          const data = doc.data() as Record<string, unknown>;
+          return {
+            id: doc.id,
+            code: (data.code as string | null) ?? null,
+            userId: (data.userId as string | null) ?? null,
+            userEmail: (data.userEmail as string | null) ?? (data.email as string | null) ?? null,
+            userName: (data.userName as string | null) ?? null,
+            dealId: (data.dealId as string | null) ?? null,
+            businessId: (data.businessId as string | null) ?? null,
+            status: (data.status as RewardRow["status"]) ?? "issued",
+            issuedAt: toIso(data.issuedAt),
+            expiresAt: toIso(data.expiresAt),
+            usedAt: toIso(data.usedAt),
+            title:
+              (data.displayPayload as { title?: string } | undefined)?.title ??
+              (data.title as string | undefined) ??
+              null,
+            businessName:
+              (data.displayPayload as { businessName?: string } | undefined)?.businessName ??
+              (data.businessName as string | undefined) ??
+              null,
+            usedBy:
+              typeof data.usedBy === "object" && data.usedBy
+                ? {
+                    staffId: (data.usedBy as { staffId?: string | null }).staffId ?? null,
+                    staffEmail: (data.usedBy as { staffEmail?: string | null }).staffEmail ?? null,
+                    staffName: (data.usedBy as { staffName?: string | null }).staffName ?? null,
+                  }
+                : null,
+          } satisfies RewardRow;
         });
-        const json = (await res.json()) as RewardResponse;
-        if (!res.ok || !json.issues) {
-          throw new Error(json.error ?? "Failed to load rewards.");
-        }
-        if (!canceled) setRewards(json.issues);
-      } catch (err) {
-        if (!canceled) {
-          setError(err instanceof Error ? err.message : "Failed to load rewards.");
-        }
-      } finally {
-        if (!canceled) setLoading(false);
-      }
-    }
-    void load();
+        setRewards(issues);
+        setLoading(false);
+      },
+      (err) => {
+        if (canceled) return;
+        const message = err instanceof Error ? err.message : "Failed to load rewards.";
+        const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
+        setError(
+          missingIndex
+            ? "Rewards are temporarily unavailable. Please try again shortly."
+            : message,
+        );
+        setLoading(false);
+      },
+    );
     return () => {
       canceled = true;
+      unsubscribe();
     };
-  }, [businessId, filter, user]);
+  }, [businessId, user]);
 
   async function redeemByCode() {
     if (!user || !businessId || !redeemCode.trim()) return;
@@ -179,6 +228,11 @@ export default function BusinessRedeemPage({
       { issued: 0, used: 0, expired: 0 },
     );
   }, [rewards]);
+
+  const visibleRewards = useMemo(() => {
+    if (filter === "all") return rewards;
+    return rewards.filter((r) => r.status === filter);
+  }, [filter, rewards]);
 
   return (
     <div className="space-y-6 text-white">
@@ -281,7 +335,7 @@ export default function BusinessRedeemPage({
         <div className="overflow-hidden rounded-xl border border-white/5 bg-white/[0.02]">
           <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 text-sm">
             <div className="font-semibold text-white">Rewards</div>
-            <div className="text-xs text-zinc-500">{loading ? "Loading…" : `${rewards.length} loaded`}</div>
+            <div className="text-xs text-zinc-500">{loading ? "Loading…" : `${visibleRewards.length} loaded`}</div>
           </div>
           <div className="max-h-[70vh] overflow-auto">
             <table className="min-w-full text-sm">
@@ -296,14 +350,14 @@ export default function BusinessRedeemPage({
                 </tr>
               </thead>
               <tbody>
-                {rewards.length === 0 && !loading ? (
+                {visibleRewards.length === 0 && !loading ? (
                   <tr>
                     <td className="px-4 py-3 text-zinc-400" colSpan={6}>
                       No rewards to show.
                     </td>
                   </tr>
                 ) : null}
-                {rewards.map((r) => (
+                {visibleRewards.map((r) => (
                   <tr key={r.id} className="border-t border-white/5 text-sm hover:bg-white/[0.02]">
                     <td className="px-4 py-2 font-semibold text-white">
                       {r.title ?? r.dealId ?? "Reward"}

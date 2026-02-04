@@ -67,6 +67,7 @@ export default function BusinessDashboardPage() {
     if (!user || !businessId) return;
     const currentUser = user;
     let canceled = false;
+    let interval: ReturnType<typeof setInterval> | null = null;
     async function load() {
       setLoading(true);
       setError(null);
@@ -94,8 +95,12 @@ export default function BusinessDashboardPage() {
       }
     }
     void load();
+    interval = setInterval(() => {
+      if (!canceled) void load();
+    }, 15000);
     return () => {
       canceled = true;
+      if (interval) clearInterval(interval);
     };
   }, [businessId, user]);
 

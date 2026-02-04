@@ -147,6 +147,13 @@ export default function RewardReceiptPage() {
                   <div>Customer: {issue.userName ?? "—"}</div>
                   <div>Email: {issue.userEmail ?? "—"}</div>
                 </div>
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/50 px-3 py-2">
+                  <div className="text-xs uppercase tracking-wide text-zinc-400">Reward code</div>
+                  <div className="mt-1 font-mono text-lg tracking-[0.3em] text-emerald-200">
+                    {issue.code ?? "—"}
+                  </div>
+                </div>
+                <div className="mt-2 text-[11px] text-zinc-500">Receipt ID: {issue.id}</div>
               </div>
             </div>
           )}

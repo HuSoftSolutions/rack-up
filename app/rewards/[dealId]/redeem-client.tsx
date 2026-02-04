@@ -22,7 +22,11 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
   const [redeeming, setRedeeming] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [issued, setIssued] = useState<{ expiresAt?: string | null; issueId?: string } | null>(null);
+  const [issued, setIssued] = useState<{
+    expiresAt?: string | null;
+    issueId?: string;
+    code?: string | null;
+  } | null>(null);
   const { user, loading } = useAuth();
   const [points, setPoints] = useState<number | null>(null);
   const [pointsError, setPointsError] = useState<string | null>(null);
@@ -85,10 +89,11 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
         pointsRemaining?: number;
         expiresAt?: string;
         issueId?: string;
+        code?: string;
       };
       if (!response.ok) throw new Error(json.error ?? "Redemption failed.");
       setResult(json.message ?? "Redeemed (stubbed).");
-      setIssued({ expiresAt: json.expiresAt, issueId: json.issueId });
+      setIssued({ expiresAt: json.expiresAt, issueId: json.issueId, code: json.code ?? null });
       if (typeof json.pointsRemaining === "number") {
         setPoints(json.pointsRemaining);
       }
@@ -174,9 +179,16 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
             <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-white dark:border-white/10 dark:bg-black/60">
               <div className="font-semibold">Added to your rewards</div>
               <div className="text-sm text-zinc-300">
-                Show up in person; staff can see this reward in their console and will mark it
-                used. No code needed.
+                Show this code or receipt at the location. Staff can also find it in their console.
               </div>
+              {issued.code ? (
+                <div className="rounded-lg border border-white/10 bg-black/40 px-3 py-2">
+                  <div className="text-xs uppercase tracking-wide text-zinc-400">Reward code</div>
+                  <div className="mt-1 font-mono text-lg tracking-[0.3em] text-emerald-200">
+                    {issued.code}
+                  </div>
+                </div>
+              ) : null}
               <div className="text-xs text-zinc-400">
                 Expires {issued.expiresAt ? new Date(issued.expiresAt).toLocaleString() : "soon"}
               </div>
