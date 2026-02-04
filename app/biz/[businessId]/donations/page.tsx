@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { firestore } from "@/lib/firebase/client";
 
 type DonationRow = {
   id: string;
@@ -32,6 +34,17 @@ function formatDate(value: string | null) {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
 }
 
+function toIso(value: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (typeof value === "object" && value !== null && "_seconds" in value) {
+    const ts = value as { _seconds: number; _nanoseconds?: number };
+    return new Date(ts._seconds * 1000 + Math.floor((ts._nanoseconds ?? 0) / 1_000_000)).toISOString();
+  }
+  return null;
+}
+
 export default function BusinessDonationsPage({
   params,
 }: {
@@ -42,6 +55,7 @@ export default function BusinessDonationsPage({
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [indexWarning, setIndexWarning] = useState(false);
 
   useEffect(() => {
     params.then((p) => setBusinessId(p.businessId));
@@ -49,30 +63,49 @@ export default function BusinessDonationsPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
-    const currentUser = user;
     let canceled = false;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const idToken = await currentUser.getIdToken();
-        const res = await fetch(`/api/business/${businessId}/donations`, {
-          headers: { Authorization: `Bearer ${idToken}` },
+    setLoading(true);
+    setError(null);
+    const donationsQuery = query(
+      collection(firestore, "donations"),
+      where("businessId", "==", businessId),
+      orderBy("createdAt", "desc"),
+      limit(200),
+    );
+    const unsubscribe = onSnapshot(
+      donationsQuery,
+      (snap) => {
+        if (canceled) return;
+        const next = snap.docs.map((doc) => {
+          const data = doc.data() as Record<string, unknown>;
+          return {
+            id: doc.id,
+            amountCents: (data.amountCents as number | null) ?? null,
+            points: (data.points as number | null) ?? null,
+            causeId: (data.causeId as string | null) ?? null,
+            causeTitle: (data.causeTitle as string | null) ?? null,
+            locationId: (data.locationId as string | null) ?? null,
+            locationSlug: (data.locationSlug as string | null) ?? null,
+            status: (data.status as string | null) ?? null,
+            createdAt: toIso(data.createdAt),
+            userId: (data.userId as string | null) ?? null,
+          } satisfies DonationRow;
         });
-        const json = (await res.json()) as { donations?: DonationRow[]; error?: string };
-        if (!res.ok || !json.donations) {
-          throw new Error(json.error ?? "Failed to load donations.");
-        }
-        if (!canceled) setDonations(json.donations);
-      } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load donations.");
-      } finally {
-        if (!canceled) setLoading(false);
-      }
-    }
-    void load();
+        setDonations(next);
+        setLoading(false);
+      },
+      (err) => {
+        if (canceled) return;
+        const message = err instanceof Error ? err.message : "Failed to load donations.";
+        const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
+        if (missingIndex) setIndexWarning(true);
+        setError(missingIndex ? null : message);
+        setLoading(false);
+      },
+    );
     return () => {
       canceled = true;
+      unsubscribe();
     };
   }, [businessId, user]);
 
@@ -95,6 +128,12 @@ export default function BusinessDonationsPage({
       {error ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
+        </div>
+      ) : null}
+      {indexWarning ? (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+          Realtime updates are limited because a required Firestore index is missing. Create a composite index for
+          donations (businessId + createdAt).
         </div>
       ) : null}
 
