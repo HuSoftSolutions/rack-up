@@ -29,7 +29,6 @@ type SubAction =
   | "causesFullView"
   | "uploadLogo"
   | "uploadLocationLogo"
-  | "manageStaff"
   | "donationUrls"
   | "qrLinks"
   | null;
@@ -79,16 +78,6 @@ export default function AdminBusinessesPage() {
   const [locationLogoUploading, setLocationLogoUploading] = useState(false);
   const [locationLogoMessage, setLocationLogoMessage] = useState<string | null>(null);
 
-  // Staff
-  const [staffEmail, setStaffEmail] = useState("");
-  const [staffRole, setStaffRole] = useState<"owner" | "staff">("staff");
-  const [staffSubmitting, setStaffSubmitting] = useState(false);
-  const [staffMessage, setStaffMessage] = useState<string | null>(null);
-  const [staffMembers, setStaffMembers] = useState<
-    { uid: string; email: string | null; role: string }[]
-  >([]);
-  const [staffCounts, setStaffCounts] = useState<Record<string, number>>({});
-
   /* ── Memos ── */
 
   const filtered = useMemo(
@@ -109,17 +98,12 @@ export default function AdminBusinessesPage() {
         if (c.linked) causeSet.add(c.id);
       }
     }
-    const staffTotal = Object.values(staffCounts).reduce((s, n) => s + n, 0);
     return [
       { label: "Businesses", value: String(businesses.length) },
       { label: "Locations", value: String(locCount) },
       { label: "Active Causes", value: String(causeSet.size) },
-      {
-        label: "Staff",
-        value: Object.keys(staffCounts).length ? String(staffTotal) : "\u2014",
-      },
     ];
-  }, [businesses, causeAssignments, staffCounts]);
+  }, [businesses, causeAssignments]);
 
   const donationCombos = useMemo(() => {
     return businesses.flatMap((biz) => {
@@ -423,56 +407,6 @@ export default function AdminBusinessesPage() {
     }
   }
 
-  async function loadStaff(businessId: string) {
-    if (!user) return;
-    try {
-      const idToken = await user.getIdToken();
-      const res = await fetch(`/api/admin/businesses/${businessId}/staff/list`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const json = (await res.json()) as {
-        members?: { uid: string; email: string | null; role: string }[];
-        error?: string;
-      };
-      if (!res.ok) throw new Error(json.error ?? "Failed to load staff.");
-      const members = json.members ?? [];
-      setStaffMembers(members);
-      setStaffCounts((prev) => ({ ...prev, [businessId]: members.length }));
-    } catch (err) {
-      setStaffMessage(err instanceof Error ? err.message : "Failed to load staff.");
-    }
-  }
-
-  async function addStaff(e: React.FormEvent) {
-    e.preventDefault();
-    if (!expandedId) {
-      setStaffMessage("No business selected.");
-      return;
-    }
-    if (!user) {
-      setStaffMessage("Sign in again and try.");
-      return;
-    }
-    setStaffSubmitting(true);
-    setStaffMessage(null);
-    try {
-      const idToken = await user.getIdToken();
-      const res = await fetch(`/api/admin/businesses/${expandedId}/staff`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ email: staffEmail, role: staffRole }),
-      });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !json.ok) throw new Error(json.error ?? "Failed to add staff.");
-      setStaffMessage("Staff access granted.");
-      setStaffEmail("");
-      void loadStaff(expandedId);
-    } catch (err) {
-      setStaffMessage(err instanceof Error ? err.message : "Failed to add staff.");
-    } finally {
-      setStaffSubmitting(false);
-    }
-  }
 
   /* ── Effects ── */
 
@@ -486,15 +420,6 @@ export default function AdminBusinessesPage() {
   }, [causeAssignments, expandedId, fetchCauseLinks]);
 
   useEffect(() => {
-    if (activeSubAction === "manageStaff" && expandedId) {
-      void loadStaff(expandedId);
-    } else {
-      setStaffMembers([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSubAction, expandedId, user]);
-
-  useEffect(() => {
     if (activeSubAction !== "uploadLocationLogo" || !currentBusiness) return;
     if (locationLogoId && currentBusiness.locations.some((l) => l.id === locationLogoId)) return;
     setLocationLogoId(currentBusiness.locations[0]?.id ?? "");
@@ -503,17 +428,16 @@ export default function AdminBusinessesPage() {
   /* ── Handlers ── */
 
   function toggleExpand(bizId: string) {
-    if (expandedId === bizId) {
-      setExpandedId(null);
-    } else {
-      setExpandedId(bizId);
-      setActiveSubAction(null);
-      setCauseMessage(null);
-      setLogoMessage(null);
-      setLocationLogoMessage(null);
-      setStaffMessage(null);
+      if (expandedId === bizId) {
+        setExpandedId(null);
+      } else {
+        setExpandedId(bizId);
+        setActiveSubAction(null);
+        setCauseMessage(null);
+        setLogoMessage(null);
+        setLocationLogoMessage(null);
+      }
     }
-  }
 
   /* ── Render ── */
 
@@ -693,12 +617,6 @@ export default function AdminBusinessesPage() {
                       <div className="font-semibold text-zinc-300">{linkedCauses.length}</div>
                       <div>causes</div>
                     </div>
-                    <div className="text-center">
-                      <div className="font-semibold text-zinc-300">
-                        {staffCounts[biz.id] != null ? staffCounts[biz.id] : "\u2014"}
-                      </div>
-                      <div>staff</div>
-                    </div>
                   </div>
 
                   {/* Chevron */}
@@ -848,26 +766,6 @@ export default function AdminBusinessesPage() {
                                 />
                               </svg>
                               Upload Logo
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setActiveSubAction("manageStaff")}
-                              className="flex flex-col items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-3 text-xs text-zinc-300 transition hover:border-white/15 hover:text-white"
-                            >
-                              <svg
-                                className="h-5 w-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={1.5}
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
-                                />
-                              </svg>
-                              Manage Staff
                             </button>
                             <button
                               type="button"
@@ -1157,80 +1055,6 @@ export default function AdminBusinessesPage() {
                             {locationLogoUploading ? "Uploading\u2026" : "Upload Logo"}
                           </button>
                         </form>
-                      </div>
-                    )}
-
-                    {/* ===== Sub-action: Manage Staff ===== */}
-                    {activeSubAction === "manageStaff" && (
-                      <div>
-                        <div className="mb-4 flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setActiveSubAction(null)}
-                            className="text-xs text-zinc-400 hover:text-white"
-                          >
-                            &larr; Back
-                          </button>
-                          <h3 className="text-sm font-semibold text-white">Manage Staff</h3>
-                        </div>
-                        <form onSubmit={addStaff} className="space-y-3">
-                          <input
-                            className={INPUT_CLS}
-                            placeholder="Staff email"
-                            value={staffEmail}
-                            onChange={(e) => setStaffEmail(e.target.value)}
-                          />
-                          <div className="flex items-center gap-4 text-sm">
-                            <label className="inline-flex items-center gap-2 text-zinc-300">
-                              <input
-                                type="radio"
-                                name="staffRole"
-                                value="staff"
-                                checked={staffRole === "staff"}
-                                onChange={() => setStaffRole("staff")}
-                              />
-                              Staff
-                            </label>
-                            <label className="inline-flex items-center gap-2 text-zinc-300">
-                              <input
-                                type="radio"
-                                name="staffRole"
-                                value="owner"
-                                checked={staffRole === "owner"}
-                                onChange={() => setStaffRole("owner")}
-                              />
-                              Owner
-                            </label>
-                          </div>
-                          <button
-                            type="submit"
-                            className={BTN_PRIMARY}
-                            disabled={staffSubmitting}
-                          >
-                            {staffSubmitting ? "Saving\u2026" : "Grant Access"}
-                          </button>
-                        </form>
-                        {staffMessage && (
-                          <div className="mt-2 text-xs text-zinc-300">{staffMessage}</div>
-                        )}
-                        {staffMembers.length > 0 ? (
-                          <div className="mt-4 space-y-2">
-                            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                              Current Staff
-                            </h4>
-                            {staffMembers.map((m) => (
-                              <div
-                                key={m.uid}
-                                className="flex items-center justify-between rounded-md bg-white/[0.03] px-3 py-2"
-                              >
-                                <span className="text-sm text-white">{m.email ?? m.uid}</span>
-                                <span className="text-xs text-zinc-500">{m.role}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="mt-3 text-xs text-zinc-500">No staff members yet.</div>
-                        )}
                       </div>
                     )}
 
