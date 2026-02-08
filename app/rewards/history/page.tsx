@@ -268,7 +268,9 @@ export default function RewardHistoryPage() {
                 <div className="flex items-center gap-3 text-xs text-zinc-400">
                   <span>Issued {formatDate(issue.issuedAt)}</span>
                   <span className="opacity-50">•</span>
-                  <span>Expires {formatDate(issue.expiresAt)}</span>
+                  <span>
+                    {issue.expiresAt ? `Expires ${formatDate(issue.expiresAt)}` : "No expiry"}
+                  </span>
                 </div>
                 <div className="text-xs text-zinc-300">
                   Show this code or receipt at the location so staff can mark it used.
@@ -304,7 +306,7 @@ export default function RewardHistoryPage() {
                   <th className="px-4 py-2">Reward</th>
                   <th className="px-4 py-2">Status</th>
                   <th className="px-4 py-2">Issued</th>
-                  <th className="px-4 py-2">Used/Expired</th>
+                  <th className="px-4 py-2">Used/Expiry</th>
                   <th className="px-4 py-2 text-right">Receipt</th>
                 </tr>
               </thead>
@@ -322,7 +324,11 @@ export default function RewardHistoryPage() {
                     </td>
                     <td className="px-4 py-2 text-xs text-zinc-400">{formatDate(issue.issuedAt)}</td>
                     <td className="px-4 py-2 text-xs text-zinc-400">
-                      {issue.status === "used" ? formatDate(issue.usedAt) : formatDate(issue.expiresAt)}
+                      {issue.status === "used"
+                        ? formatDate(issue.usedAt)
+                        : issue.expiresAt
+                          ? formatDate(issue.expiresAt)
+                          : "No expiry"}
                     </td>
                     <td className="px-4 py-2 text-right text-xs text-emerald-200">{issue.code ?? "—"}</td>
                   </tr>

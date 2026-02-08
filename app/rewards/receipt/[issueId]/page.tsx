@@ -93,7 +93,9 @@ export default function RewardReceiptPage() {
       ? `Marked used ${formatDate(issue.usedAt)}`
       : issue?.status === "expired"
         ? `Expired ${formatDate(issue.expiresAt)}`
-        : `Active until ${formatDate(issue?.expiresAt)}`;
+        : issue?.expiresAt
+          ? `Active until ${formatDate(issue.expiresAt)}`
+          : "No expiry";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] px-6 py-12 text-white">
@@ -132,7 +134,7 @@ export default function RewardReceiptPage() {
                 <div className="text-sm text-zinc-300">{statusText}</div>
                 <div className="mt-2 grid gap-3 text-xs text-zinc-400 sm:grid-cols-2">
                   <div>Issued: {formatDate(issue.issuedAt)}</div>
-                  <div>Expires: {formatDate(issue.expiresAt)}</div>
+                  <div>{issue.expiresAt ? `Expires: ${formatDate(issue.expiresAt)}` : "No expiry"}</div>
                   <div>Used by: {issue.usedBy?.staffName ?? issue.usedBy?.staffId ?? "—"}</div>
                   <div>Verifier email: {issue.usedBy?.staffEmail ?? "—"}</div>
                 </div>

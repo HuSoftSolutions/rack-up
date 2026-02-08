@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireUser } from "@/lib/server/auth";
 
@@ -29,7 +28,6 @@ function toMillis(value: unknown): number | null {
 export async function GET(request: Request) {
   try {
     const { uid } = await requireUser(request);
-    const now = Date.now();
     const snapshot = await adminFirestore
       .collection("reward_issues")
       .where("userId", "==", uid)
@@ -37,18 +35,12 @@ export async function GET(request: Request) {
       .limit(50)
       .get();
 
-    const expireUpdates: Promise<unknown>[] = [];
     const issues = snapshot.docs.map((doc) => {
       const data = doc.data();
       const expiresAtMillis = toMillis(data.expiresAt);
       const issuedAtMillis = toMillis(data.issuedAt);
       const usedAtMillis = toMillis(data.usedAt);
-      let status: string = data.status ?? "issued";
-
-      if (status === "issued" && expiresAtMillis && expiresAtMillis < now) {
-        status = "expired";
-        expireUpdates.push(doc.ref.update({ status: "expired", updatedAt: Timestamp.now() }));
-      }
+      const status: string = data.status ?? "issued";
 
       const payload = data.displayPayload as
         | {
@@ -81,10 +73,6 @@ export async function GET(request: Request) {
             : null,
       };
     });
-
-    if (expireUpdates.length > 0) {
-      await Promise.allSettled(expireUpdates);
-    }
 
     return NextResponse.json({ issues });
   } catch (err) {

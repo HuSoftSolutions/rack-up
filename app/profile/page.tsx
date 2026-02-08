@@ -300,7 +300,9 @@ export default function ProfilePage() {
       ? `Marked used ${formatDate(receiptIssue.usedAt)}`
       : receiptIssue.status === "expired"
         ? `Expired ${formatDate(receiptIssue.expiresAt)}`
-        : `Active until ${formatDate(receiptIssue.expiresAt)}`
+        : receiptIssue.expiresAt
+          ? `Active until ${formatDate(receiptIssue.expiresAt)}`
+          : "No expiry"
     : "";
 
   if (loading || !user) {
@@ -461,7 +463,7 @@ export default function ProfilePage() {
                       <th className="px-4 py-2">Reward</th>
                       <th className="px-4 py-2">Status</th>
                       <th className="px-4 py-2">Issued</th>
-                      <th className="px-4 py-2">Expires</th>
+                      <th className="px-4 py-2">Expiry</th>
                       <th className="px-4 py-2">Code</th>
                       <th className="px-4 py-2">Receipt</th>
                     </tr>
@@ -479,7 +481,7 @@ export default function ProfilePage() {
                           {reward.issuedAt?.toLocaleDateString() ?? "—"}
                         </td>
                         <td className="px-4 py-2 text-zinc-300">
-                          {reward.expiresAt?.toLocaleDateString() ?? "—"}
+                          {reward.expiresAt ? reward.expiresAt.toLocaleDateString() : "No expiry"}
                         </td>
                         <td className="px-4 py-2 text-emerald-200">{reward.code ?? "—"}</td>
                         <td className="px-4 py-2">
@@ -558,7 +560,11 @@ export default function ProfilePage() {
                 <div className="text-sm text-zinc-300">{receiptStatusText}</div>
                 <div className="mt-2 grid gap-2 text-xs text-zinc-400 sm:grid-cols-2">
                   <div>Issued: {formatDate(receiptIssue.issuedAt)}</div>
-                  <div>Expires: {formatDate(receiptIssue.expiresAt)}</div>
+                  <div>
+                    {receiptIssue.expiresAt
+                      ? `Expires: ${formatDate(receiptIssue.expiresAt)}`
+                      : "No expiry"}
+                  </div>
                   <div>Used: {formatDate(receiptIssue.usedAt)}</div>
                   <div>Code: {receiptIssue.code ?? "—"}</div>
                 </div>

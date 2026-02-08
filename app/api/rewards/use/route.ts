@@ -72,16 +72,9 @@ export async function POST(request: Request) {
       if (!fresh.exists) return { status: "missing" as const };
       const current = fresh.data() as Record<string, unknown>;
 
-      // Expire on read if past expiry.
-      const expiresAt = current.expiresAt as { toMillis?: () => number } | undefined;
-      if (typeof expiresAt?.toMillis === "function") {
-        const expired = expiresAt.toMillis() < Date.now();
-        if (expired && current.status !== "expired") {
-          tx.update(ref, { status: "expired", updatedAt: now });
-          return { status: "expired" as const, payload: current };
-        }
+      if (current.status === "expired") {
+        return { status: "expired" as const, payload: current };
       }
-
       if (current.status === "used") {
         return { status: "used" as const, payload: current };
       }

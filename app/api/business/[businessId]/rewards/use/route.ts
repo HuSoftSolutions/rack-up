@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
 
@@ -63,14 +62,9 @@ export async function POST(
         return { status: "wrong_business" as const, payload: current };
       }
 
-      const expiresAt = current.expiresAt as Timestamp | undefined;
-      if (expiresAt && expiresAt.toMillis() < Date.now()) {
-        if (current.status !== "expired") {
-          tx.update(ref, { status: "expired", updatedAt: now });
-        }
+      if (current.status === "expired") {
         return { status: "expired" as const, payload: current };
       }
-
       if (current.status === "used") {
         return { status: "used" as const, payload: current };
       }

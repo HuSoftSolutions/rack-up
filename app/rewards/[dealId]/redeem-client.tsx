@@ -88,7 +88,7 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
         message?: string;
         error?: string;
         pointsRemaining?: number;
-        expiresAt?: string;
+        expiresAt?: string | null;
         issueId?: string;
         code?: string;
       };
@@ -199,7 +199,9 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
                 </div>
               ) : null}
               <div className="text-xs text-zinc-400">
-                Expires {issued.expiresAt ? new Date(issued.expiresAt).toLocaleString() : "soon"}
+                {issued.expiresAt
+                  ? `Expires ${new Date(issued.expiresAt).toLocaleString()}`
+                  : "No expiry"}
               </div>
               <div className="text-xs">
                 {issued.issueId ? (

@@ -74,7 +74,6 @@ export async function POST(request: Request) {
     }
 
     const now = Timestamp.now();
-    const expiresAt = Timestamp.fromDate(new Date(Date.now() + 72 * 60 * 60 * 1000));
     const code = generateCode();
 
     const issueRef = adminFirestore.collection("reward_issues").doc();
@@ -90,7 +89,7 @@ export async function POST(request: Request) {
             .filter((label): label is string => typeof label === "string" && label.length > 0)
             .map((label) => ({ label }))
         : [],
-      expiresAt: expiresAt.toDate().toISOString(),
+      expiresAt: null,
       code,
       ...(deal.terms ? { terms: deal.terms as string } : {}),
     };
@@ -113,7 +112,7 @@ export async function POST(request: Request) {
         code,
         status: "issued",
         issuedAt: now,
-        expiresAt,
+        expiresAt: null,
         displayPayload,
         email: userEmail ?? null,
         userEmail: userEmail ?? null,

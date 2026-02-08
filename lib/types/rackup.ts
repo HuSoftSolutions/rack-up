@@ -74,7 +74,7 @@ export type RewardIssue = {
   code: string;
   status: RewardStatus;
   issuedAt: FirestoreTimestamp;
-  expiresAt: FirestoreTimestamp;
+  expiresAt: FirestoreTimestamp | null;
   usedAt?: FirestoreTimestamp;
   displayPayload: RewardDisplayPayload;
 };
@@ -86,7 +86,7 @@ export type RewardDisplayPayload = {
   terms?: string;
   logoUrl?: string;
   locations?: LocationInfo[];
-  expiresAt: string; // ISO string for rendering without Timestamp parsing client-side
+  expiresAt: string | null; // ISO string for rendering without Timestamp parsing client-side
   code: string;
 };
 

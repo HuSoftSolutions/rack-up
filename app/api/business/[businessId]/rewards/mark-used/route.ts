@@ -52,14 +52,7 @@ export async function POST(
       }
       const status = (data.status as string | undefined) ?? "issued";
       if (status === "used") return { status: "used" as const };
-
-      const expiresAt = data.expiresAt as Timestamp | undefined;
-      if (expiresAt && expiresAt.toMillis() < Date.now()) {
-        if (status !== "expired") {
-          tx.update(ref, { status: "expired", updatedAt: now });
-        }
-        return { status: "expired" as const };
-      }
+      if (status === "expired") return { status: "expired" as const };
 
       tx.update(ref, {
         status: "used",
@@ -73,7 +66,6 @@ export async function POST(
     if (result.status === "missing") return badRequest("Reward not found.");
     if (result.status === "wrong_business")
       return badRequest("Reward belongs to a different business.");
-    if (result.status === "expired") return badRequest("Reward has expired.");
     if (result.status === "used") return badRequest("Reward already marked used.");
 
     return NextResponse.json({ ok: true, issueId, status: "used" });

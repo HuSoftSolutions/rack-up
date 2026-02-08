@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
 
@@ -43,27 +42,18 @@ export async function GET(
 
   try {
     await requireBusinessAccess(request, businessId);
-    const now = Date.now();
-
     const collectionRef = adminFirestore.collection("reward_issues");
     const snapshot = await collectionRef
       .where("businessId", "==", businessId)
       .orderBy("issuedAt", "desc")
       .limit(200)
       .get();
-    const expireUpdates: Promise<unknown>[] = [];
-
     const issues = snapshot.docs.map((doc) => {
       const data = doc.data();
       const expiresAtMillis = toMillis(data.expiresAt);
       const issuedAtMillis = toMillis(data.issuedAt);
       const usedAtMillis = toMillis(data.usedAt);
-      let status: RewardStatus = (data.status as RewardStatus) ?? "issued";
-
-      if (status === "issued" && expiresAtMillis && expiresAtMillis < now) {
-        status = "expired";
-        expireUpdates.push(doc.ref.update({ status: "expired", updatedAt: Timestamp.now() }));
-      }
+      const status: RewardStatus = (data.status as RewardStatus) ?? "issued";
 
       const payload = data.displayPayload as
         | {
@@ -101,10 +91,6 @@ export async function GET(
     });
 
     const filteredIssues = statusFilter ? issues.filter((i) => i.status === statusFilter) : issues;
-
-    if (expireUpdates.length > 0) {
-      await Promise.allSettled(expireUpdates);
-    }
 
     return NextResponse.json({ issues: filteredIssues });
   } catch (err) {

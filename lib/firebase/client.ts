@@ -34,11 +34,33 @@ if (missingEnv.length > 0) {
   throw new Error(`Missing required env var: ${missingEnv[0][0]}`);
 }
 
-function initFirebaseApp(): FirebaseApp {
+function resolveAssumeMode(): boolean {
+  if (typeof window === "undefined") return false;
+  const isAssumePath = window.location.pathname.startsWith("/assume");
+  if (isAssumePath) {
+    try {
+      sessionStorage.setItem("rackup:assume", "1");
+    } catch {
+      // Ignore storage errors in restricted environments.
+    }
+  }
+  try {
+    return sessionStorage.getItem("rackup:assume") === "1";
+  } catch {
+    return isAssumePath;
+  }
+}
+
+function initFirebaseApp(name?: string): FirebaseApp {
+  if (name) {
+    const existing = getApps().find((app) => app.name === name);
+    return existing ?? initializeApp(firebaseConfig, name);
+  }
   return getApps().length ? getApp() : initializeApp(firebaseConfig);
 }
 
-export const firebaseApp = initFirebaseApp();
+const assumeMode = resolveAssumeMode();
+export const firebaseApp = initFirebaseApp(assumeMode ? "rackup-assume" : undefined);
 export const firebaseAuth: Auth = getAuth(firebaseApp);
 export const firestore: Firestore = getFirestore(firebaseApp);
 export const firebaseStorage: FirebaseStorage = getStorage(firebaseApp);
