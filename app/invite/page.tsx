@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   confirmPasswordReset,
@@ -13,7 +13,7 @@ import { fetchRedirectTarget } from "@/lib/auth/redirectTarget";
 import { Button } from "@/ui-kit/button";
 import { Input } from "@/ui-kit/input";
 
-export default function InvitePage() {
+function InviteClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "ready" | "submitting" | "error">(
@@ -163,5 +163,19 @@ export default function InvitePage() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+export default function InvitePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] px-6 text-white">
+          <div className="text-sm text-zinc-300">Loading…</div>
+        </div>
+      }
+    >
+      <InviteClient />
+    </Suspense>
   );
 }

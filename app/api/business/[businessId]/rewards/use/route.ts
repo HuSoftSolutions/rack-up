@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
 

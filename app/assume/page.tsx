@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   browserSessionPersistence,
@@ -11,7 +11,7 @@ import {
 import { firebaseAuth } from "@/lib/firebase/client";
 import { Button } from "@/ui-kit/button";
 
-export default function AssumePage() {
+function AssumeClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -89,5 +89,19 @@ export default function AssumePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AssumePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] px-6 text-white">
+          <div className="text-sm text-zinc-300">Loading…</div>
+        </div>
+      }
+    >
+      <AssumeClient />
+    </Suspense>
   );
 }
