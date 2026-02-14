@@ -35,9 +35,7 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
 
   useEffect(() => {
-    if (deal.locationOptions && deal.locationOptions.length > 0) {
-      setSelectedLocationId(deal.locationOptions[0].id);
-    }
+    setSelectedLocationId("");
   }, [deal.locationOptions]);
 
   useEffect(() => {
@@ -151,6 +149,9 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
                 value={selectedLocationId}
                 onChange={(event) => setSelectedLocationId(event.target.value)}
               >
+                <option value="" disabled>
+                  Select a location
+                </option>
                 {deal.locationOptions.map((loc) => (
                   <option key={loc.id} value={loc.id}>
                     {loc.name}
