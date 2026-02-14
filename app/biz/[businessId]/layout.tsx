@@ -190,6 +190,57 @@ function BusinessSidebar({
   );
 }
 
+function LocationScopeBanner() {
+  const { role, locations, locationId, setLocationId, loading } = useLocationScope();
+  const showSelector = role === "staff" ? locations.length > 1 : locations.length > 0;
+  const label =
+    role === "staff"
+      ? locations.find((loc) => loc.id === locationId)?.name ?? locations[0]?.name ?? "Location"
+      : locationId
+        ? locations.find((loc) => loc.id === locationId)?.name ?? "Location"
+        : "All locations";
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-zinc-400">
+        Loading locations…
+      </div>
+    );
+  }
+
+  if (!showSelector) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-zinc-200">
+        Viewing: <span className="font-semibold text-white">{label}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-zinc-200">
+      <span className="uppercase tracking-wide text-zinc-400">Viewing location</span>
+      <select
+        className="h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-white outline-none focus:border-emerald-400"
+        value={locationId ?? "__all__"}
+        onChange={(event) => {
+          const value = event.target.value;
+          setLocationId(value === "__all__" ? null : value);
+        }}
+        disabled={loading}
+      >
+        {role !== "staff" ? (
+          <option value="__all__">All locations</option>
+        ) : null}
+        {locations.map((loc) => (
+          <option key={loc.id} value={loc.id}>
+            {loc.name ?? loc.label ?? loc.id}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function BusinessLayout({
   children,
   params,
@@ -314,7 +365,10 @@ export default function BusinessLayout({
           />
         }
       >
-        <div className="space-y-4">{children}</div>
+        <div className="space-y-4">
+          <LocationScopeBanner />
+          {children}
+        </div>
       </SidebarLayout>
     </LocationScopeProvider>
   );
