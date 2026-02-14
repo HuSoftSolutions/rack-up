@@ -52,8 +52,8 @@ export default function BusinessDonationsPage({
   params: Promise<{ businessId: string }>;
 }) {
   const { user } = useAuth();
-  const { membership } = useBusinessAccess(businessId ?? undefined);
   const [businessId, setBusinessId] = useState<string | null>(null);
+  const { membership } = useBusinessAccess(businessId ?? undefined);
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
