@@ -177,6 +177,25 @@ export default function AdminUsersPage() {
         throw new Error(json.error ?? "Failed to send invite.");
       }
       setInviteStatus(json);
+      setUsers((prev) => {
+        const next = [...prev];
+        const idx = next.findIndex((u) => u.uid === json.user.uid);
+        const merged: AdminUser = {
+          uid: json.user.uid,
+          email: json.user.email ?? null,
+          displayName: json.user.displayName ?? null,
+          phoneNumber: null,
+          createdAt: null,
+          isAdmin: json.user.isAdmin,
+          businessAdmin: json.user.businessAdmin,
+        };
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], ...merged };
+        } else {
+          next.unshift(merged);
+        }
+        return next;
+      });
       await loadUsers(user);
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : "Failed to send invite.");
