@@ -51,7 +51,8 @@ export function useBusinessAccess(expectedBusinessId?: string): BusinessAccess {
 
   const hasAccess =
     !!membership &&
-    (!!expectedBusinessId ? membership.businessId === expectedBusinessId : true);
+    (!!expectedBusinessId ? membership.businessId === expectedBusinessId : true) &&
+    (membership.role === "owner" || (membership.locationIds?.length ?? 0) > 0);
 
   return { hasAccess, loading: authLoading || loading, membership };
 }

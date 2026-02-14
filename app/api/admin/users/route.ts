@@ -20,6 +20,7 @@ export async function GET(request: Request) {
       list.users.map(async (user) => {
         const adminDoc = await adminFirestore.collection("admins").doc(user.uid).get();
         const bizDoc = await adminFirestore.collection("business_admins").doc(user.uid).get();
+        const bizData = bizDoc.data() as { businessId?: string; role?: string; locationIds?: string[] } | undefined;
         return {
           uid: user.uid,
           email: user.email ?? null,
@@ -28,7 +29,11 @@ export async function GET(request: Request) {
           createdAt: toIso(user.metadata.creationTime),
           isAdmin: adminDoc.exists,
           businessAdmin: bizDoc.exists
-            ? { businessId: bizDoc.data()?.businessId ?? null, role: bizDoc.data()?.role ?? null }
+            ? {
+                businessId: bizData?.businessId ?? null,
+                role: bizData?.role ?? null,
+                locationIds: Array.isArray(bizData?.locationIds) ? bizData?.locationIds : [],
+              }
             : null,
         };
       }),

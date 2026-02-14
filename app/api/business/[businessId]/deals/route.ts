@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
-import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
+import { AuthError, hasLocationAccess, requireBusinessAccess } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,7 +52,7 @@ export async function GET(
   const { businessId } = await context.params;
   if (!businessId) return badRequest("businessId is required.");
   try {
-    await requireBusinessAccess(request, businessId);
+    const { membership } = await requireBusinessAccess(request, businessId);
     const snapshot = await adminFirestore
       .collection("deals")
       .where("businessId", "==", businessId)
@@ -60,7 +60,13 @@ export async function GET(
       .limit(100)
       .get();
 
-    return NextResponse.json({ deals: snapshot.docs.map(mapDeal) });
+    const deals = snapshot.docs.map(mapDeal).filter((deal) => {
+      if (membership.role === "owner") return true;
+      if (!Array.isArray(deal.locations) || deal.locations.length === 0) return true;
+      return deal.locations.some((loc) => hasLocationAccess(membership, loc));
+    });
+
+    return NextResponse.json({ deals });
   } catch (err) {
     if (err instanceof AuthError) {
       const status = err.message.includes("Access denied") ? 403 : 401;
@@ -103,7 +109,20 @@ export async function POST(
   if (!validTypes.includes(type)) return badRequest("Invalid type.");
 
   try {
-    const { uid } = await requireBusinessAccess(request, businessId);
+    const { uid, membership } = await requireBusinessAccess(request, businessId);
+    if (membership.role !== "owner") {
+      const allowed = new Set(membership.locationIds ?? []);
+      if (allowed.size === 0) {
+        return badRequest("No location access configured for this staff account.");
+      }
+      if (locations.length === 0) {
+        return badRequest("Staff must select at least one location.");
+      }
+      const invalid = locations.filter((loc) => !allowed.has(loc));
+      if (invalid.length > 0) {
+        return badRequest("One or more locations are outside your allowed access.");
+      }
+    }
     const now = Timestamp.now();
 
     const businessSnap = await adminFirestore.collection("businesses").doc(businessId).get();

@@ -15,7 +15,11 @@ type AdminUser = {
   phoneNumber: string | null;
   createdAt: string | null;
   isAdmin: boolean;
-  businessAdmin: { businessId: string | null; role: string | null } | null;
+  businessAdmin: {
+    businessId: string | null;
+    role: string | null;
+    locationIds?: string[];
+  } | null;
 };
 
 type BusinessOption = {
@@ -33,7 +37,7 @@ type InviteResult = {
     email: string | null;
     displayName: string | null;
     isAdmin: boolean;
-    businessAdmin: { businessId: string | null; role: string | null } | null;
+    businessAdmin: { businessId: string | null; role: string | null; locationIds?: string[] } | null;
   };
 };
 
@@ -64,6 +68,7 @@ export default function AdminUsersPage() {
     isAdmin: false,
     businessId: "",
     role: "staff" as "owner" | "staff",
+    locationIds: [] as string[],
     sendLink: true,
   });
   const [manageForm, setManageForm] = useState({
@@ -71,6 +76,7 @@ export default function AdminUsersPage() {
     isAdmin: false,
     businessId: "",
     role: "staff" as "owner" | "staff",
+    locationIds: [] as string[],
   });
 
   const loadUsers = useCallback(
@@ -140,6 +146,16 @@ export default function AdminUsersPage() {
     return new Map(businesses.map((biz) => [biz.id, biz]));
   }, [businesses]);
 
+  const inviteLocationOptions = useMemo(() => {
+    const biz = businessMap.get(inviteForm.businessId);
+    return biz?.locations ?? [];
+  }, [businessMap, inviteForm.businessId]);
+
+  const manageLocationOptions = useMemo(() => {
+    const biz = businessMap.get(manageForm.businessId);
+    return biz?.locations ?? [];
+  }, [businessMap, manageForm.businessId]);
+
   const inviteMailto = useMemo(() => {
     if (!inviteStatus?.actionLink || !inviteForm.email.trim()) return null;
     const subject = encodeURIComponent("You're invited to Rack Up");
@@ -169,6 +185,7 @@ export default function AdminUsersPage() {
           isAdmin: inviteForm.isAdmin,
           businessId: inviteForm.businessId || undefined,
           role: inviteForm.role,
+          locationIds: inviteForm.role === "staff" ? inviteForm.locationIds : [],
           sendLink: inviteForm.sendLink,
         }),
       });
@@ -232,12 +249,13 @@ export default function AdminUsersPage() {
 
   function openManage(userRow: AdminUser) {
     setManageUser(userRow);
-    setManageForm({
-      displayName: userRow.displayName ?? "",
-      isAdmin: userRow.isAdmin,
-      businessId: userRow.businessAdmin?.businessId ?? "",
-      role: (userRow.businessAdmin?.role as "owner" | "staff") ?? "staff",
-    });
+      setManageForm({
+        displayName: userRow.displayName ?? "",
+        isAdmin: userRow.isAdmin,
+        businessId: userRow.businessAdmin?.businessId ?? "",
+        role: (userRow.businessAdmin?.role as "owner" | "staff") ?? "staff",
+        locationIds: userRow.businessAdmin?.locationIds ?? [],
+      });
     setManageError(null);
     setManageOpen(true);
   }
@@ -257,6 +275,7 @@ export default function AdminUsersPage() {
           isAdmin: manageForm.isAdmin,
           businessId: manageForm.businessId ? manageForm.businessId : null,
           role: manageForm.role,
+          locationIds: manageForm.role === "staff" ? manageForm.locationIds : [],
         }),
       });
       const json = (await res.json()) as { error?: string };
@@ -360,7 +379,11 @@ export default function AdminUsersPage() {
             <Select
               value={inviteForm.businessId}
               onChange={(event) =>
-                setInviteForm((prev) => ({ ...prev, businessId: event.target.value }))
+                setInviteForm((prev) => ({
+                  ...prev,
+                  businessId: event.target.value,
+                  locationIds: [],
+                }))
               }
             >
               <option value="">No business</option>
@@ -381,6 +404,7 @@ export default function AdminUsersPage() {
                 setInviteForm((prev) => ({
                   ...prev,
                   role: event.target.value === "owner" ? "owner" : "staff",
+                  locationIds: event.target.value === "owner" ? [] : prev.locationIds,
                 }))
               }
               disabled={!inviteForm.businessId}
@@ -389,6 +413,50 @@ export default function AdminUsersPage() {
               <option value="owner">Owner</option>
             </Select>
           </div>
+          {inviteForm.businessId && inviteForm.role === "staff" ? (
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Location access
+              </label>
+              {inviteLocationOptions.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400">
+                  No locations found for this business.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {inviteLocationOptions.map((loc) => {
+                    const checked = inviteForm.locationIds.includes(loc.id);
+                    return (
+                      <label
+                        key={loc.id}
+                        className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs transition ${
+                          checked
+                            ? "border-emerald-300 bg-emerald-300 text-emerald-950 shadow-lg shadow-emerald-400/30"
+                            : "border-white/15 bg-white/5 text-white hover:border-white/25"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={checked}
+                          onChange={(event) => {
+                            const next = event.target.checked
+                              ? [...inviteForm.locationIds, loc.id]
+                              : inviteForm.locationIds.filter((id) => id !== loc.id);
+                            setInviteForm((prev) => ({ ...prev, locationIds: next }));
+                          }}
+                        />
+                        {loc.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="text-xs text-zinc-500">
+                Owners automatically see all locations.
+              </div>
+            </div>
+          ) : null}
           <div className="md:col-span-2">
             <SwitchField>
               <span data-slot="label" className="text-sm text-white">
@@ -431,6 +499,7 @@ export default function AdminUsersPage() {
                   isAdmin: false,
                   businessId: "",
                   role: "staff",
+                  locationIds: [],
                   sendLink: true,
                 });
                 setInviteStatus(null);
@@ -527,14 +596,14 @@ export default function AdminUsersPage() {
                           Admin
                         </span>
                       ) : null}
-                      {u.businessAdmin ? (
-                        <span className="rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-xs font-medium text-blue-300">
-                          {u.businessAdmin.role ?? "staff"} ·{" "}
-                          {businessMap.get(u.businessAdmin.businessId ?? "")?.name ??
-                            u.businessAdmin.businessId ??
-                            "—"}
-                        </span>
-                      ) : null}
+              {u.businessAdmin ? (
+                <span className="rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-xs font-medium text-blue-300">
+                  {u.businessAdmin.role ?? "staff"} ·{" "}
+                  {businessMap.get(u.businessAdmin.businessId ?? "")?.name ??
+                    u.businessAdmin.businessId ??
+                    "—"}
+                </span>
+              ) : null}
                       {!u.isAdmin && !u.businessAdmin ? (
                         <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs font-medium text-zinc-400">
                           User
@@ -588,7 +657,11 @@ export default function AdminUsersPage() {
             <Select
               value={manageForm.businessId}
               onChange={(event) =>
-                setManageForm((prev) => ({ ...prev, businessId: event.target.value }))
+                setManageForm((prev) => ({
+                  ...prev,
+                  businessId: event.target.value,
+                  locationIds: [],
+                }))
               }
             >
               <option value="">No business</option>
@@ -609,6 +682,7 @@ export default function AdminUsersPage() {
                 setManageForm((prev) => ({
                   ...prev,
                   role: event.target.value === "owner" ? "owner" : "staff",
+                  locationIds: event.target.value === "owner" ? [] : prev.locationIds,
                 }))
               }
               disabled={!manageForm.businessId}
@@ -617,6 +691,50 @@ export default function AdminUsersPage() {
               <option value="owner">Owner</option>
             </Select>
           </div>
+          {manageForm.businessId && manageForm.role === "staff" ? (
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Location access
+              </label>
+              {manageLocationOptions.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400">
+                  No locations found for this business.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {manageLocationOptions.map((loc) => {
+                    const checked = manageForm.locationIds.includes(loc.id);
+                    return (
+                      <label
+                        key={loc.id}
+                        className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs transition ${
+                          checked
+                            ? "border-emerald-300 bg-emerald-300 text-emerald-950 shadow-lg shadow-emerald-400/30"
+                            : "border-white/15 bg-white/5 text-white hover:border-white/25"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={checked}
+                          onChange={(event) => {
+                            const next = event.target.checked
+                              ? [...manageForm.locationIds, loc.id]
+                              : manageForm.locationIds.filter((id) => id !== loc.id);
+                            setManageForm((prev) => ({ ...prev, locationIds: next }));
+                          }}
+                        />
+                        {loc.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="text-xs text-zinc-500">
+                Owners automatically see all locations.
+              </div>
+            </div>
+          ) : null}
           <SwitchField>
             <span data-slot="label" className="text-sm text-white">
               Admin access

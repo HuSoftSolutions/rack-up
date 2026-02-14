@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useBusinessAccess } from "@/lib/auth/business";
 import { firestore } from "@/lib/firebase/client";
 
 type DonationRow = {
@@ -51,6 +52,7 @@ export default function BusinessDonationsPage({
   params: Promise<{ businessId: string }>;
 }) {
   const { user } = useAuth();
+  const { membership } = useBusinessAccess(businessId ?? undefined);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +78,8 @@ export default function BusinessDonationsPage({
       donationsQuery,
       (snap) => {
         if (canceled) return;
-        const next = snap.docs.map((doc) => {
+        const next = snap.docs
+          .map((doc) => {
           const data = doc.data() as Record<string, unknown>;
           return {
             id: doc.id,
@@ -90,7 +93,12 @@ export default function BusinessDonationsPage({
             createdAt: toIso(data.createdAt),
             userId: (data.userId as string | null) ?? null,
           } satisfies DonationRow;
-        });
+        })
+          .filter((donation) => {
+            if (!membership || membership.role === "owner") return true;
+            const allowed = membership.locationIds ?? [];
+            return donation.locationId ? allowed.includes(donation.locationId) : false;
+          });
         setDonations(next);
         setLoading(false);
       },

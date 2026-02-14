@@ -10,6 +10,7 @@ type Body = {
   isAdmin?: boolean;
   businessId?: string | null;
   role?: "owner" | "staff";
+  locationIds?: string[];
   displayName?: string | null;
 };
 
@@ -56,8 +57,19 @@ export async function POST(request: Request) {
         await adminFirestore.collection("business_admins").doc(uid).delete();
       } else {
         const role = body.role === "owner" ? "owner" : "staff";
+        const locationIds = Array.isArray(body.locationIds)
+          ? body.locationIds.map((id) => id.trim()).filter(Boolean)
+          : [];
+        if (role === "staff" && locationIds.length === 0) {
+          return badRequest("Staff must be assigned at least one location.");
+        }
         await adminFirestore.collection("business_admins").doc(uid).set(
-          { businessId, role, updatedAt: new Date().toISOString() },
+          {
+            businessId,
+            role,
+            locationIds: role === "owner" ? [] : locationIds,
+            updatedAt: new Date().toISOString(),
+          },
           { merge: true },
         );
       }
@@ -77,7 +89,13 @@ export async function POST(request: Request) {
         displayName: user.displayName ?? null,
         isAdmin: adminDoc.exists,
         businessAdmin: bizDoc.exists
-          ? { businessId: bizDoc.data()?.businessId ?? null, role: bizDoc.data()?.role ?? null }
+          ? {
+              businessId: bizDoc.data()?.businessId ?? null,
+              role: bizDoc.data()?.role ?? null,
+              locationIds: Array.isArray(bizDoc.data()?.locationIds)
+                ? bizDoc.data()?.locationIds
+                : [],
+            }
           : null,
       },
     });

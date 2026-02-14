@@ -45,7 +45,11 @@ export async function getBusinessMembership(uid: string): Promise<BusinessAdminM
   if (!snapshot.exists) return null;
   const data = snapshot.data() as Partial<BusinessAdminMembership> | undefined;
   if (!data?.businessId || !data.role) return null;
-  return { businessId: data.businessId, role: data.role };
+  return {
+    businessId: data.businessId,
+    role: data.role,
+    locationIds: Array.isArray(data.locationIds) ? data.locationIds : undefined,
+  };
 }
 
 export async function requireBusinessAccess(
@@ -69,6 +73,25 @@ export async function requireBusinessAccess(
   }
 
   return { ...ctx, membership };
+}
+
+export function hasLocationAccess(
+  membership: BusinessAdminMembership,
+  locationId: string | null | undefined,
+): boolean {
+  if (!locationId) return true;
+  if (membership.role === "owner") return true;
+  const allowed = membership.locationIds ?? [];
+  return allowed.includes(locationId);
+}
+
+export function filterAllowedLocations(
+  membership: BusinessAdminMembership,
+  locations: Array<{ id: string }>,
+) {
+  if (membership.role === "owner") return locations;
+  const allowed = new Set(membership.locationIds ?? []);
+  return locations.filter((loc) => allowed.has(loc.id));
 }
 
 export async function requireBusinessOwner(

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebase/admin";
-import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
+import {
+  AuthError,
+  filterAllowedLocations,
+  hasLocationAccess,
+  requireBusinessAccess,
+} from "@/lib/server/auth";
 import { createCauseQrToken, createLocationQrToken } from "@/lib/server/qr-access";
 import type { CauseDoc } from "@/lib/types/business";
 
@@ -29,7 +34,7 @@ export async function GET(
   if (!businessId) return NextResponse.json({ error: "businessId is required." }, { status: 400 });
 
   try {
-    await requireBusinessAccess(request, businessId);
+    const { membership } = await requireBusinessAccess(request, businessId);
 
     const businessRef = adminFirestore.collection("businesses").doc(businessId);
     const businessSnap = await businessRef.get();
@@ -46,7 +51,7 @@ export async function GET(
     const business = businessSnap.data() as { slug?: string; name?: string; logoUrl?: string };
     const businessSlug = business.slug ?? businessId;
 
-    const locations = locationsSnap.docs.map((doc) => {
+    const allLocations = locationsSnap.docs.map((doc) => {
       const locationSlug = doc.id;
       return {
         id: doc.id,
@@ -56,6 +61,13 @@ export async function GET(
         )}`,
       };
     });
+    const allowedLocationIds = new Set(
+      filterAllowedLocations(membership, allLocations).map((loc) => loc.id),
+    );
+    const locations =
+      membership.role === "owner"
+        ? allLocations
+        : allLocations.filter((loc) => allowedLocationIds.has(loc.id));
 
     const globalMap = new Map(
       globalCausesSnap.docs.map((d) => [d.id, { id: d.id, ...(d.data() as CauseDoc) }]),
@@ -71,13 +83,18 @@ export async function GET(
           link.locationIds && link.locationIds.length > 0
             ? locations.filter((loc) => link.locationIds?.includes(loc.id))
             : locations;
+        const scopedLocations =
+          membership.role === "owner"
+            ? allowedLocations
+            : allowedLocations.filter((loc) => hasLocationAccess(membership, loc.id));
         return {
           ...cause,
           id: linkDoc.id,
           createdAt: toIso((cause as { createdAt?: unknown }).createdAt),
           updatedAt: toIso((cause as { updatedAt?: unknown }).updatedAt),
-          selectedLocationIds: link.locationIds ?? [],
-          urls: allowedLocations.map((loc) => ({
+          selectedLocationIds:
+            link.locationIds?.filter((locId) => hasLocationAccess(membership, locId)) ?? [],
+          urls: scopedLocations.map((loc) => ({
             locationId: loc.id,
             locationName: (loc as { name?: string }).name ?? loc.id,
             url: `/donate/${businessSlug}/${linkDoc.id}/${loc.id}?qr=${encodeURIComponent(

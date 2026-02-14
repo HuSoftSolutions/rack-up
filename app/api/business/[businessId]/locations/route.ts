@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebase/admin";
-import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
+import { AuthError, filterAllowedLocations, requireBusinessAccess } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,13 +17,13 @@ export async function GET(
   if (!businessId) return badRequest("businessId is required.");
 
   try {
-    await requireBusinessAccess(request, businessId);
+    const { membership } = await requireBusinessAccess(request, businessId);
     const snap = await adminFirestore
       .collection("businesses")
       .doc(businessId)
       .collection("locations")
       .get();
-    const locations = snap.docs.map((doc) => {
+    const allLocations = snap.docs.map((doc) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -31,6 +31,7 @@ export async function GET(
         label: (data.label as string | undefined) ?? data.name ?? doc.id,
       };
     });
+    const locations = filterAllowedLocations(membership, allLocations);
     return NextResponse.json({ locations });
   } catch (err) {
     if (err instanceof AuthError) {

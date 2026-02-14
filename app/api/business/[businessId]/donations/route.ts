@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebase/admin";
-import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
+import { AuthError, hasLocationAccess, requireBusinessAccess } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function GET(
   }
 
   try {
-    await requireBusinessAccess(request, businessId);
+    const { membership } = await requireBusinessAccess(request, businessId);
 
     const snapshot = await adminFirestore
       .collection("donations")
@@ -38,7 +38,8 @@ export async function GET(
       .limit(200)
       .get();
 
-    const donations = snapshot.docs.map((doc) => {
+    const donations = snapshot.docs
+      .map((doc) => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -53,7 +54,12 @@ export async function GET(
         userId: data.userId ?? null,
         stripe: data.stripe ?? null,
       };
-    });
+    })
+      .filter((donation) =>
+        membership.role === "owner"
+          ? true
+          : hasLocationAccess(membership, donation.locationId ?? undefined),
+      );
 
     const totalVolume = donations.reduce(
       (sum, d) => sum + (typeof d.amountCents === "number" ? d.amountCents : 0),

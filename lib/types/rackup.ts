@@ -99,4 +99,5 @@ export type PointsConfig = {
 export type BusinessAdminMembership = {
   businessId: string;
   role: "owner" | "staff";
+  locationIds?: string[];
 };

@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useBusinessAccess } from "@/lib/auth/business";
 import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { firestore } from "@/lib/firebase/client";
 
@@ -61,6 +62,7 @@ export default function BusinessDashboardPage() {
   const { user } = useAuth();
   const pathname = usePathname();
   const businessId = pathname.split("/")[2];
+  const { membership } = useBusinessAccess(businessId);
 
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [rewards, setRewards] = useState<RewardRow[]>([]);
@@ -93,7 +95,8 @@ export default function BusinessDashboardPage() {
       donationsQuery,
       (snap) => {
         if (canceled) return;
-        const next = snap.docs.map((doc) => {
+        const next = snap.docs
+          .map((doc) => {
           const data = doc.data() as Record<string, unknown>;
           return {
             id: doc.id,
@@ -103,7 +106,12 @@ export default function BusinessDashboardPage() {
             locationId: (data.locationId as string | null) ?? null,
             createdAt: toIso(data.createdAt),
           } satisfies DonationRow;
-        });
+        })
+          .filter((donation) => {
+            if (!membership || membership.role === "owner") return true;
+            const allowed = membership.locationIds ?? [];
+            return donation.locationId ? allowed.includes(donation.locationId) : false;
+          });
         setDonations(next);
         setLoadingDonations(false);
       },
