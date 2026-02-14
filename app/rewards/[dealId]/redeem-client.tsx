@@ -14,6 +14,7 @@ type Deal = {
   pointCost: number | null;
   terms?: string | null;
   locations: string[];
+  locationOptions?: { id: string; name: string }[];
 };
 
 export default function DealRedeemCard({ deal }: { deal: Deal }) {
@@ -31,6 +32,13 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
   const { user, loading } = useAuth();
   const [points, setPoints] = useState<number | null>(null);
   const [pointsError, setPointsError] = useState<string | null>(null);
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("");
+
+  useEffect(() => {
+    if (deal.locationOptions && deal.locationOptions.length > 0) {
+      setSelectedLocationId(deal.locationOptions[0].id);
+    }
+  }, [deal.locationOptions]);
 
   useEffect(() => {
     if (!user) {
@@ -70,6 +78,10 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
       router.push(`/signin?redirect=${redirect}`);
       return;
     }
+    if (!selectedLocationId) {
+      setError("Select a location to redeem this reward.");
+      return;
+    }
     setRedeeming(true);
     setError(null);
     setResult(null);
@@ -82,7 +94,7 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ dealId: deal.id }),
+        body: JSON.stringify({ dealId: deal.id, locationId: selectedLocationId }),
       });
       const json = (await response.json()) as {
         message?: string;
@@ -91,6 +103,8 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
         expiresAt?: string | null;
         issueId?: string;
         code?: string;
+        locationId?: string;
+        locationName?: string;
       };
       if (!response.ok) throw new Error(json.error ?? "Redemption failed.");
       setResult(json.message ?? "Redeemed (stubbed).");
@@ -127,6 +141,24 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
             </span>{" "}
             · {deal.locations.join(" · ") || "All locations"}
           </div>
+          {deal.locationOptions && deal.locationOptions.length > 0 ? (
+            <div className="mt-3 max-w-xs space-y-1 text-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Redeem at location
+              </div>
+              <select
+                className="h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-emerald-400 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                value={selectedLocationId}
+                onChange={(event) => setSelectedLocationId(event.target.value)}
+              >
+                {deal.locationOptions.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           {user ? (
             <div className="text-sm text-zinc-600 dark:text-zinc-400">
               {pointsError
@@ -190,6 +222,13 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
                 Next step: show this code or receipt to a staff member at the location so they can
                 mark the reward used and give you the benefit.
               </div>
+              {selectedLocationId && deal.locationOptions ? (
+                <div className="text-xs text-zinc-400">
+                  Redeem at{" "}
+                  {deal.locationOptions.find((loc) => loc.id === selectedLocationId)?.name ??
+                    selectedLocationId}
+                </div>
+              ) : null}
               {issued.code ? (
                 <div className="rounded-lg border border-white/10 bg-black/40 px-3 py-2">
                   <div className="text-xs uppercase tracking-wide text-zinc-400">Reward code</div>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebase/admin";
-import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
+import { AuthError, hasLocationAccess, requireBusinessAccess } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,17 +37,28 @@ export async function GET(
 
   const url = new URL(request.url);
   const statusParam = url.searchParams.get("status") as RewardStatus | null;
+  const locationId = url.searchParams.get("locationId") || null;
   const statusFilter =
     statusParam && ["issued", "used", "expired"].includes(statusParam) ? statusParam : null;
 
   try {
-    await requireBusinessAccess(request, businessId);
+    const { membership } = await requireBusinessAccess(request, businessId);
+    if (membership.role === "staff") {
+      if (!locationId) {
+        return badRequest("locationId is required for staff.");
+      }
+      if (!hasLocationAccess(membership, locationId)) {
+        return badRequest("Access denied for this location.");
+      }
+    }
     const collectionRef = adminFirestore.collection("reward_issues");
-    const snapshot = await collectionRef
+    let queryRef = collectionRef
       .where("businessId", "==", businessId)
-      .orderBy("issuedAt", "desc")
-      .limit(200)
-      .get();
+      .orderBy("issuedAt", "desc");
+    if (locationId) {
+      queryRef = queryRef.where("redeemLocationId", "==", locationId);
+    }
+    const snapshot = await queryRef.limit(200).get();
     const issues = snapshot.docs.map((doc) => {
       const data = doc.data();
       const expiresAtMillis = toMillis(data.expiresAt);
@@ -79,6 +90,8 @@ export async function GET(
         usedAt: usedAtMillis ? new Date(usedAtMillis).toISOString() : null,
         title: payload?.title ?? null,
         businessName: payload?.businessName ?? null,
+        redeemLocationId: data.redeemLocationId ?? null,
+        redeemLocationName: data.redeemLocationName ?? null,
         usedBy:
           typeof data.usedBy === "object" && data.usedBy
             ? {

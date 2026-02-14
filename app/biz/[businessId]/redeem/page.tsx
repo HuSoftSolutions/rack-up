@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useLocationScope } from "../location-scope";
 import { firestore } from "@/lib/firebase/client";
 
 type RewardRow = {
@@ -19,6 +20,8 @@ type RewardRow = {
   usedAt: string | null;
   title: string | null;
   businessName: string | null;
+  redeemLocationId?: string | null;
+  redeemLocationName?: string | null;
   usedBy: { staffId: string | null; staffEmail: string | null; staffName: string | null } | null;
 };
 
@@ -55,6 +58,7 @@ export default function BusinessRedeemPage({
 }) {
   const { user } = useAuth();
   const [businessId, setBusinessId] = useState<string | null>(null);
+  const { locationId, role } = useLocationScope();
   const [rewards, setRewards] = useState<RewardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,12 +78,14 @@ export default function BusinessRedeemPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
+    if (role === "staff" && !locationId) return;
     let canceled = false;
     setLoading(true);
     setError(null);
     const rewardsQuery = query(
       collection(firestore, "reward_issues"),
       where("businessId", "==", businessId),
+      ...(locationId ? [where("redeemLocationId", "==", locationId)] : []),
       orderBy("issuedAt", "desc"),
       limit(200),
     );
@@ -120,6 +126,8 @@ export default function BusinessRedeemPage({
               (data.displayPayload as { businessName?: string } | undefined)?.businessName ??
               (data.businessName as string | undefined) ??
               null,
+            redeemLocationId: (data.redeemLocationId as string | null) ?? null,
+            redeemLocationName: (data.redeemLocationName as string | null) ?? null,
             usedBy:
               typeof data.usedBy === "object" && data.usedBy
                 ? {
@@ -146,10 +154,11 @@ export default function BusinessRedeemPage({
       canceled = true;
       unsubscribe();
     };
-  }, [businessId, user]);
+  }, [businessId, locationId, role, user]);
 
   async function redeemByCode() {
     if (!user || !businessId || !redeemCode.trim()) return;
+    if (role === "staff" && !locationId) return;
     setRedeemLoading(true);
     setRedeemResult(null);
     try {
@@ -160,7 +169,10 @@ export default function BusinessRedeemPage({
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ code: redeemCode.trim().toUpperCase() }),
+        body: JSON.stringify({
+          code: redeemCode.trim().toUpperCase(),
+          locationId: locationId ?? undefined,
+        }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string; reward?: RewardRow };
       if (!res.ok || !json.ok) {
@@ -187,6 +199,7 @@ export default function BusinessRedeemPage({
 
   async function markUsed(issue: RewardRow) {
     if (!user || !businessId || issue.status !== "issued") return;
+    if (role === "staff" && !locationId) return;
     setMarking(issue.id);
     try {
       const idToken = await user.getIdToken();
@@ -196,7 +209,7 @@ export default function BusinessRedeemPage({
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ issueId: issue.id }),
+        body: JSON.stringify({ issueId: issue.id, locationId: locationId ?? undefined }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Failed to mark used.");

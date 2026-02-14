@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useLocationScope } from "./location-scope";
 import { useBusinessAccess } from "@/lib/auth/business";
 import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { firestore } from "@/lib/firebase/client";
@@ -62,6 +63,7 @@ export default function BusinessDashboardPage() {
   const { user } = useAuth();
   const pathname = usePathname();
   const businessId = pathname.split("/")[2];
+  const { locationId, role } = useLocationScope();
   const { membership } = useBusinessAccess(businessId);
 
   const [donations, setDonations] = useState<DonationRow[]>([]);
@@ -82,12 +84,14 @@ export default function BusinessDashboardPage() {
 
   useEffect(() => {
     if (!user || !businessId) return;
+    if (role === "staff" && !locationId) return;
     let canceled = false;
     setError(null);
     setLoadingDonations(true);
     const donationsQuery = query(
       collection(firestore, "donations"),
       where("businessId", "==", businessId),
+      ...(locationId ? [where("locationId", "==", locationId)] : []),
       orderBy("createdAt", "desc"),
       limit(200),
     );
@@ -95,8 +99,7 @@ export default function BusinessDashboardPage() {
       donationsQuery,
       (snap) => {
         if (canceled) return;
-        const next = snap.docs
-          .map((doc) => {
+        const next = snap.docs.map((doc) => {
           const data = doc.data() as Record<string, unknown>;
           return {
             id: doc.id,
@@ -106,12 +109,7 @@ export default function BusinessDashboardPage() {
             locationId: (data.locationId as string | null) ?? null,
             createdAt: toIso(data.createdAt),
           } satisfies DonationRow;
-        })
-          .filter((donation) => {
-            if (!membership || membership.role === "owner") return true;
-            const allowed = membership.locationIds ?? [];
-            return donation.locationId ? allowed.includes(donation.locationId) : false;
-          });
+        });
         setDonations(next);
         setLoadingDonations(false);
       },
@@ -134,16 +132,18 @@ export default function BusinessDashboardPage() {
       canceled = true;
       unsubscribe();
     };
-  }, [businessId, user]);
+  }, [businessId, locationId, role, user]);
 
   useEffect(() => {
     if (!user || !businessId) return;
+    if (role === "staff" && !locationId) return;
     let canceled = false;
     setError(null);
     setLoadingRewards(true);
     const rewardsQuery = query(
       collection(firestore, "reward_issues"),
       where("businessId", "==", businessId),
+      ...(locationId ? [where("redeemLocationId", "==", locationId)] : []),
       orderBy("issuedAt", "desc"),
       limit(200),
     );
@@ -191,12 +191,13 @@ export default function BusinessDashboardPage() {
       canceled = true;
       unsubscribe();
     };
-  }, [businessId, user]);
+  }, [businessId, locationId, role, user]);
 
   const loading = loadingDonations || loadingRewards;
 
   async function redeemByCode() {
     if (!user || !businessId || !redeemCode.trim()) return;
+    if (role === "staff" && !locationId) return;
     setRedeemLoading(true);
     setRedeemResult(null);
     try {
@@ -207,7 +208,10 @@ export default function BusinessDashboardPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ code: redeemCode.trim().toUpperCase() }),
+        body: JSON.stringify({
+          code: redeemCode.trim().toUpperCase(),
+          locationId: locationId ?? undefined,
+        }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
@@ -233,6 +237,7 @@ export default function BusinessDashboardPage() {
 
   async function markUsed(issue: RewardRow) {
     if (!user || !businessId || issue.status !== "issued") return;
+    if (role === "staff" && !locationId) return;
     setMarking(issue.id);
     try {
       const idToken = await user.getIdToken();
@@ -242,7 +247,7 @@ export default function BusinessDashboardPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ issueId: issue.id }),
+        body: JSON.stringify({ issueId: issue.id, locationId: locationId ?? undefined }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Failed to mark used.");

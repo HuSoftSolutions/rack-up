@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useLocationScope } from "../location-scope";
 
 type CauseRow = {
   id: string;
@@ -34,6 +35,7 @@ export default function BusinessCharitiesPage({
   params: Promise<{ businessId: string }>;
 }) {
   const { user } = useAuth();
+  const { locationId, role } = useLocationScope();
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [causes, setCauses] = useState<CauseRow[]>([]);
   const [locations, setLocations] = useState<{ id: string; name?: string }[]>([]);
@@ -48,6 +50,7 @@ export default function BusinessCharitiesPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
+    if (role === "staff" && !locationId) return;
     const currentUser = user;
     let canceled = false;
     async function load() {
@@ -55,9 +58,14 @@ export default function BusinessCharitiesPage({
       setError(null);
       try {
         const idToken = await currentUser.getIdToken();
-        const res = await fetch(`/api/business/${businessId}/causes`, {
+        const res = await fetch(
+          `/api/business/${businessId}/causes${
+            locationId ? `?locationId=${encodeURIComponent(locationId)}` : ""
+          }`,
+          {
           headers: { Authorization: `Bearer ${idToken}` },
-        });
+        },
+        );
         const json = (await res.json()) as {
           causes?: CauseRow[];
           locations?: { id: string; name?: string }[];
@@ -68,7 +76,10 @@ export default function BusinessCharitiesPage({
         }
         if (!canceled) {
           setCauses(json.causes);
-          setLocations(json.locations ?? []);
+          const nextLocations = json.locations ?? [];
+          setLocations(
+            locationId ? nextLocations.filter((loc) => loc.id === locationId) : nextLocations,
+          );
         }
       } catch (err) {
         if (!canceled) setError(err instanceof Error ? err.message : "Failed to load charities.");
@@ -80,7 +91,7 @@ export default function BusinessCharitiesPage({
     return () => {
       canceled = true;
     };
-  }, [businessId, user]);
+  }, [businessId, locationId, role, user]);
 
   return (
     <div className="space-y-6 text-white">

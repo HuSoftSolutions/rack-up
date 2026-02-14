@@ -35,6 +35,16 @@ export async function GET(
 
   try {
     const { membership } = await requireBusinessAccess(request, businessId);
+    const url = new URL(request.url);
+    const locationId = url.searchParams.get("locationId") || null;
+    if (membership.role === "staff") {
+      if (!locationId) {
+        return NextResponse.json({ error: "locationId is required." }, { status: 400 });
+      }
+      if (!hasLocationAccess(membership, locationId)) {
+        return NextResponse.json({ error: "Access denied for this location." }, { status: 403 });
+      }
+    }
 
     const businessRef = adminFirestore.collection("businesses").doc(businessId);
     const businessSnap = await businessRef.get();
@@ -64,10 +74,13 @@ export async function GET(
     const allowedLocationIds = new Set(
       filterAllowedLocations(membership, allLocations).map((loc) => loc.id),
     );
-    const locations =
+    let locations =
       membership.role === "owner"
         ? allLocations
         : allLocations.filter((loc) => allowedLocationIds.has(loc.id));
+    if (locationId) {
+      locations = locations.filter((loc) => loc.id === locationId);
+    }
 
     const globalMap = new Map(
       globalCausesSnap.docs.map((d) => [d.id, { id: d.id, ...(d.data() as CauseDoc) }]),

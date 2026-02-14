@@ -63,6 +63,8 @@ export async function GET(request: Request) {
         usedAt: usedAtMillis ? new Date(usedAtMillis).toISOString() : null,
         title: payload?.title ?? null,
         businessName: payload?.businessName ?? null,
+        redeemLocationId: data.redeemLocationId ?? null,
+        redeemLocationName: data.redeemLocationName ?? null,
         usedBy:
           typeof data.usedBy === "object" && data.usedBy
             ? {

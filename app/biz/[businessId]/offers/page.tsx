@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useLocationScope } from "../location-scope";
 
 type Deal = {
   id: string;
@@ -37,6 +38,7 @@ export default function BusinessOffersPage({
   params: Promise<{ businessId: string }>;
 }) {
   const { user } = useAuth();
+  const { locationId, role } = useLocationScope();
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,7 @@ export default function BusinessOffersPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
+    if (role === "staff" && !locationId) return;
     const currentUser = user;
     let canceled = false;
     async function load() {
@@ -60,7 +63,11 @@ export default function BusinessOffersPage({
       try {
         const idToken = await currentUser.getIdToken();
         const [dealsRes, locationsRes] = await Promise.all([
-          fetch(`/api/business/${businessId}/deals`, {
+          fetch(
+            `/api/business/${businessId}/deals${
+              locationId ? `?locationId=${encodeURIComponent(locationId)}` : ""
+            }`,
+            {
             headers: { Authorization: `Bearer ${idToken}` },
           }),
           fetch(`/api/business/${businessId}/locations`, {
@@ -80,7 +87,10 @@ export default function BusinessOffersPage({
         }
         if (!canceled) {
           setDeals(dealsJson.deals);
-          setLocations(locJson.locations);
+          const nextLocations = locJson.locations ?? [];
+          setLocations(
+            locationId ? nextLocations.filter((loc) => loc.id === locationId) : nextLocations,
+          );
         }
       } catch (err) {
         if (!canceled) setError(err instanceof Error ? err.message : "Failed to load offers.");
@@ -92,10 +102,18 @@ export default function BusinessOffersPage({
     return () => {
       canceled = true;
     };
-  }, [businessId, user]);
+  }, [businessId, locationId, role, user]);
+
+  useEffect(() => {
+    if (role !== "staff") return;
+    if (!locationId) return;
+    if (form.locations.length > 0) return;
+    setForm((prev) => ({ ...prev, locations: [locationId] }));
+  }, [form.locations.length, locationId, role]);
 
   async function submit() {
     if (!user || !businessId) return;
+    if (role === "staff" && !locationId) return;
     setSaving(true);
     setError(null);
     try {

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { useBusinessAccess } from "@/lib/auth/business";
+import { useLocationScope } from "../location-scope";
 import { firestore } from "@/lib/firebase/client";
 
 type DonationRow = {
@@ -53,7 +53,7 @@ export default function BusinessDonationsPage({
 }) {
   const { user } = useAuth();
   const [businessId, setBusinessId] = useState<string | null>(null);
-  const { membership } = useBusinessAccess(businessId ?? undefined);
+  const { locationId, role } = useLocationScope();
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,12 +65,14 @@ export default function BusinessDonationsPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
+    if (role === "staff" && !locationId) return;
     let canceled = false;
     setLoading(true);
     setError(null);
     const donationsQuery = query(
       collection(firestore, "donations"),
       where("businessId", "==", businessId),
+      ...(locationId ? [where("locationId", "==", locationId)] : []),
       orderBy("createdAt", "desc"),
       limit(200),
     );
@@ -78,8 +80,7 @@ export default function BusinessDonationsPage({
       donationsQuery,
       (snap) => {
         if (canceled) return;
-        const next = snap.docs
-          .map((doc) => {
+        const next = snap.docs.map((doc) => {
           const data = doc.data() as Record<string, unknown>;
           return {
             id: doc.id,
@@ -93,12 +94,7 @@ export default function BusinessDonationsPage({
             createdAt: toIso(data.createdAt),
             userId: (data.userId as string | null) ?? null,
           } satisfies DonationRow;
-        })
-          .filter((donation) => {
-            if (!membership || membership.role === "owner") return true;
-            const allowed = membership.locationIds ?? [];
-            return donation.locationId ? allowed.includes(donation.locationId) : false;
-          });
+        });
         setDonations(next);
         setLoading(false);
       },
@@ -115,7 +111,7 @@ export default function BusinessDonationsPage({
       canceled = true;
       unsubscribe();
     };
-  }, [businessId, user]);
+  }, [businessId, locationId, role, user]);
 
   const summary = useMemo(() => {
     const totalVolume = donations.reduce(

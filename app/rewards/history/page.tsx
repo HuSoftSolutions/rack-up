@@ -29,6 +29,7 @@ type RewardIssue = {
   usedAt: string | null;
   title: string | null;
   businessName: string | null;
+  redeemLocationName?: string | null;
 };
 
 type RewardResponse = {
@@ -125,6 +126,8 @@ export default function RewardHistoryPage() {
             usedAt: toIso(data.usedAt),
             title: data.displayPayload?.title ?? data.title ?? null,
             businessName: data.displayPayload?.businessName ?? data.businessName ?? data.businessId ?? null,
+            redeemLocationName:
+              data.redeemLocationName ?? data.displayPayload?.locationName ?? null,
           } satisfies RewardIssue;
         });
         setIssues(issues);
@@ -262,6 +265,9 @@ export default function RewardHistoryPage() {
                     <div className="text-xs text-zinc-400">
                       {issue.businessName ?? issue.businessId ?? "Partner"}
                     </div>
+                    {issue.redeemLocationName ? (
+                      <div className="text-xs text-zinc-500">{issue.redeemLocationName}</div>
+                    ) : null}
                   </div>
                   <StatusBadge status={issue.status} />
                 </div>
@@ -306,6 +312,7 @@ export default function RewardHistoryPage() {
                   <th className="px-4 py-2">Reward</th>
                   <th className="px-4 py-2">Status</th>
                   <th className="px-4 py-2">Issued</th>
+                  <th className="px-4 py-2">Location</th>
                   <th className="px-4 py-2">Used/Expiry</th>
                   <th className="px-4 py-2 text-right">Receipt</th>
                 </tr>
@@ -323,6 +330,9 @@ export default function RewardHistoryPage() {
                       <StatusBadge status={issue.status} />
                     </td>
                     <td className="px-4 py-2 text-xs text-zinc-400">{formatDate(issue.issuedAt)}</td>
+                    <td className="px-4 py-2 text-xs text-zinc-400">
+                      {issue.redeemLocationName ?? "—"}
+                    </td>
                     <td className="px-4 py-2 text-xs text-zinc-400">
                       {issue.status === "used"
                         ? formatDate(issue.usedAt)

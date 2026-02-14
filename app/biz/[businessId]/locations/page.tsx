@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useLocationScope } from "../location-scope";
 
 type CauseRow = {
   id: string;
@@ -16,6 +17,7 @@ export default function BusinessLocationsPage({
   params: Promise<{ businessId: string }>;
 }) {
   const { user } = useAuth();
+  const { locationId, role } = useLocationScope();
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [locations, setLocations] = useState<{ id: string; name?: string }[]>([]);
   const [causes, setCauses] = useState<CauseRow[]>([]);
@@ -28,6 +30,7 @@ export default function BusinessLocationsPage({
 
   useEffect(() => {
     if (!user || !businessId) return;
+    if (role === "staff" && !locationId) return;
     const currentUser = user;
     let canceled = false;
     async function load() {
@@ -35,9 +38,14 @@ export default function BusinessLocationsPage({
       setError(null);
       try {
         const idToken = await currentUser.getIdToken();
-        const res = await fetch(`/api/business/${businessId}/causes`, {
+        const res = await fetch(
+          `/api/business/${businessId}/causes${
+            locationId ? `?locationId=${encodeURIComponent(locationId)}` : ""
+          }`,
+          {
           headers: { Authorization: `Bearer ${idToken}` },
-        });
+        },
+        );
         const json = (await res.json()) as {
           causes?: CauseRow[];
           locations?: { id: string; name?: string }[];
@@ -47,7 +55,10 @@ export default function BusinessLocationsPage({
           throw new Error(json.error ?? "Failed to load locations.");
         }
         if (!canceled) {
-          setLocations(json.locations ?? []);
+          const nextLocations = json.locations ?? [];
+          setLocations(
+            locationId ? nextLocations.filter((loc) => loc.id === locationId) : nextLocations,
+          );
           setCauses(json.causes);
         }
       } catch (err) {
@@ -60,7 +71,7 @@ export default function BusinessLocationsPage({
     return () => {
       canceled = true;
     };
-  }, [businessId, user]);
+  }, [businessId, locationId, role, user]);
 
   function charitiesLinked(locationId: string) {
     return causes.filter((c) => c.selectedLocationIds?.includes(locationId)).length;

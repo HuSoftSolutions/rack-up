@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 type RedeemBody = {
   dealId: string;
+  locationId?: string;
 };
 
 function badRequest(message: string) {
@@ -55,7 +56,9 @@ export async function POST(request: Request) {
   }
 
   const dealId = body.dealId?.trim();
+  const locationId = body.locationId?.trim();
   if (!dealId) return badRequest("dealId is required.");
+  if (!locationId) return badRequest("locationId is required.");
 
   try {
     const { uid, email } = await requireUser(request);
@@ -67,6 +70,29 @@ export async function POST(request: Request) {
     const deal = dealSnap.data();
     if (!deal?.active) return badRequest("Deal is not available.");
     const businessId = deal.businessId as string | undefined;
+    if (!businessId) return badRequest("Deal is missing a business.");
+    const locationsSnap = await adminFirestore
+      .collection("businesses")
+      .doc(businessId)
+      .collection("locations")
+      .get();
+    const locationMap = new Map(
+      locationsSnap.docs.map((doc) => {
+        const data = doc.data() as { name?: string };
+        return [doc.id, data.name ?? doc.id];
+      }),
+    );
+    if (!locationMap.has(locationId)) {
+      return badRequest("Unknown location for this business.");
+    }
+    const allowedLocationIds = Array.isArray(deal.locations)
+      ? deal.locations
+          .map((loc) => (typeof loc === "string" ? loc : loc?.label))
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+      : [];
+    if (allowedLocationIds.length > 0 && !allowedLocationIds.includes(locationId)) {
+      return badRequest("Location is not eligible for this reward.");
+    }
     const dealPointCost = typeof deal.pointCost === "number" ? deal.pointCost : 0;
     const balance = await getUserPointsBalance(uid);
     if (balance < dealPointCost) {
@@ -91,6 +117,8 @@ export async function POST(request: Request) {
         : [],
       expiresAt: null,
       code,
+      locationId,
+      locationName: locationMap.get(locationId) ?? locationId,
       ...(deal.terms ? { terms: deal.terms as string } : {}),
     };
 
@@ -113,6 +141,8 @@ export async function POST(request: Request) {
         status: "issued",
         issuedAt: now,
         expiresAt: null,
+        redeemLocationId: locationId,
+        redeemLocationName: locationMap.get(locationId) ?? locationId,
         displayPayload,
         email: userEmail ?? null,
         userEmail: userEmail ?? null,
@@ -124,6 +154,8 @@ export async function POST(request: Request) {
       issueId: issueRef.id,
       code,
       expiresAt: displayPayload.expiresAt,
+      locationId,
+      locationName: locationMap.get(locationId) ?? locationId,
       message: "Reward issued.",
       pointsRemaining: balance - dealPointCost,
     });

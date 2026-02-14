@@ -25,6 +25,7 @@ import { firebaseAuth } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useBusinessAccess } from "@/lib/auth/business";
 import { useAdminStatus } from "@/lib/auth/admin";
+import { LocationScopeProvider, useLocationScope } from "./location-scope";
 
 type NavItem = { href: (businessId: string) => string; label: string };
 
@@ -57,6 +58,8 @@ function BusinessNavbar({
   userEmail: string;
   onSignOut: () => void;
 }) {
+  const { role, locations, locationId, setLocationId, loading } = useLocationScope();
+  const showSelector = role === "staff" ? locations.length > 1 : locations.length > 0;
   return (
     <Navbar className="mx-auto max-w-6xl px-2">
       <NavbarSection>
@@ -77,6 +80,31 @@ function BusinessNavbar({
           {membershipRole}
         </Badge>
       </NavbarSection>
+      {showSelector ? (
+        <NavbarSection>
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wide text-zinc-500">Location</span>
+            <select
+              className="h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-white outline-none focus:border-emerald-400"
+              value={locationId ?? "__all__"}
+              onChange={(event) => {
+                const value = event.target.value;
+                setLocationId(value === "__all__" ? null : value);
+              }}
+              disabled={loading}
+            >
+              {role !== "staff" ? (
+                <option value="__all__">All locations</option>
+              ) : null}
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name ?? loc.label ?? loc.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        </NavbarSection>
+      ) : null}
       <NavbarSpacer />
       <NavbarSection>
         <NavbarLabel className="hidden text-sm text-zinc-300 sm:block">{userEmail}</NavbarLabel>
@@ -173,7 +201,7 @@ export default function BusinessLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [resolvedParams, setResolvedParams] = useState<{ businessId: string } | null>(null);
-  const { membership, loading } = useBusinessAccess();
+  const { membership, loading } = useBusinessAccess(resolvedParams?.businessId);
   const { isAdmin, loading: adminLoading } = useAdminStatus();
 
   useEffect(() => {
@@ -225,37 +253,69 @@ export default function BusinessLayout({
     );
   }
 
+  if (membership?.role === "staff" && (membership.locationIds?.length ?? 0) === 0) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6">
+        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-200 shadow-sm">
+          <Heading level={2} className="text-lg font-semibold text-white">
+            Location access required
+          </Heading>
+          <Text className="mt-2 text-zinc-300">
+            Your staff account needs a location assigned before you can access the business
+            console. Contact an admin to update your access.
+          </Text>
+          <div className="mt-4 flex items-center justify-center gap-3 text-xs">
+            <Button href="/profile" outline>
+              Profile
+            </Button>
+            <Button
+              plain
+              onClick={() => {
+                void signOut(firebaseAuth);
+                router.replace("/signin");
+              }}
+            >
+              Sign out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <SidebarLayout
-      className="bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] text-white"
-      mainClassName="pt-0 pb-0 lg:pt-0 lg:pr-0 lg:pl-64"
-      frameClassName="p-0 lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none lg:ring-0 dark:lg:bg-transparent"
-      navbar={
-        <BusinessNavbar
-          businessId={businessId}
-          membershipRole={roleLabel}
-          userEmail={user.email ?? ""}
-          onSignOut={() => {
-            void signOut(firebaseAuth);
-            router.replace("/signin");
-          }}
-        />
-      }
-      sidebar={
-        <BusinessSidebar
-          businessId={businessId}
-          role={roleLabel}
-          pathname={pathname}
-          onSignOut={() => {
-            void signOut(firebaseAuth);
-            router.replace("/signin");
-          }}
-          showAdmin={isAdmin}
-          onAdmin={() => router.push("/admin")}
-        />
-      }
-    >
-      <div className="space-y-4">{children}</div>
-    </SidebarLayout>
+    <LocationScopeProvider businessId={businessId} membership={membership ?? null} isAdmin={!!isAdmin}>
+      <SidebarLayout
+        className="bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] text-white"
+        mainClassName="pt-0 pb-0 lg:pt-0 lg:pr-0 lg:pl-64"
+        frameClassName="p-0 lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none lg:ring-0 dark:lg:bg-transparent"
+        navbar={
+          <BusinessNavbar
+            businessId={businessId}
+            membershipRole={roleLabel}
+            userEmail={user.email ?? ""}
+            onSignOut={() => {
+              void signOut(firebaseAuth);
+              router.replace("/signin");
+            }}
+          />
+        }
+        sidebar={
+          <BusinessSidebar
+            businessId={businessId}
+            role={roleLabel}
+            pathname={pathname}
+            onSignOut={() => {
+              void signOut(firebaseAuth);
+              router.replace("/signin");
+            }}
+            showAdmin={isAdmin}
+            onAdmin={() => router.push("/admin")}
+          />
+        }
+      >
+        <div className="space-y-4">{children}</div>
+      </SidebarLayout>
+    </LocationScopeProvider>
   );
 }

@@ -88,6 +88,8 @@ export type RewardDisplayPayload = {
   locations?: LocationInfo[];
   expiresAt: string | null; // ISO string for rendering without Timestamp parsing client-side
   code: string;
+  locationId?: string;
+  locationName?: string;
 };
 
 export type PointsConfig = {

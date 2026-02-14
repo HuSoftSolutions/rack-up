@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
 import { adminAuth, adminFirestore } from "@/lib/firebase/admin";
-import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
+import { AuthError, hasLocationAccess, requireBusinessAccess } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type MarkUsedBody = {
   issueId: string;
+  locationId?: string;
 };
 
 function badRequest(message: string) {
@@ -34,10 +35,17 @@ export async function POST(
   }
 
   const issueId = body.issueId?.trim();
+  const requestedLocationId = body.locationId?.trim() || null;
   if (!issueId) return badRequest("issueId is required.");
 
   try {
-    const { uid } = await requireBusinessAccess(request, businessId);
+    const { uid, membership } = await requireBusinessAccess(request, businessId);
+    if (membership.role === "staff") {
+      if (!requestedLocationId) return badRequest("locationId is required.");
+      if (!hasLocationAccess(membership, requestedLocationId)) {
+        return badRequest("Access denied for this location.");
+      }
+    }
     const staffRecord = await adminAuth.getUser(uid);
     const staffEmail = staffRecord.email ?? null;
     const staffName = staffRecord.displayName ?? null;
@@ -51,6 +59,10 @@ export async function POST(
         return { status: "wrong_business" as const };
       }
       const status = (data.status as string | undefined) ?? "issued";
+      const issueLocationId = (data.redeemLocationId as string | undefined) ?? null;
+      if (requestedLocationId && issueLocationId && issueLocationId !== requestedLocationId) {
+        return { status: "wrong_location" as const };
+      }
       if (status === "used") return { status: "used" as const };
       if (status === "expired") return { status: "expired" as const };
 
@@ -66,6 +78,8 @@ export async function POST(
     if (result.status === "missing") return badRequest("Reward not found.");
     if (result.status === "wrong_business")
       return badRequest("Reward belongs to a different business.");
+    if (result.status === "wrong_location")
+      return badRequest("Reward belongs to a different location.");
     if (result.status === "used") return badRequest("Reward already marked used.");
 
     return NextResponse.json({ ok: true, issueId, status: "used" });

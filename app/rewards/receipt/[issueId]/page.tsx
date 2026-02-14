@@ -18,6 +18,7 @@ type Issue = {
   code?: string | null;
   userName?: string | null;
   userEmail?: string | null;
+  redeemLocationName?: string | null;
   usedBy?: { staffId?: string | null; staffName?: string | null; staffEmail?: string | null } | null;
 };
 
@@ -75,6 +76,7 @@ export default function RewardReceiptPage() {
           usedAt: toIso(data.usedAt),
           title: data.displayPayload?.title ?? data.title ?? "Reward",
           businessName: data.displayPayload?.businessName ?? data.businessName ?? data.businessId,
+          redeemLocationName: data.redeemLocationName ?? data.displayPayload?.locationName ?? null,
           code: data.code ?? null,
           userName: data.userName ?? null,
           userEmail: data.userEmail ?? data.email ?? null,
@@ -135,6 +137,7 @@ export default function RewardReceiptPage() {
                 <div className="mt-2 grid gap-3 text-xs text-zinc-400 sm:grid-cols-2">
                   <div>Issued: {formatDate(issue.issuedAt)}</div>
                   <div>{issue.expiresAt ? `Expires: ${formatDate(issue.expiresAt)}` : "No expiry"}</div>
+                  <div>Location: {issue.redeemLocationName ?? "—"}</div>
                   <div>Used by: {issue.usedBy?.staffName ?? issue.usedBy?.staffId ?? "—"}</div>
                   <div>Verifier email: {issue.usedBy?.staffEmail ?? "—"}</div>
                 </div>

@@ -53,6 +53,11 @@ export async function GET(
   if (!businessId) return badRequest("businessId is required.");
   try {
     const { membership } = await requireBusinessAccess(request, businessId);
+    const url = new URL(request.url);
+    const locationId = url.searchParams.get("locationId") || null;
+    if (membership.role === "staff" && locationId && !hasLocationAccess(membership, locationId)) {
+      return badRequest("Access denied for this location.");
+    }
     const snapshot = await adminFirestore
       .collection("deals")
       .where("businessId", "==", businessId)
@@ -64,6 +69,10 @@ export async function GET(
       if (membership.role === "owner") return true;
       if (!Array.isArray(deal.locations) || deal.locations.length === 0) return true;
       return deal.locations.some((loc) => hasLocationAccess(membership, loc));
+    }).filter((deal) => {
+      if (!locationId) return true;
+      if (!Array.isArray(deal.locations) || deal.locations.length === 0) return true;
+      return deal.locations.includes(locationId);
     });
 
     return NextResponse.json({ deals });

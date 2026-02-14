@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
-import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
+import { AuthError, hasLocationAccess, requireBusinessAccess } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +16,7 @@ function serverError(message: string) {
 
 type UseBody = {
   code: string;
+  locationId?: string;
 };
 
 export async function POST(
@@ -34,10 +35,17 @@ export async function POST(
   }
 
   const code = body.code?.trim().toUpperCase();
+  const requestedLocationId = body.locationId?.trim() || null;
   if (!code) return badRequest("code is required.");
 
   try {
-    const { uid } = await requireBusinessAccess(request, businessId);
+    const { uid, membership } = await requireBusinessAccess(request, businessId);
+    if (membership.role === "staff") {
+      if (!requestedLocationId) return badRequest("locationId is required.");
+      if (!hasLocationAccess(membership, requestedLocationId)) {
+        return badRequest("Access denied for this location.");
+      }
+    }
     const now = Timestamp.now();
 
     const querySnap = await adminFirestore
@@ -62,6 +70,10 @@ export async function POST(
       if (current.businessId && current.businessId !== businessId) {
         return { status: "wrong_business" as const, payload: current };
       }
+      const issueLocationId = (current.redeemLocationId as string | undefined) ?? null;
+      if (requestedLocationId && issueLocationId && issueLocationId !== requestedLocationId) {
+        return { status: "wrong_location" as const, payload: current };
+      }
 
       if (current.status === "expired") {
         return { status: "expired" as const, payload: current };
@@ -82,6 +94,8 @@ export async function POST(
     if (result.status === "missing") return badRequest("Unknown or invalid code.");
     if (result.status === "wrong_business")
       return badRequest("Code was issued by a different business.");
+    if (result.status === "wrong_location")
+      return badRequest("Code was issued for a different location.");
     if (result.status === "expired") return badRequest("Code has expired.");
     if (result.status === "used") return badRequest("Code already used.");
 

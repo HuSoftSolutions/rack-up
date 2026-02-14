@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebase/admin";
-import { AuthError, requireBusinessAccess } from "@/lib/server/auth";
+import { AuthError, hasLocationAccess, requireBusinessAccess } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export async function GET(
   if (!businessId) return NextResponse.json({ error: "businessId is required." }, { status: 400 });
 
   try {
-    await requireBusinessAccess(request, businessId);
+    const { membership } = await requireBusinessAccess(request, businessId);
     const [causeSnap, linkSnap] = await Promise.all([
       adminFirestore.collection("causes").get(),
       adminFirestore.collection("businesses").doc(businessId).collection("cause_links").get(),
@@ -26,11 +26,15 @@ export async function GET(
     const causes = causeSnap.docs.map((d) => {
       const data = d.data() as Record<string, unknown>;
       const link = links.get(d.id);
+      const filteredLocationIds =
+        membership.role === "owner"
+          ? link?.locationIds ?? []
+          : (link?.locationIds ?? []).filter((locId) => hasLocationAccess(membership, locId));
       return {
         id: d.id,
         ...data,
         linked: Boolean(link),
-        selectedLocationIds: link?.locationIds ?? [],
+        selectedLocationIds: filteredLocationIds,
       };
     });
 
@@ -54,9 +58,18 @@ export async function POST(
   if (!businessId) return NextResponse.json({ error: "businessId is required." }, { status: 400 });
 
   try {
-    await requireBusinessAccess(request, businessId);
+    const { membership } = await requireBusinessAccess(request, businessId);
     const body = (await request.json()) as { causeId?: string; locationIds?: string[] };
     if (!body.causeId) return NextResponse.json({ error: "causeId required" }, { status: 400 });
+    const locationIds = Array.isArray(body.locationIds)
+      ? body.locationIds.map((id) => id.trim()).filter(Boolean)
+      : [];
+    if (membership.role === "staff") {
+      const invalid = locationIds.filter((locId) => !hasLocationAccess(membership, locId));
+      if (invalid.length > 0) {
+        return NextResponse.json({ error: "Access denied for one or more locations." }, { status: 403 });
+      }
+    }
 
     const causeRef = adminFirestore.collection("causes").doc(body.causeId);
     const exists = await causeRef.get();
@@ -72,7 +85,7 @@ export async function POST(
       .set(
         {
           causeId: body.causeId,
-          locationIds: Array.isArray(body.locationIds) ? body.locationIds : [],
+          locationIds,
           updatedAt: new Date(),
         },
         { merge: true },

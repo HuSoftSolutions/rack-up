@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { useReactToPrint } from "react-to-print";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useLocationScope } from "../../../location-scope";
 
 type CauseRow = {
   id: string;
@@ -52,6 +53,7 @@ export default function LocationPrintPage({
   params: Promise<{ businessId: string; locationId: string }>;
 }) {
   const { user } = useAuth();
+  const { locationId: scopedLocationId, role } = useLocationScope();
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [locationId, setLocationId] = useState<string | null>(null);
   const [business, setBusiness] = useState<BusinessRow | null>(null);
@@ -71,6 +73,11 @@ export default function LocationPrintPage({
 
   useEffect(() => {
     if (!user || !businessId || !locationId) return;
+    if (role === "staff" && scopedLocationId && scopedLocationId !== locationId) {
+      setError("Access denied for this location.");
+      setLoading(false);
+      return;
+    }
     const currentUser = user;
     let canceled = false;
     async function load() {
@@ -78,9 +85,14 @@ export default function LocationPrintPage({
       setError(null);
       try {
         const idToken = await currentUser.getIdToken();
-        const res = await fetch(`/api/business/${businessId}/causes`, {
+        const res = await fetch(
+          `/api/business/${businessId}/causes${
+            locationId ? `?locationId=${encodeURIComponent(locationId)}` : ""
+          }`,
+          {
           headers: { Authorization: `Bearer ${idToken}` },
-        });
+        },
+        );
         const json = (await res.json()) as {
           business?: BusinessRow;
           locations?: LocationRow[];

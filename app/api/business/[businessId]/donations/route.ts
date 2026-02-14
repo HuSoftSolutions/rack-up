@@ -30,13 +30,25 @@ export async function GET(
 
   try {
     const { membership } = await requireBusinessAccess(request, businessId);
+    const url = new URL(request.url);
+    const locationId = url.searchParams.get("locationId") || null;
+    if (membership.role === "staff") {
+      if (!locationId) {
+        return NextResponse.json({ error: "locationId is required." }, { status: 400 });
+      }
+      if (!hasLocationAccess(membership, locationId)) {
+        return NextResponse.json({ error: "Access denied for this location." }, { status: 403 });
+      }
+    }
 
-    const snapshot = await adminFirestore
+    let queryRef = adminFirestore
       .collection("donations")
       .where("businessId", "==", businessId)
-      .orderBy("createdAt", "desc")
-      .limit(200)
-      .get();
+      .orderBy("createdAt", "desc");
+    if (locationId) {
+      queryRef = queryRef.where("locationId", "==", locationId);
+    }
+    const snapshot = await queryRef.limit(200).get();
 
     const donations = snapshot.docs
       .map((doc) => {
