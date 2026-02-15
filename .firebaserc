@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "rack-up-prod"
-  }
+    "default": "rack-up-prod",
+    "dev": "rack-up-dev"
+  },
+  "targets": {},
+  "etags": {}
 }

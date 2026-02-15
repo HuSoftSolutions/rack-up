@@ -32,6 +32,8 @@ type BusinessOption = {
 type InviteResult = {
   status: "created" | "existing";
   actionLink: string | null;
+  emailSent?: boolean;
+  warnings?: string[];
   user: {
     uid: string;
     email: string | null;
@@ -56,12 +58,17 @@ export default function AdminUsersPage() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteStatus, setInviteStatus] = useState<InviteResult | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteWarnings, setInviteWarnings] = useState<string[]>([]);
+  const [resendLoadingUid, setResendLoadingUid] = useState<string | null>(null);
+  const [resendError, setResendError] = useState<string | null>(null);
+  const [resendStatus, setResendStatus] = useState<InviteResult | null>(null);
   const [assumeError, setAssumeError] = useState<string | null>(null);
   const [assumeLoadingUid, setAssumeLoadingUid] = useState<string | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [manageSaving, setManageSaving] = useState(false);
   const [manageError, setManageError] = useState<string | null>(null);
   const [manageUser, setManageUser] = useState<AdminUser | null>(null);
+  const [userFilter, setUserFilter] = useState<"all" | "public" | "business">("all");
   const [inviteForm, setInviteForm] = useState({
     email: "",
     displayName: "",
@@ -139,8 +146,19 @@ export default function AdminUsersPage() {
       total: users.length,
       admins: users.filter((u) => u.isAdmin).length,
       staff: users.filter((u) => u.businessAdmin).length,
+      public: users.filter((u) => !u.isAdmin && !u.businessAdmin).length,
     };
   }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    if (userFilter === "public") {
+      return users.filter((u) => !u.isAdmin && !u.businessAdmin);
+    }
+    if (userFilter === "business") {
+      return users.filter((u) => u.isAdmin || u.businessAdmin);
+    }
+    return users;
+  }, [userFilter, users]);
 
   const businessMap = useMemo(() => {
     return new Map(businesses.map((biz) => [biz.id, biz]));
@@ -170,6 +188,7 @@ export default function AdminUsersPage() {
     if (!user) return;
     setInviteLoading(true);
     setInviteError(null);
+    setInviteWarnings([]);
     setInviteStatus(null);
     try {
       const idToken = await user.getIdToken();
@@ -194,6 +213,7 @@ export default function AdminUsersPage() {
         throw new Error(json.error ?? "Failed to send invite.");
       }
       setInviteStatus(json);
+      setInviteWarnings(json.warnings ?? []);
       setUsers((prev) => {
         const next = [...prev];
         const idx = next.findIndex((u) => u.uid === json.user.uid);
@@ -218,6 +238,34 @@ export default function AdminUsersPage() {
       setInviteError(err instanceof Error ? err.message : "Failed to send invite.");
     } finally {
       setInviteLoading(false);
+    }
+  }
+
+  async function handleResendInvite(target: AdminUser) {
+    if (!user) return;
+    if (!target.email) {
+      setResendError("User is missing an email address.");
+      return;
+    }
+    setResendError(null);
+    setResendStatus(null);
+    setResendLoadingUid(target.uid);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/admin/users/resend-invite", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: target.uid }),
+      });
+      const json = (await res.json()) as InviteResult & { error?: string };
+      if (!res.ok || !json.user) {
+        throw new Error(json.error ?? "Failed to resend invite.");
+      }
+      setResendStatus(json);
+    } catch (err) {
+      setResendError(err instanceof Error ? err.message : "Failed to resend invite.");
+    } finally {
+      setResendLoadingUid(null);
     }
   }
 
@@ -504,6 +552,7 @@ export default function AdminUsersPage() {
                 });
                 setInviteStatus(null);
                 setInviteError(null);
+                setInviteWarnings([]);
               }}
             >
               Reset
@@ -514,6 +563,12 @@ export default function AdminUsersPage() {
         {inviteError ? (
           <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
             {inviteError}
+          </div>
+        ) : null}
+
+        {inviteWarnings.length > 0 ? (
+          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+            {inviteWarnings.join(" ")}
           </div>
         ) : null}
 
@@ -556,10 +611,34 @@ export default function AdminUsersPage() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-white/5 bg-white/[0.02]">
-        <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-4 py-3 text-sm">
           <div className="font-semibold text-white">Users</div>
-          <div className="text-xs text-zinc-500">
-            {loading ? "Loading…" : `${users.length} loaded`}
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <div className="inline-flex overflow-hidden rounded-full border border-white/10">
+              {(
+                [
+                  { id: "all", label: `All (${counts.total})` },
+                  { id: "public", label: `Public (${counts.public})` },
+                  { id: "business", label: `Business (${counts.admins + counts.staff})` },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setUserFilter(option.id)}
+                  className={`px-3 py-1 text-xs font-medium transition ${
+                    userFilter === option.id
+                      ? "bg-emerald-400 text-emerald-950"
+                      : "bg-transparent text-zinc-300 hover:bg-white/5"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <div className="text-zinc-500">
+              {loading ? "Loading…" : `${filteredUsers.length} shown`}
+            </div>
           </div>
         </div>
         <div className="max-h-[70vh] overflow-auto">
@@ -574,14 +653,14 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.length === 0 && !loading ? (
+              {filteredUsers.length === 0 && !loading ? (
                 <tr>
                   <td className="px-4 py-3 text-zinc-400" colSpan={5}>
                     No users found.
                   </td>
                 </tr>
               ) : null}
-              {users.map((u) => (
+              {filteredUsers.map((u) => (
                 <tr key={u.uid} className="border-t border-white/5 text-sm hover:bg-white/[0.02]">
                   <td className="px-4 py-2">
                     <div className="font-medium text-white">{u.email ?? "—"}</div>
@@ -602,6 +681,22 @@ export default function AdminUsersPage() {
                   {businessMap.get(u.businessAdmin.businessId ?? "")?.name ??
                     u.businessAdmin.businessId ??
                     "—"}
+                  {u.businessAdmin.role === "staff" ? (
+                    <>
+                      {" "}
+                      ·{" "}
+                      {u.businessAdmin.locationIds && u.businessAdmin.locationIds.length > 0
+                        ? u.businessAdmin.locationIds
+                            .map(
+                              (locId) =>
+                                businessMap
+                                  .get(u.businessAdmin?.businessId ?? "")
+                                  ?.locations?.find((loc) => loc.id === locId)?.name ?? locId,
+                            )
+                            .join(", ")
+                        : "No locations"}
+                    </>
+                  ) : null}
                 </span>
               ) : null}
                       {!u.isAdmin && !u.businessAdmin ? (
@@ -747,6 +842,37 @@ export default function AdminUsersPage() {
               color="emerald"
             />
           </SwitchField>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              outline
+              onClick={() => {
+                if (manageUser) void handleResendInvite(manageUser);
+              }}
+              disabled={!manageUser?.email || resendLoadingUid === manageUser?.uid}
+            >
+              {resendLoadingUid === manageUser?.uid ? "Sending invite…" : "Resend invite"}
+            </Button>
+            {resendStatus?.actionLink ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(resendStatus.actionLink ?? "");
+                }}
+              >
+                Copy invite link
+              </Button>
+            ) : null}
+          </div>
+          {resendError ? (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+              {resendError}
+            </div>
+          ) : null}
+          {resendStatus?.warnings && resendStatus.warnings.length > 0 ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+              {resendStatus.warnings.join(" ")}
+            </div>
+          ) : null}
           {manageError ? (
             <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
               {manageError}

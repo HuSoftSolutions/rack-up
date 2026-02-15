@@ -4,7 +4,7 @@ import Providers from "./providers";
 
 export const metadata: Metadata = {
   title: "Rack Up",
-  description: "Earn points, redeem rewards, and donate to charity.",
+  description: "Earn points, redeem rewards, and support a charity.",
 };
 
 export const viewport = {

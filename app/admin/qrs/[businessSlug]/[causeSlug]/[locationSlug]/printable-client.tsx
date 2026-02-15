@@ -36,7 +36,7 @@ export default function PrintableQr({ config }: { config: Config }) {
     config.cause.mode === "predefined"
       ? (() => {
           const opts = config.cause.predefinedOptions ?? [];
-          return `Choose a preset amount to donate and earn Rack Up points instantly. Options: ${opts
+          return `Choose a preset amount to support and earn Rack Up points instantly. Options: ${opts
             .map((opt) => `${(opt.amountCents / 100).toFixed(2)} → ${opt.points} pts`)
             .join("; ")}.`;
         })()
@@ -49,7 +49,7 @@ export default function PrintableQr({ config }: { config: Config }) {
             : null;
           const range =
             min && max ? `${min}–${max}` : min ? `from ${min}` : max ? `up to ${max}` : "";
-          return `Donate any amount${range ? ` (${range})` : ""} and earn ${
+          return `Support any amount${range ? ` (${range})` : ""} and earn ${
             config.cause.pointsPerDollar ?? 100
           } Rack Up points per $1. Your points are added automatically after checkout.`;
         })();
@@ -183,7 +183,7 @@ export default function PrintableQr({ config }: { config: Config }) {
         <div className="mt-4 rounded-2xl bg-black/[.03] p-4 text-xs text-zinc-600 print:mt-2 print:text-[11px]">
           <div className="font-semibold text-zinc-900">How Rack Up works</div>
           <div className="mt-1">
-            Scan the QR code to donate. Choose an amount, complete the secure checkout, and earn
+            Scan the QR code to support. Choose an amount, complete the secure checkout, and earn
             Rack Up points automatically. Points can be redeemed at any partner location.
           </div>
         </div>

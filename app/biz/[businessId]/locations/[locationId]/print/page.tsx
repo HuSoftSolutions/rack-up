@@ -162,7 +162,7 @@ export default function LocationPrintPage({
 
   const handlePrint = useReactToPrint({
     contentRef: printableRef,
-    documentTitle: business && location ? `${business.slug}-${location.id}-donations` : "donations",
+    documentTitle: business && location ? `${business.slug}-${location.id}-support` : "support",
     pageStyle: `
       @page { size: A4 portrait; margin: 0.2in; }
       body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -192,7 +192,7 @@ export default function LocationPrintPage({
         <header className="flex items-start justify-between gap-3 print:hidden">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              {toTitle(business.name)} donations
+              {toTitle(business.name)} support
             </h1>
             <div className="text-sm text-zinc-600">
               {toTitle(location.name)} {location.address ? `· ${location.address}` : ""}
@@ -202,7 +202,7 @@ export default function LocationPrintPage({
             {qrDataUrl ? (
               <a
                 href={qrDataUrl}
-                download={`${business.slug}-${location.id}-donations-qr.png`}
+                download={`${business.slug}-${location.id}-support-qr.png`}
                 className="rounded-full border border-black/10 px-3 py-2 text-sm font-medium"
               >
                 Download PNG
@@ -228,7 +228,7 @@ export default function LocationPrintPage({
                 Choose a charity to support
               </div>
               <p className="text-sm text-zinc-800">
-                Scan the QR code to pick a cause and donate securely. Every donation earns Rack Up
+                Scan the QR code to pick a cause and support securely. Every support earns Rack Up
                 points instantly.
               </p>
               <div className="rounded-2xl border border-black/10 bg-black/[.03] p-4 text-sm">

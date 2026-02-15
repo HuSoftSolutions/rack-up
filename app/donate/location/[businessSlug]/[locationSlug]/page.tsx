@@ -77,7 +77,7 @@ function pointsSummary(cause: CauseOption) {
   const max = cause.maxAmountCents ? `$${(cause.maxAmountCents / 100).toFixed(2)}` : null;
   const range = min && max ? `${min}-${max}` : min ? `from ${min}` : max ? `up to ${max}` : "";
   const rate = cause.pointsPerDollar ?? 100;
-  return `Donate any amount${range ? ` (${range})` : ""} and earn ${rate} points per $1.`;
+  return `Support any amount${range ? ` (${range})` : ""} and earn ${rate} points per $1.`;
 }
 
 export default async function DonateLocationPage({
@@ -92,12 +92,12 @@ export default async function DonateLocationPage({
   return (
     <PublicShell contentClassName="max-w-5xl space-y-8">
       <header className="space-y-3">
-        <Badge color="emerald">Donate</Badge>
+        <Badge color="emerald">Support</Badge>
         <Heading level={1} className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Choose a charity at {data.business.name}
         </Heading>
         <Text className="text-zinc-200">
-          Location: {data.location.name ?? data.location.id}. Select a cause below to donate
+          Location: {data.location.name ?? data.location.id}. Select a cause below to support
           securely and earn Rack Up points.
         </Text>
       </header>
@@ -133,7 +133,7 @@ export default async function DonateLocationPage({
                   )}`}
                   color="emerald"
                 >
-                  Donate to this cause
+                  Support this cause
                 </Button>
               </div>
             </div>

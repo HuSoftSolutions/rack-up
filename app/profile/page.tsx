@@ -350,7 +350,7 @@ export default function ProfilePage() {
         <div className="grid gap-4 md:grid-cols-3">
           <StatCard label="Lifetime points" value={lifetimePoints} loading={transactionsLoading} />
           <StatCard label="Current points" value={currentPoints} loading={transactionsLoading} />
-          <StatCard label="Total donated" value={formatMoney(spentCents)} loading={donationsLoading} />
+          <StatCard label="Total supported" value={formatMoney(spentCents)} loading={donationsLoading} />
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-zinc-200">
@@ -361,7 +361,7 @@ export default function ProfilePage() {
           ) : null}
           <div className="grid gap-2 text-xs text-zinc-400">
             <div>Transactions loaded: {transactions.length}</div>
-            <div>Donations loaded: {donations.length}</div>
+            <div>Support loaded: {donations.length}</div>
             <div>Rewards issued: {rewardIssues.length}</div>
           </div>
         </div>
@@ -378,7 +378,7 @@ export default function ProfilePage() {
                   : "bg-white/5 text-zinc-300 hover:bg-white/10",
               ].join(" ")}
             >
-              Donations
+              Support
             </button>
             <button
               type="button"
@@ -397,9 +397,9 @@ export default function ProfilePage() {
           {activeTab === "donations" ? (
             <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
               {donationsLoading ? (
-                <div className="p-4 text-zinc-400">Loading donations…</div>
+                <div className="p-4 text-zinc-400">Loading support…</div>
               ) : donations.length === 0 ? (
-                <div className="p-4 text-zinc-400">No donations yet.</div>
+                <div className="p-4 text-zinc-400">No support yet.</div>
               ) : (
                 <table className="min-w-full text-left text-xs">
                   <thead className="bg-black/40 text-xs uppercase tracking-wide text-zinc-400">
@@ -419,7 +419,7 @@ export default function ProfilePage() {
                           {donation.createdAt?.toLocaleDateString() ?? "—"}
                         </td>
                         <td className="px-4 py-2 text-white">
-                          {donation.causeTitle ?? "Donation"}
+                          {donation.causeTitle ?? "Support"}
                         </td>
                         <td className="px-4 py-2 text-zinc-300">
                           {donation.businessName ?? "—"}

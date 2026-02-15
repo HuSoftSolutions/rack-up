@@ -36,7 +36,7 @@ const quickActions: NavItem[] = [
 
 const manageItems: NavItem[] = [
   { href: (id) => `/biz/${id}/offers`, label: "Offers" },
-  { href: (id) => `/biz/${id}/donations`, label: "Donations" },
+  { href: (id) => `/biz/${id}/donations`, label: "Support" },
   { href: (id) => `/biz/${id}/charities`, label: "Charities" },
   { href: (id) => `/biz/${id}/locations`, label: "Locations" },
 ];

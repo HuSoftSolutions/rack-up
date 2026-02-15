@@ -100,7 +100,7 @@ export default function BusinessDonationsPage({
       },
       (err) => {
         if (canceled) return;
-        const message = err instanceof Error ? err.message : "Failed to load donations.";
+        const message = err instanceof Error ? err.message : "Failed to load support.";
         const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
         if (missingIndex) setIndexWarning(true);
         setError(missingIndex ? null : message);
@@ -125,8 +125,8 @@ export default function BusinessDonationsPage({
     <div className="space-y-6 text-white">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Business Console</p>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Donations</h1>
-        <p className="mt-1 text-sm text-zinc-500">Track donations across your locations and charities.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-white">Support</h1>
+        <p className="mt-1 text-sm text-zinc-500">Track support across your locations and charities.</p>
       </div>
 
       {error ? (
@@ -137,13 +137,13 @@ export default function BusinessDonationsPage({
       {indexWarning ? (
         <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">
           Realtime updates are limited because a required Firestore index is missing. Create a composite index for
-          donations (businessId + createdAt).
+          support (businessId + createdAt).
         </div>
       ) : null}
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total Donations</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total Support</div>
           <div className="mt-1 text-2xl font-bold text-white">{summary.total}</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
@@ -157,7 +157,7 @@ export default function BusinessDonationsPage({
       ) : (
         <div className="overflow-hidden rounded-xl border border-white/5 bg-white/[0.02]">
           <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 text-sm">
-            <div className="font-semibold text-white">Recent donations</div>
+            <div className="font-semibold text-white">Recent support</div>
             <div className="text-xs text-zinc-500">
               {loading ? "Loading…" : `${donations.length} loaded`}
             </div>
@@ -178,7 +178,7 @@ export default function BusinessDonationsPage({
                 {donations.length === 0 && !loading ? (
                   <tr>
                     <td className="px-4 py-3 text-zinc-500" colSpan={6}>
-                      No donations yet.
+                      No support yet.
                     </td>
                   </tr>
                 ) : null}

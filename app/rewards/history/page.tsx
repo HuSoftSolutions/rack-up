@@ -193,7 +193,7 @@ export default function RewardHistoryPage() {
           );
         }
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load donations.");
+        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load support.");
       } finally {
         if (!canceled) setLoadingDonations(false);
       }
@@ -351,16 +351,16 @@ export default function RewardHistoryPage() {
 
       <section className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-5">
         <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-white">Donation receipts</div>
+          <div className="text-sm font-semibold text-white">Support receipts</div>
           <div className="text-xs text-zinc-400">
-            {loadingDonations ? "Loading…" : `${donations.length} donations`}
+            {loadingDonations ? "Loading…" : `${donations.length} support`}
           </div>
         </div>
         {loadingDonations ? (
-          <div className="space-y-2 text-sm text-zinc-400">Loading donations…</div>
+          <div className="space-y-2 text-sm text-zinc-400">Loading support…</div>
         ) : donations.length === 0 ? (
           <div className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-zinc-300">
-            No donations yet.
+            No support yet.
           </div>
         ) : (
           <div className="overflow-hidden rounded-xl border border-white/10">
@@ -382,7 +382,7 @@ export default function RewardHistoryPage() {
                     </td>
                     <td className="px-4 py-2">
                       <div className="font-semibold text-white">
-                        {donation.causeTitle ?? "Donation"}
+                        {donation.causeTitle ?? "Support"}
                       </div>
                     </td>
                     <td className="px-4 py-2 text-xs text-zinc-400">

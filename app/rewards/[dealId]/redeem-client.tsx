@@ -174,7 +174,7 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
         <div className="space-y-3 rounded-2xl border border-black/10 bg-white p-5 dark:border-white/10 dark:bg-[#0e0e0e]">
           <div className="font-medium">How it works</div>
           <ul className="list-disc space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-400">
-            <li>Donate via RackUp to earn points.</li>
+            <li>Support via RackUp to earn points.</li>
             <li>Redeem here to log a single-use reward to your account.</li>
             <li>Show up in person; staff will confirm and mark it used in their console.</li>
           </ul>

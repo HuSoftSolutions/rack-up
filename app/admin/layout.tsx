@@ -27,10 +27,11 @@ type NavItem = { href: string; label: string };
 
 const navItems: NavItem[] = [
   { href: "/admin", label: "Overview" },
+  { href: "/admin/reports", label: "Reports" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/causes", label: "Charities" },
   { href: "/admin/businesses", label: "Businesses" },
-  { href: "/admin/donations", label: "Donations" },
+  { href: "/admin/donations", label: "Support" },
 ];
 
 function AdminNavbar({

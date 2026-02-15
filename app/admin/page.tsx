@@ -10,6 +10,7 @@ type AdminOverviewStats = {
   pointsIssued: number;
   pointsRedeemed: number;
   netPoints: number;
+  warnings?: string[];
 };
 
 type AdminBusiness = {
@@ -41,6 +42,7 @@ export default function AdminOverviewPage() {
   const [stats, setStats] = useState<AdminOverviewStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [businesses, setBusinesses] = useState<AdminBusiness[]>([]);
   const [entitiesError, setEntitiesError] = useState<string | null>(null);
   const [selectedBusinessId, setSelectedBusinessId] = useState("");
@@ -71,10 +73,13 @@ export default function AdminOverviewPage() {
           throw new Error(message);
         }
 
-        setStats(json as AdminOverviewStats);
+        const next = json as AdminOverviewStats;
+        setStats(next);
+        setWarnings(Array.isArray(next.warnings) ? next.warnings : []);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load metrics.");
+        setWarnings([]);
       } finally {
         setLoading(false);
       }
@@ -133,7 +138,7 @@ export default function AdminOverviewPage() {
       {
         label: "Points Issued",
         value: formatNumber(stats?.pointsIssued),
-        hint: "Awarded from completed donations",
+        hint: "Awarded from completed support",
       },
       {
         label: "Points Redeemed",
@@ -146,7 +151,7 @@ export default function AdminOverviewPage() {
         hint: "Outstanding balance across users",
       },
       {
-        label: "Donations",
+        label: "Support",
         value: formatNumber(stats?.donationCount),
         hint: `${formatMoney(stats?.donationVolumeCents)} processed volume`,
       },
@@ -185,6 +190,11 @@ export default function AdminOverviewPage() {
       {error ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {error}
+        </div>
+      ) : null}
+      {warnings.length > 0 ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+          {warnings.join(" ")}
         </div>
       ) : null}
       {entitiesError ? (
@@ -230,7 +240,7 @@ export default function AdminOverviewPage() {
             </select>
           </label>
           <div className="flex items-center text-xs text-zinc-500 sm:col-span-2 lg:col-span-2">
-            Filter to a business or specific location to see donation volume and points scoped to that entity.
+            Filter to a business or specific location to see support volume and points scoped to that entity.
           </div>
         </div>
       </div>
@@ -256,7 +266,7 @@ export default function AdminOverviewPage() {
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
           <li>Users: total registered accounts</li>
           <li>Points issued/redeemed: completed balance transactions</li>
-          <li>Donations: completed checkouts + recorded entries</li>
+          <li>Support: completed checkouts + recorded entries</li>
           <li>Scope filters: narrow by business and location for targeted views</li>
         </ul>
       </div>

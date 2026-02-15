@@ -63,7 +63,7 @@ export default function AdminDonationsPage() {
         });
         const json = (await res.json()) as { donations?: DonationRow[]; error?: string };
         if (!res.ok || !json.donations) {
-          throw new Error(json.error ?? "Failed to load donations.");
+          throw new Error(json.error ?? "Failed to load support.");
         }
         if (!canceled) {
           setDonations(json.donations);
@@ -71,7 +71,7 @@ export default function AdminDonationsPage() {
         }
       } catch (err) {
         if (!canceled) {
-          setError(err instanceof Error ? err.message : "Failed to load donations.");
+      setError(err instanceof Error ? err.message : "Failed to load support.");
         }
       } finally {
         if (!canceled) setLoading(false);
@@ -98,12 +98,12 @@ export default function AdminDonationsPage() {
     <div className="space-y-6 text-white">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Admin</p>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Donations</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-white">Support</h1>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total Donations</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total Support</div>
           <div className="mt-1 text-2xl font-bold text-white">{donations.length}</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
@@ -120,13 +120,13 @@ export default function AdminDonationsPage() {
 
       {loading && donations.length === 0 ? (
         <div className="flex items-center justify-center py-20 text-sm text-zinc-400">
-          Loading donations…
+          Loading support…
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
           <div className="overflow-hidden rounded-xl border border-white/5 bg-white/[0.02]">
             <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 text-sm">
-              <div className="font-semibold text-white">Recent donations</div>
+              <div className="font-semibold text-white">Recent support</div>
               <div className="text-xs text-zinc-500">
                 {loading ? "Loading…" : `${donations.length} loaded`}
               </div>
@@ -136,7 +136,7 @@ export default function AdminDonationsPage() {
                 <thead className="sticky top-0 border-b border-white/5 bg-white/[0.02] text-left text-xs uppercase tracking-wide text-zinc-400">
                   <tr>
                     <th className="px-4 py-2">Charity</th>
-                    <th className="px-4 py-2">Donor</th>
+                    <th className="px-4 py-2">Supporter</th>
                     <th className="px-4 py-2">Business</th>
                     <th className="px-4 py-2">Amount</th>
                     <th className="px-4 py-2">Points</th>
@@ -148,7 +148,7 @@ export default function AdminDonationsPage() {
                   {donations.length === 0 && !loading ? (
                     <tr>
                       <td className="px-4 py-3 text-zinc-300" colSpan={7}>
-                        No donations yet.
+                        No support yet.
                       </td>
                     </tr>
                   ) : null}
@@ -187,7 +187,7 @@ export default function AdminDonationsPage() {
             <div className="text-sm font-semibold text-white">Details</div>
             {!selected ? (
               <div className="mt-3 text-sm text-zinc-300">
-                Select a donation to inspect details.
+                Select a support entry to inspect details.
               </div>
             ) : (
               <div className="mt-3 space-y-3 text-sm text-white">

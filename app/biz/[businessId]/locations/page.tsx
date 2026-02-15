@@ -87,7 +87,7 @@ export default function BusinessLocationsPage({
         <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Business Console</p>
         <h1 className="text-2xl font-bold tracking-tight text-white">Locations</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Your business locations and QR donation sheets.
+          Your business locations and QR support sheets.
         </p>
       </div>
 

@@ -178,7 +178,7 @@ export default async function Home() {
                 Turn everyday purchases into impact.
               </h1>
               <p className="text-lg text-zinc-200 sm:text-xl">
-                Rack Up connects local businesses, generous donors, and community causes. To donate
+                Rack Up connects local businesses, generous supporters, and community causes. To support
                 and earn points, visit a participating location and scan the in-store QR code tied
                 to the cause.
               </p>
@@ -201,7 +201,7 @@ export default async function Home() {
               <div className="text-sm font-semibold text-emerald-300">Live activity</div>
               {donations.length === 0 ? (
                 <div className="mt-3 text-sm text-zinc-400">
-                  Donations will appear here once campaigns are active.
+                  Support activity will appear here once campaigns are active.
                 </div>
               ) : (
                 <div className="mt-3 space-y-2">
@@ -227,19 +227,19 @@ export default async function Home() {
         <section>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs uppercase tracking-wide text-zinc-400">Total donated</div>
+              <div className="text-xs uppercase tracking-wide text-zinc-400">Total supported</div>
               <div className="mt-2 text-3xl font-semibold text-white">
                 {formatMoney(totalDonationCents)}
               </div>
               <div className="mt-1 text-sm text-zinc-400">
-                Donations happen in person via QR at participating locations.
+                Support happens in person via QR at participating locations.
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs uppercase tracking-wide text-zinc-400">Recent donors</div>
+              <div className="text-xs uppercase tracking-wide text-zinc-400">Recent supporters</div>
               <div className="mt-2 text-3xl font-semibold text-white">{donations.length}</div>
               <div className="mt-1 text-sm text-zinc-400">
-                Anonymous activity preview from the last 20 donations.
+                Anonymous activity preview from the last 20 support entries.
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -259,7 +259,7 @@ export default async function Home() {
             <div>
               <h2 className="text-2xl font-semibold tracking-tight text-white">Featured causes</h2>
               <p className="text-sm text-zinc-400">
-                Visit a participating location to scan the QR code and donate in person.
+                Visit a participating location to scan the QR code and support in person.
               </p>
             </div>
             <Link className="text-sm text-emerald-300 underline" href="/rewards">
@@ -336,7 +336,7 @@ export default async function Home() {
             ))}
             {donations.length === 0 ? (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
-                No donations yet — be the first to create an impact.
+                No support yet — be the first to create an impact.
               </div>
             ) : null}
           </div>
@@ -350,7 +350,7 @@ export default async function Home() {
               </div>
               <div className="mt-2 text-2xl font-semibold">Join Rack Up today.</div>
               <div className="text-sm text-emerald-100/90">
-                Visit a participating location to donate in person and earn points.
+                Visit a participating location to support in person and earn points.
               </div>
             </div>
             <div className="flex gap-3">

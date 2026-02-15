@@ -8,12 +8,12 @@ export default async function DonateIndexPage() {
   return (
     <PublicShell contentClassName="max-w-5xl space-y-8">
       <header className="space-y-3">
-        <Badge color="emerald">Donate</Badge>
+        <Badge color="emerald">Support</Badge>
         <Heading level={1} className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-          Donate in person
+          Support in person
         </Heading>
         <Text className="text-zinc-200">
-          Donations are started by scanning the QR code at a participating location.
+          Support starts by scanning the QR code at a participating location.
         </Text>
       </header>
 
@@ -22,7 +22,7 @@ export default async function DonateIndexPage() {
           <div className="text-base font-semibold text-white">How it works</div>
           <div>1. Visit a Rack Up partner location.</div>
           <div>2. Scan the posted QR code with your phone.</div>
-          <div>3. Choose a cause and complete your donation securely.</div>
+          <div>3. Choose a cause and complete your support securely.</div>
         </div>
       </div>
 

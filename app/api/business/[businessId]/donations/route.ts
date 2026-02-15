@@ -84,7 +84,7 @@ export async function GET(
       const status = err.message.includes("Access denied") ? 403 : 401;
       return NextResponse.json({ error: err.message }, { status });
     }
-    const message = err instanceof Error ? err.message : "Failed to load donations.";
+    const message = err instanceof Error ? err.message : "Failed to load support.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

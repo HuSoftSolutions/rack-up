@@ -471,13 +471,13 @@ export default function Mockup2() {
               onClick={() => toggleSection("urls")}
               className="flex w-full items-center justify-between px-6 py-4 text-left hover:bg-white/[0.02]"
             >
-              <span className="text-sm font-semibold text-white">Donation URLs</span>
+              <span className="text-sm font-semibold text-white">Support URLs</span>
               <span className="text-zinc-500">{openSections.has("urls") ? "−" : "+"}</span>
             </button>
             {openSections.has("urls") && (
               <div className="px-6 pb-4">
                 {selected.causes.length === 0 ? (
-                  <p className="text-sm text-zinc-500">Link causes to generate donation URLs.</p>
+                  <p className="text-sm text-zinc-500">Link causes to generate support URLs.</p>
                 ) : (
                   <div className="space-y-2">
                     {selected.causes.flatMap((cause) =>

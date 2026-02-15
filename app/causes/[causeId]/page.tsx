@@ -71,7 +71,7 @@ export default async function CauseDetailsPage({
                 {cause.active ? "Active cause" : "Inactive"}
               </Badge>
               <span className="text-xs uppercase tracking-wide text-zinc-400">
-                {cause.mode === "predefined" ? "Predefined options" : "Custom donation"}
+                {cause.mode === "predefined" ? "Predefined options" : "Custom support"}
               </span>
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
@@ -81,8 +81,8 @@ export default async function CauseDetailsPage({
               <p className="text-sm text-zinc-300 sm:text-base">{cause.description}</p>
             ) : null}
             <div className="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4 text-sm text-emerald-100">
-              Donations are only available in person. Visit a participating location and scan the
-              QR code for this cause to donate and earn points.
+              Support is only available in person. Visit a participating location and scan the
+              QR code for this cause to support and earn points.
             </div>
           </div>
           {cause.imageUrl ? (
@@ -108,24 +108,24 @@ export default async function CauseDetailsPage({
               : `${cause.pointsPerDollar ?? 100} pts / $`}
           </div>
           <div className="mt-1 text-sm text-zinc-400">
-            {cause.mode === "predefined" ? "Choose from preset donations." : "Earn with every dollar."}
+            {cause.mode === "predefined" ? "Choose from preset support amounts." : "Earn with every dollar."}
           </div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-xs uppercase tracking-wide text-zinc-400">Minimum</div>
           <div className="mt-2 text-xl font-semibold text-white">{formatMoney(cause.minAmountCents)}</div>
-          <div className="mt-1 text-sm text-zinc-400">Per in‑person donation.</div>
+          <div className="mt-1 text-sm text-zinc-400">Per in‑person support.</div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-xs uppercase tracking-wide text-zinc-400">Maximum</div>
           <div className="mt-2 text-xl font-semibold text-white">{formatMoney(cause.maxAmountCents)}</div>
-          <div className="mt-1 text-sm text-zinc-400">Per in‑person donation.</div>
+          <div className="mt-1 text-sm text-zinc-400">Per in‑person support.</div>
         </div>
       </section>
 
       {cause.mode === "predefined" && cause.predefinedOptions?.length ? (
         <section className="rounded-2xl border border-white/10 bg-white/5 p-6">
-          <div className="text-sm font-semibold text-white">Donation options</div>
+          <div className="text-sm font-semibold text-white">Support options</div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {cause.predefinedOptions.map((opt) => (
               <div key={`${opt.amountCents}-${opt.points}`} className="rounded-xl border border-white/10 bg-black/40 p-3">

@@ -170,7 +170,7 @@ export default function AdminCauseDetailPage() {
               <div className="mt-1 text-lg font-semibold text-white">
                 {cause.businessLinks?.length ?? 0} businesses · {locationCount} locations
               </div>
-              <div className="text-xs text-zinc-500">Locations determine available donation URLs.</div>
+              <div className="text-xs text-zinc-500">Locations determine available support URLs.</div>
             </div>
           </div>
 

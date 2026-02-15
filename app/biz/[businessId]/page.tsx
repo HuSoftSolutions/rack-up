@@ -115,7 +115,7 @@ export default function BusinessDashboardPage() {
       },
       (err) => {
         if (canceled) return;
-        const message = err instanceof Error ? err.message : "Failed to load donations.";
+        const message = err instanceof Error ? err.message : "Failed to load support.";
         const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
         if (missingIndex) {
           setIndexWarnings((prev) =>
@@ -288,7 +288,7 @@ export default function BusinessDashboardPage() {
         <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Business Console</p>
         <h1 className="text-2xl font-bold tracking-tight text-white">Dashboard</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Track donations, manage rewards, and redeem codes.
+          Track support, manage rewards, and redeem codes.
         </p>
       </div>
 
@@ -338,7 +338,7 @@ export default function BusinessDashboardPage() {
       {indexWarnings.length > 0 ? (
         <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">
           Realtime updates are limited because required Firestore indexes are missing. Create composite indexes for{" "}
-          {indexWarnings.includes("donations") ? "donations (businessId + createdAt)" : ""}
+          {indexWarnings.includes("donations") ? "support (businessId + createdAt)" : ""}
           {indexWarnings.includes("donations") && indexWarnings.includes("rewards") ? " and " : ""}
           {indexWarnings.includes("rewards") ? "rewards (businessId + issuedAt)" : ""}.
         </div>
@@ -347,11 +347,11 @@ export default function BusinessDashboardPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total Donations</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total Support</div>
           <div className="mt-1 text-2xl font-bold text-white">{loading ? "…" : stats.totalDonations}</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Donation Volume</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Support Volume</div>
           <div className="mt-1 text-2xl font-bold text-white">{loading ? "…" : formatMoney(stats.donationVolume)}</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
@@ -422,10 +422,10 @@ export default function BusinessDashboardPage() {
         )}
       </div>
 
-      {/* Recent Donations mini-table */}
+      {/* Recent Support mini-table */}
       <div className="overflow-hidden rounded-xl border border-white/5 bg-white/[0.02]">
         <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 text-sm">
-          <div className="font-semibold text-white">Recent Donations</div>
+          <div className="font-semibold text-white">Recent Support</div>
           <Link
             href={`/biz/${businessId}/donations`}
             className="text-xs font-semibold text-emerald-300 hover:text-emerald-200"
@@ -436,7 +436,7 @@ export default function BusinessDashboardPage() {
         {loading ? (
           <div className="px-4 py-6 text-center text-sm text-zinc-500">Loading…</div>
         ) : recentDonations.length === 0 ? (
-          <div className="px-4 py-6 text-center text-sm text-zinc-500">No donations yet.</div>
+          <div className="px-4 py-6 text-center text-sm text-zinc-500">No support yet.</div>
         ) : (
           <table className="min-w-full text-sm">
             <thead className="border-b border-white/5 text-left text-xs uppercase tracking-wide text-zinc-400">

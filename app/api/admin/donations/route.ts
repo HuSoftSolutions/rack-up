@@ -55,6 +55,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: err.message }, { status });
     }
     console.error(err);
-    return NextResponse.json({ error: "Failed to load donations." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load support." }, { status: 500 });
   }
 }

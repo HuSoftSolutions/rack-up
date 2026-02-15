@@ -8,7 +8,7 @@
  * Below that is a search bar + "New Business" button, followed by
  * a list of business "rows" that expand inline to show a mini-dashboard
  * for that business with a horizontal card layout for Locations, Causes,
- * Logos, Staff, and Donation URLs.
+ * Logos, Staff, and Support URLs.
  *
  * Each business row has an action menu (three-dot) for quick operations.
  *
@@ -375,7 +375,7 @@ export default function Mockup4() {
                           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.193-5.188a4.5 4.5 0 00-6.364-6.364L3.75 6.38a4.5 4.5 0 006.364 6.364l4.5-4.5z" />
                           </svg>
-                          Donation URLs
+                          Support URLs
                         </button>
                       </div>
                     </div>

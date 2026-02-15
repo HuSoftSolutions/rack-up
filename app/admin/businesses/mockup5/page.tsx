@@ -481,10 +481,10 @@ export default function Mockup5() {
           {/* Donation URLs */}
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
             <h3 className="mb-4 text-sm font-semibold text-white">
-              Donation URLs
+              Support URLs
             </h3>
             {biz.causes.length === 0 ? (
-              <p className="text-sm text-zinc-500">Link causes to see donation URLs.</p>
+              <p className="text-sm text-zinc-500">Link causes to see support URLs.</p>
             ) : (
               <div className="space-y-2">
                 {biz.causes.flatMap((cause) =>
@@ -515,7 +515,7 @@ export default function Mockup5() {
               </div>
             )}
             <p className="mt-3 text-xs text-zinc-600">
-              QR tokens are required for donations. Use Print QR on each location to generate secure links.
+              QR tokens are required for support. Use Print QR on each location to generate secure links.
             </p>
           </div>
         </div>

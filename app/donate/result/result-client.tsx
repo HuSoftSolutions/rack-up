@@ -75,10 +75,10 @@ export default function DonateResultClient() {
   }, [status?.success]);
 
   const heading = useMemo(() => {
-    if (status?.success) return "Donation successful";
-    if (statusParam === "cancel") return "Donation canceled";
-    if (status?.error) return "Donation status unavailable";
-    return "Processing donation";
+    if (status?.success) return "Support successful";
+    if (statusParam === "cancel") return "Support canceled";
+    if (status?.error) return "Support status unavailable";
+    return "Processing support";
   }, [status?.error, status?.success, statusParam]);
 
   const body = useMemo(() => {
@@ -86,7 +86,7 @@ export default function DonateResultClient() {
       const amount =
         typeof status.amountTotal === "number"
           ? `$${(status.amountTotal / 100).toFixed(2)}`
-          : "your donation";
+          : "your support";
       return `Thank you! We received ${amount}.`;
     }
     if (statusParam === "cancel") {
@@ -95,7 +95,7 @@ export default function DonateResultClient() {
     if (status?.error) {
       return status.error;
     }
-    return "Finalizing your donation…";
+    return "Finalizing your support…";
   }, [status?.amountTotal, status?.error, status?.success, statusParam]);
 
   const pointsLabel =
@@ -127,7 +127,7 @@ export default function DonateResultClient() {
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
         <header className="space-y-2">
           <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Donation status
+            Support status
           </div>
           <h1 className="text-3xl font-semibold tracking-tight">{heading}</h1>
           <p className="max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">{body}</p>

@@ -805,7 +805,7 @@ export default function AdminBusinessesPage() {
                                   d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.193-5.188a4.5 4.5 0 00-6.364-6.364L3.75 6.38a4.5 4.5 0 006.364 6.364l4.5-4.5z"
                                 />
                               </svg>
-                              Donation URLs
+                              Support URLs
                             </button>
                           </div>
                         </div>
@@ -941,7 +941,7 @@ export default function AdminBusinessesPage() {
                                   })}
                                 </div>
                                 <div className="mt-2 text-xs text-zinc-500">
-                                  Save to generate donation URLs. Use &quot;Remove&quot; to detach
+                                  Save to generate support URLs. Use &quot;Remove&quot; to detach
                                   this charity.
                                 </div>
                               </div>
@@ -1058,7 +1058,7 @@ export default function AdminBusinessesPage() {
                       </div>
                     )}
 
-                    {/* ===== Sub-action: Donation URLs ===== */}
+                    {/* ===== Sub-action: Support URLs ===== */}
                     {activeSubAction === "donationUrls" && (
                       <div>
                         <div className="mb-4 flex items-center gap-3">
@@ -1069,11 +1069,11 @@ export default function AdminBusinessesPage() {
                           >
                             &larr; Back
                           </button>
-                          <h3 className="text-sm font-semibold text-white">Donation URLs</h3>
+                          <h3 className="text-sm font-semibold text-white">Support URLs</h3>
                         </div>
                         {bizDonationCombos.length === 0 ? (
                           <div className="text-sm text-zinc-500">
-                            No donation URLs yet. Assign causes to locations first.
+                            No support URLs yet. Assign causes to locations first.
                           </div>
                         ) : (
                           <div className="space-y-2">

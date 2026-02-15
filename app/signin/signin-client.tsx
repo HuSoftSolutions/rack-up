@@ -75,7 +75,7 @@ export default function SignInClient() {
             Sign in to your account
           </Heading>
           <Text className="text-sm text-zinc-200">
-            Access your points, donations, and business tools in one place.
+            Access your points, support, and business tools in one place.
           </Text>
         </div>
 

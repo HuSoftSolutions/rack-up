@@ -72,10 +72,10 @@ export default function DonateClient({
         amountCents = selectedOption.amountCents;
       }
       if (amountCents < minCents) {
-        throw new Error(`Minimum donation is $${(minCents / 100).toFixed(2)} for this cause.`);
+        throw new Error(`Minimum support is $${(minCents / 100).toFixed(2)} for this cause.`);
       }
       if (amountCents > maxCents) {
-        throw new Error(`Maximum donation is $${(maxCents / 100).toFixed(0)} for this cause.`);
+        throw new Error(`Maximum support is $${(maxCents / 100).toFixed(0)} for this cause.`);
       }
 
       const res = await fetch("/api/stripe/create-checkout-session", {
@@ -118,7 +118,7 @@ export default function DonateClient({
       </div>
 
       <header className="space-y-3">
-        <Badge color="emerald">Donate</Badge>
+        <Badge color="emerald">Support</Badge>
         <Heading level={1} className="text-3xl font-semibold tracking-tight text-white">
           {cause.title ?? `Support ${business.name}`}
         </Heading>
@@ -128,7 +128,7 @@ export default function DonateClient({
           <UiText className="max-w-2xl text-zinc-200">{business.description}</UiText>
         ) : null}
         <UiText className="text-zinc-300">
-          Donations earn RackUp points. You can redeem them at any partner location.
+          Support earns RackUp points. You can redeem them at any partner location.
         </UiText>
         <UiText className="text-zinc-300">
           This link is for <span className="font-semibold text-white">{location.name}</span>.
@@ -220,7 +220,7 @@ export default function DonateClient({
 
         <div className="pt-2">
           <Button type="button" color="emerald" className="w-full" onClick={startCheckout} disabled={submitting || loading}>
-            {submitting ? "Redirecting…" : "Donate now"}
+            {submitting ? "Redirecting…" : "Support now"}
           </Button>
         </div>
 

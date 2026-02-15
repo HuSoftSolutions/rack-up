@@ -19,7 +19,7 @@ async function fetchShareData(sessionId?: string | null): Promise<ShareData | nu
     const amountLabel =
       typeof session.amount_total === "number"
         ? `$${(session.amount_total / 100).toFixed(2)}`
-        : "a donation";
+        : "a support";
     return {
       amountLabel,
       causeTitle: session.metadata?.causeTitle ?? undefined,
@@ -89,7 +89,7 @@ export default async function DonateSharePage({
 
       <div className="flex flex-wrap gap-3">
         <Button href="/donate" color="emerald">
-          How to donate in person
+          How to support in person
         </Button>
         <Button href="/rewards" outline>
           See rewards
