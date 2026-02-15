@@ -747,6 +747,27 @@ export default function AdminBusinessesPage() {
                             Quick Actions
                           </h4>
                           <div className="grid grid-cols-2 gap-2">
+                            <Link
+                              href={`/biz/${biz.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex flex-col items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-3 py-3 text-xs text-zinc-300 transition hover:border-white/15 hover:text-white"
+                            >
+                              <svg
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={1.5}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M15 10l4.553-4.553a1 1 0 011.414 1.414L16.414 11.45M14 6h-5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-5"
+                                />
+                              </svg>
+                              Open console
+                            </Link>
                             <button
                               type="button"
                               onClick={() => setActiveSubAction("uploadLogo")}

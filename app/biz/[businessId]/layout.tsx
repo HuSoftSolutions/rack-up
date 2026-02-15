@@ -52,11 +52,15 @@ function BusinessNavbar({
   membershipRole,
   userEmail,
   onSignOut,
+  showAdmin,
+  onAdmin,
 }: {
   businessId: string;
   membershipRole: string;
   userEmail: string;
   onSignOut: () => void;
+  showAdmin: boolean;
+  onAdmin: () => void;
 }) {
   const { role, locations, locationId, setLocationId, loading } = useLocationScope();
   const showSelector = role === "staff" ? locations.length > 1 : locations.length > 0;
@@ -108,6 +112,11 @@ function BusinessNavbar({
       <NavbarSpacer />
       <NavbarSection>
         <NavbarLabel className="hidden text-sm text-zinc-300 sm:block">{userEmail}</NavbarLabel>
+        {showAdmin ? (
+          <NavbarItem onClick={onAdmin}>
+            <NavbarLabel>Admin dashboard</NavbarLabel>
+          </NavbarItem>
+        ) : null}
         <NavbarItem onClick={onSignOut}>
           <NavbarLabel>Sign out</NavbarLabel>
         </NavbarItem>
@@ -349,6 +358,8 @@ export default function BusinessLayout({
               void signOut(firebaseAuth);
               router.replace("/signin");
             }}
+            showAdmin={!!isAdmin}
+            onAdmin={() => router.push("/admin")}
           />
         }
         sidebar={

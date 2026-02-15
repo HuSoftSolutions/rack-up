@@ -476,7 +476,7 @@ export async function POST(request: Request) {
         locations,
         users,
       },
-      warnings: warnings.length > 0 ? warnings : undefined,
+      warnings,
     };
 
     const reportRef = await adminFirestore.collection("reports").add({
