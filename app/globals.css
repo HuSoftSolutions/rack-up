@@ -32,3 +32,15 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+select,
+select option,
+select optgroup {
+  background-color: #0f0f0f;
+  color: #f4f4f5;
+}
+
+select option:disabled,
+select optgroup:disabled {
+  color: #a1a1aa;
+}
