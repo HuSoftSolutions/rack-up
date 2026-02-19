@@ -47,6 +47,7 @@ export default function BusinessOffersPage({
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     params.then((p) => setBusinessId(p.businessId));
@@ -147,6 +148,30 @@ export default function BusinessOffersPage({
     }
   }
 
+  async function deleteDeal(deal: Deal) {
+    if (!user || !businessId) return;
+    const confirmed = window.confirm(`Delete "${deal.title ?? "Untitled"}"? This cannot be undone.`);
+    if (!confirmed) return;
+    setDeletingId(deal.id);
+    setError(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/business/${businessId}/deals/${deal.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error ?? "Failed to delete offer.");
+      }
+      setDeals((prev) => prev.filter((item) => item.id !== deal.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete offer.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   if (loading && deals.length === 0) {
     return (
       <div className="flex items-center justify-center py-24 text-sm text-zinc-400">
@@ -202,12 +227,13 @@ export default function BusinessOffersPage({
                 <th className="px-4 py-2">Points</th>
                 <th className="px-4 py-2">Type</th>
                 <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
               {deals.length === 0 && !loading ? (
                 <tr>
-                  <td className="px-4 py-3 text-zinc-400" colSpan={4}>
+                  <td className="px-4 py-3 text-zinc-400" colSpan={5}>
                     No offers yet.
                   </td>
                 </tr>
@@ -240,6 +266,16 @@ export default function BusinessOffersPage({
                         Inactive
                       </span>
                     )}
+                  </td>
+                  <td className="px-4 py-2">
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-red-300 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => void deleteDeal(deal)}
+                      disabled={deletingId === deal.id}
+                    >
+                      {deletingId === deal.id ? "Deleting…" : "Delete"}
+                    </button>
                   </td>
                 </tr>
               ))}
