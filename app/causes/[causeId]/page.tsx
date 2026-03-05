@@ -81,8 +81,8 @@ export default async function CauseDetailsPage({
               <p className="text-sm text-zinc-300 sm:text-base">{cause.description}</p>
             ) : null}
             <div className="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4 text-sm text-emerald-100">
-              Support is only available in person. Visit a participating location and scan the
-              QR code for this cause to support and earn points.
+              Support is available in person or remotely with an approved QR link. Visit a
+              participating location or use a shared link to support and earn points.
             </div>
           </div>
           {cause.imageUrl ? (

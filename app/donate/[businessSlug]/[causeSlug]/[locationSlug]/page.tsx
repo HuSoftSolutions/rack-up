@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
 import DonateClient from "../../../start-donation";
 import { fetchDonationConfig } from "@/lib/server/firestore";
+import { resolvePointsConfig } from "@/lib/server/points-config";
+import { parseQrToken } from "@/lib/server/qr-access";
 
 type Props = {
   params: Promise<{ businessSlug: string; causeSlug: string; locationSlug: string }>;
+  searchParams?: { qr?: string | string[] };
 };
 
 type TimestampLike = {
@@ -38,16 +41,30 @@ function serializeDoc<T extends Record<string, unknown>>(doc: T) {
   };
 }
 
-export default async function DonationPage({ params }: Props) {
+export default async function DonationPage({ params, searchParams }: Props) {
   const { businessSlug, causeSlug, locationSlug } = await params;
+  const query = searchParams ?? {};
+  const qrValue = query?.qr;
+  const qrTokenValue = Array.isArray(qrValue) ? qrValue[0] : qrValue ?? null;
+  let scanSource: "in_person" | "remote" = "remote";
+  try {
+    const parsed = parseQrToken(qrTokenValue);
+    scanSource = parsed?.s ?? "remote";
+  } catch {
+    scanSource = "remote";
+  }
   const config = await fetchDonationConfig({ businessSlug, causeSlug, locationSlug });
   if (!config) notFound();
+  const pointsConfig = resolvePointsConfig(config.cause, scanSource);
 
   return (
     <DonateClient
       business={serializeDoc(config.business)}
       cause={serializeDoc(config.cause)}
       location={serializeDoc(config.location)}
+      scanSource={scanSource}
+      pointsConfig={pointsConfig}
+      qrToken={qrTokenValue}
     />
   );
 }

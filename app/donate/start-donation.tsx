@@ -9,9 +9,16 @@ import { Heading } from "@/ui-kit/heading";
 import { Input } from "@/ui-kit/input";
 import { Text as UiText } from "@/ui-kit/text";
 import PublicShell from "@/app/_components/PublicNav";
+import GiveawayProgressCard from "@/app/_components/GiveawayProgressCard";
 import { useAuth } from "@/lib/auth/AuthProvider";
 
 import type { BusinessDoc, CauseDoc, LocationDoc } from "@/lib/types/business";
+
+type PointsConfig = {
+  mode: "custom" | "predefined";
+  pointsPerDollar?: number;
+  predefinedOptions?: { amountCents: number; points: number; label?: string }[];
+};
 
 type PredefinedOption = NonNullable<CauseDoc["predefinedOptions"]>[number];
 
@@ -19,36 +26,42 @@ export default function DonateClient({
   business,
   cause,
   location,
+  scanSource,
+  pointsConfig,
+  qrToken,
 }: {
   business: BusinessDoc & { id: string };
   cause: CauseDoc & { id: string };
-  location: LocationDoc & { id: string };
+  location?: (LocationDoc & { id: string }) | null;
+  scanSource: "in_person" | "remote";
+  pointsConfig: PointsConfig;
+  qrToken?: string | null;
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const redirectTarget = pathname || "/rewards";
   const [amount, setAmount] = useState(() =>
-    cause.mode === "predefined" && cause.predefinedOptions?.[0]
-      ? cause.predefinedOptions[0].amountCents / 100
+    pointsConfig.mode === "predefined" && pointsConfig.predefinedOptions?.[0]
+      ? pointsConfig.predefinedOptions[0].amountCents / 100
       : 10,
   );
   const [selectedOption, setSelectedOption] = useState<PredefinedOption | null>(
-    cause.mode === "predefined" && cause.predefinedOptions?.[0]
-      ? cause.predefinedOptions[0]
+    pointsConfig.mode === "predefined" && pointsConfig.predefinedOptions?.[0]
+      ? pointsConfig.predefinedOptions[0]
       : null,
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const estimatedPoints = useMemo(() => {
-    if (cause.mode === "predefined") {
+    if (pointsConfig.mode === "predefined") {
       return selectedOption?.points ?? 0;
     }
     if (!Number.isFinite(amount) || amount <= 0) return 0;
-    const rate = cause.pointsPerDollar ?? 100;
+    const rate = pointsConfig.pointsPerDollar ?? 100;
     return Math.floor(amount * rate);
-  }, [amount, cause.mode, cause.pointsPerDollar, selectedOption]);
+  }, [amount, pointsConfig.mode, pointsConfig.pointsPerDollar, selectedOption]);
 
   function sendToAuth() {
     const encoded = encodeURIComponent(redirectTarget);
@@ -68,7 +81,7 @@ export default function DonateClient({
     try {
       const idToken = await user.getIdToken();
       let amountCents = Math.round(amount * 100);
-      if (cause.mode === "predefined" && selectedOption) {
+      if (pointsConfig.mode === "predefined" && selectedOption) {
         amountCents = selectedOption.amountCents;
       }
       if (amountCents < minCents) {
@@ -86,15 +99,15 @@ export default function DonateClient({
         },
         body: JSON.stringify({
           amountCents,
-          charityId: business.id,
-          charityName: business.name,
-          businessId: business.id,
+          charityId: scanSource === "remote" ? cause.id : business.id,
+          charityName: scanSource === "remote" ? (cause.title ?? "Remote support") : business.name,
+          ...(scanSource === "in_person" ? { businessId: business.id } : {}),
           causeId: cause.id,
           causeTitle: cause.title,
-          businessName: business.name,
-          locationId: location.id,
-          locationSlug: location.slug,
-          pointsOverride: estimatedPoints,
+          ...(scanSource === "in_person" ? { businessName: business.name } : {}),
+          ...(location?.id ? { locationId: location.id } : {}),
+          ...(location?.slug ? { locationSlug: location.slug } : {}),
+          qrToken: qrToken ?? undefined,
         }),
       });
       const json = (await res.json()) as { url?: string; error?: string };
@@ -130,9 +143,15 @@ export default function DonateClient({
         <UiText className="text-zinc-300">
           Support earns RackUp points. You can redeem them at any partner location.
         </UiText>
-        <UiText className="text-zinc-300">
-          This link is for <span className="font-semibold text-white">{location.name}</span>.
-        </UiText>
+        {location?.name ? (
+          <UiText className="text-zinc-300">
+            This link is for <span className="font-semibold text-white">{location.name}</span>.
+          </UiText>
+        ) : (
+          <UiText className="text-zinc-300">
+            This is a remote support link.
+          </UiText>
+        )}
       </header>
 
       {cause.imageUrl ? (
@@ -147,13 +166,13 @@ export default function DonateClient({
       ) : null}
 
       <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/30 backdrop-blur">
-        {cause.mode === "predefined" && cause.predefinedOptions ? (
+        {pointsConfig.mode === "predefined" && pointsConfig.predefinedOptions ? (
           <div className="space-y-3">
             <Heading level={3} className="text-base font-semibold text-white">
               Choose an amount
             </Heading>
             <div className="flex flex-wrap gap-3">
-              {cause.predefinedOptions.map((opt) => {
+              {pointsConfig.predefinedOptions.map((opt) => {
                 const selected = selectedOption?.amountCents === opt.amountCents;
                 const styleProps = selected
                   ? ({ color: "emerald" } as const)
@@ -164,14 +183,14 @@ export default function DonateClient({
                     type="button"
                     className="w-full max-w-[180px]"
                     {...styleProps}
-                    onClick={() => {
-                      setSelectedOption(opt);
-                      setAmount(opt.amountCents / 100);
-                    }}
-                  >
+                  onClick={() => {
+                    setSelectedOption(opt);
+                    setAmount(opt.amountCents / 100);
+                  }}
+                >
                     <span className="flex flex-col text-left">
                       <span className="text-lg font-semibold">
-                        {opt.label ?? `$${(opt.amountCents / 100).toFixed(2)}`}
+                {opt.label ?? `$${(opt.amountCents / 100).toFixed(2)}`}
                       </span>
                       <span className="text-xs text-emerald-100">+ {opt.points} pts</span>
                     </span>
@@ -202,6 +221,11 @@ export default function DonateClient({
         <div className="text-sm text-zinc-200">
           Estimated points: <span className="font-semibold">{estimatedPoints}</span>
         </div>
+        <div className="text-xs text-zinc-400">
+          Giveaway entries: 1 entry per 500 points earned in each eligible active giveaway. Points carry
+          over across donations and drawings are monthly.
+        </div>
+        <GiveawayProgressCard estimatedPoints={estimatedPoints} />
         {!loading && !user ? (
           <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
             <div>Sign in or create an account to continue to checkout.</div>

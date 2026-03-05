@@ -5,10 +5,15 @@ import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
 import { Text } from "@/ui-kit/text";
 import { adminFirestore } from "@/lib/firebase/admin";
-import { createCauseQrToken } from "@/lib/server/qr-access";
+import { createCauseQrToken, createRemoteCauseQrToken, parseQrToken } from "@/lib/server/qr-access";
+import { resolvePointsConfig } from "@/lib/server/points-config";
 import type { CauseDoc, LocationDoc } from "@/lib/types/business";
 
 type CauseOption = CauseDoc & { id: string; linkId: string };
+
+type CauseWithSource = CauseOption & {
+  scanSource?: "in_person" | "remote";
+};
 
 type LocationDonationData = {
   business: { id: string; name: string; slug: string };
@@ -66,9 +71,13 @@ async function fetchLocationDonations(
   };
 }
 
-function pointsSummary(cause: CauseOption) {
-  if (cause.mode === "predefined" && cause.predefinedOptions?.length) {
-    const options = cause.predefinedOptions
+function pointsSummary(cause: CauseWithSource) {
+  const config = resolvePointsConfig(
+    cause,
+    cause.scanSource ?? "in_person",
+  );
+  if (config.mode === "predefined" && config.predefinedOptions?.length) {
+    const options = config.predefinedOptions
       .map((opt) => `${(opt.amountCents / 100).toFixed(2)} = ${opt.points} pts`)
       .join(", ");
     return `Preset options: ${options}.`;
@@ -76,18 +85,34 @@ function pointsSummary(cause: CauseOption) {
   const min = cause.minAmountCents ? `$${(cause.minAmountCents / 100).toFixed(2)}` : null;
   const max = cause.maxAmountCents ? `$${(cause.maxAmountCents / 100).toFixed(2)}` : null;
   const range = min && max ? `${min}-${max}` : min ? `from ${min}` : max ? `up to ${max}` : "";
-  const rate = cause.pointsPerDollar ?? 100;
+  const rate = config.pointsPerDollar ?? 100;
   return `Support any amount${range ? ` (${range})` : ""} and earn ${rate} points per $1.`;
 }
 
 export default async function DonateLocationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ businessSlug: string; locationSlug: string }>;
+  searchParams?: { qr?: string | string[] };
 }) {
   const { businessSlug, locationSlug } = await params;
+  const query = searchParams ?? {};
+  const qrValue = query?.qr;
+  const qrTokenValue = Array.isArray(qrValue) ? qrValue[0] : qrValue ?? null;
+  let scanSource: "in_person" | "remote" = "remote";
+  try {
+    const parsed = parseQrToken(qrTokenValue);
+    scanSource = parsed?.s ?? "remote";
+  } catch {
+    scanSource = "remote";
+  }
   const data = await fetchLocationDonations(businessSlug, locationSlug);
   if (!data) notFound();
+  const causesWithSource = data.causes.map((cause) => ({
+    ...cause,
+    scanSource,
+  }));
 
   return (
     <PublicShell contentClassName="max-w-5xl space-y-8">
@@ -108,7 +133,7 @@ export default async function DonateLocationPage({
         </div>
       ) : (
         <div className="space-y-4">
-          {data.causes.map((cause) => (
+          {causesWithSource.map((cause) => (
             <div
               key={cause.linkId}
               className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-lg shadow-black/30"
@@ -124,13 +149,21 @@ export default async function DonateLocationPage({
                   <Text className="text-xs text-zinc-400">{pointsSummary(cause)}</Text>
                 </div>
                 <Button
-                  href={`/donate/${businessSlug}/${cause.linkId}/${locationSlug}?qr=${encodeURIComponent(
-                    createCauseQrToken({
-                      businessSlug,
-                      locationSlug,
-                      causeSlug: cause.linkId,
-                    }),
-                  )}`}
+                  href={
+                    scanSource === "remote"
+                      ? `/donate/remote/${cause.linkId}?qr=${encodeURIComponent(
+                          createRemoteCauseQrToken({
+                            causeSlug: cause.linkId,
+                          }),
+                        )}`
+                      : `/donate/${businessSlug}/${cause.linkId}/${locationSlug}?qr=${encodeURIComponent(
+                          createCauseQrToken({
+                            businessSlug,
+                            locationSlug,
+                            causeSlug: cause.linkId,
+                          }),
+                        )}`
+                  }
                   color="emerald"
                 >
                   Support this cause

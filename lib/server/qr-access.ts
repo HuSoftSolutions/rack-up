@@ -3,11 +3,13 @@ import crypto from "crypto";
 const SECRET_ENV = "DONATION_QR_SECRET";
 
 type QrPayload = {
-  v: 1;
-  t: "location" | "cause";
-  b: string;
-  l: string;
+  v: 1 | 2;
+  t: "location" | "cause" | "business";
+  b?: string;
+  l?: string;
   c?: string;
+  s?: "in_person" | "remote";
+  a?: string;
 };
 
 function requireSecret(): Buffer {
@@ -61,7 +63,7 @@ function decodePayload(encodedPayload: string): QrPayload | null {
 
 function verifyToken(
   token: string,
-  expected: { type: QrPayload["t"]; businessSlug: string; locationSlug: string; causeSlug?: string },
+  expected: { type: QrPayload["t"]; businessSlug: string; locationSlug?: string; causeSlug?: string },
 ): boolean {
   const [encodedPayload, signature] = token.split(".");
   if (!encodedPayload || !signature) return false;
@@ -69,20 +71,21 @@ function verifyToken(
   if (!timingSafeEqual(signature, expectedSignature)) return false;
 
   const payload = decodePayload(encodedPayload);
-  if (!payload || payload.v !== 1) return false;
+  if (!payload || (payload.v !== 1 && payload.v !== 2)) return false;
   if (payload.t !== expected.type) return false;
   if (payload.b !== expected.businessSlug) return false;
-  if (payload.l !== expected.locationSlug) return false;
+  if (expected.locationSlug && payload.l !== expected.locationSlug) return false;
   if (expected.causeSlug && payload.c !== expected.causeSlug) return false;
   return true;
 }
 
 export function createLocationQrToken(params: { businessSlug: string; locationSlug: string }): string {
   const payload: QrPayload = {
-    v: 1,
+    v: 2,
     t: "location",
     b: params.businessSlug,
     l: params.locationSlug,
+    s: "in_person",
   };
   const encoded = encodePayload(payload);
   const signature = signPayload(encoded);
@@ -95,15 +98,63 @@ export function createCauseQrToken(params: {
   causeSlug: string;
 }): string {
   const payload: QrPayload = {
-    v: 1,
+    v: 2,
     t: "cause",
     b: params.businessSlug,
     l: params.locationSlug,
     c: params.causeSlug,
+    s: "in_person",
   };
   const encoded = encodePayload(payload);
   const signature = signPayload(encoded);
   return `${encoded}.${signature}`;
+}
+
+export function createRemoteBusinessQrToken(params: { attributionLocationSlug?: string }) {
+  const payload: QrPayload = {
+    v: 2,
+    t: "business",
+    s: "remote",
+    ...(params.attributionLocationSlug ? { a: params.attributionLocationSlug } : {}),
+  };
+  const encoded = encodePayload(payload);
+  const signature = signPayload(encoded);
+  return `${encoded}.${signature}`;
+}
+
+export function createRemoteCauseQrToken(params: {
+  causeSlug: string;
+  attributionLocationSlug?: string;
+}) {
+  const payload: QrPayload = {
+    v: 2,
+    t: "cause",
+    c: params.causeSlug,
+    s: "remote",
+    ...(params.attributionLocationSlug ? { a: params.attributionLocationSlug } : {}),
+  };
+  const encoded = encodePayload(payload);
+  const signature = signPayload(encoded);
+  return `${encoded}.${signature}`;
+}
+
+export function parseQrToken(token: string | null): (QrPayload & { s: "in_person" | "remote" }) | null {
+  if (!token) return null;
+  const [encodedPayload, signature] = token.split(".");
+  if (!encodedPayload || !signature) return null;
+  const expectedSignature = signPayload(encodedPayload);
+  if (!timingSafeEqual(signature, expectedSignature)) return null;
+  const payload = decodePayload(encodedPayload);
+  if (!payload || (payload.v !== 1 && payload.v !== 2)) return null;
+  if (payload.v === 1) {
+    return {
+      ...payload,
+      v: 2,
+      s: "in_person",
+    } as QrPayload & { s: "in_person" };
+  }
+  const source = payload.s === "remote" ? "remote" : "in_person";
+  return { ...payload, s: source } as QrPayload & { s: "in_person" | "remote" };
 }
 
 export function validateLocationQrToken(

@@ -26,6 +26,7 @@ export default function SignUpClient() {
   const { user, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,7 +44,20 @@ export default function SignUpClient() {
     setSubmitting(true);
     setError(null);
     try {
-      await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
+      const cred = await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
+      const idToken = await cred.user.getIdToken();
+      const profileRes = await fetch("/api/users/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ phoneNumber }),
+      });
+      if (!profileRes.ok) {
+        const json = (await profileRes.json()) as { error?: string };
+        throw new Error(json.error ?? "Unable to save phone number.");
+      }
       const target = (await fetchRedirectTarget()) ?? redirectParam;
       router.replace(target);
     } catch (err) {
@@ -92,6 +106,17 @@ export default function SignUpClient() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </Field>
+
+            <Field>
+              <Label className="text-white">Phone number</Label>
+              <Input
+                autoComplete="tel"
+                inputMode="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
                 required
               />
             </Field>

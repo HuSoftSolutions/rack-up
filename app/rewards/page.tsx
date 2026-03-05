@@ -7,6 +7,7 @@ import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
 import { Text } from "@/ui-kit/text";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import GiveawayProgressCard from "@/app/_components/GiveawayProgressCard";
 
 type Deal = {
   id: string;
@@ -138,6 +139,8 @@ export default function RewardsPage() {
           </div>
         </div>
       </div>
+
+      <GiveawayProgressCard />
 
       {error ? (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">

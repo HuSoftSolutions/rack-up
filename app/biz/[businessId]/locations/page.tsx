@@ -135,7 +135,7 @@ export default function BusinessLocationsPage({
                     href={`/biz/${businessId}/locations/${loc.id}/print`}
                     className="text-xs font-semibold text-emerald-300 underline underline-offset-2 hover:text-emerald-200"
                   >
-                    Print QR Sheet
+                    Print in-person sheet
                   </Link>
                 </div>
               </div>

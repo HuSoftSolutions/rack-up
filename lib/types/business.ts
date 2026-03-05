@@ -29,6 +29,18 @@ export type CauseDoc = {
   mode: "custom" | "predefined";
   pointsPerDollar?: number;
   predefinedOptions?: { amountCents: number; points: number; label?: string }[];
+  pointsConfig?: {
+    inPerson?: {
+      mode: "custom" | "predefined";
+      pointsPerDollar?: number;
+      predefinedOptions?: { amountCents: number; points: number; label?: string }[];
+    };
+    remote?: {
+      mode: "custom" | "predefined";
+      pointsPerDollar?: number;
+      predefinedOptions?: { amountCents: number; points: number; label?: string }[];
+    };
+  };
   minAmountCents?: number;
   maxAmountCents?: number;
   imageUrl?: string;

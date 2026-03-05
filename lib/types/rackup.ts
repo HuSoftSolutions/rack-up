@@ -4,7 +4,7 @@ export type FirestoreTimestamp =
   | Timestamp
   | import("firebase-admin/firestore").Timestamp;
 
-export type PointsTransactionType = "donation" | "redemption";
+export type PointsTransactionType = "donation" | "redemption" | "adjustment";
 
 export type TransactionStatus = "pending" | "completed" | "failed";
 

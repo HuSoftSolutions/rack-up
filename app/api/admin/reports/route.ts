@@ -130,6 +130,7 @@ export async function POST(request: Request) {
     const transactionStatus = parseList(url.searchParams.get("transactionStatus"));
     const transactionTypes = parseList(url.searchParams.get("transactionTypes"));
     const rewardStatus = parseList(url.searchParams.get("rewardStatus"));
+    const scanSources = parseList(url.searchParams.get("scanSource"));
 
     const warnings: string[] = [];
 
@@ -161,6 +162,10 @@ export async function POST(request: Request) {
             causeTitle: data.causeTitle ?? null,
             charityId: data.charityId ?? null,
             userId: data.userId ?? null,
+            scanSource: data.scanSource ?? null,
+            qrTarget: data.qrTarget ?? null,
+            qrLocationId: data.qrLocationId ?? null,
+            giveawayEntries: data.giveawayEntries ?? null,
             donorName: data.donorName ?? null,
             donorEmail: data.donorEmail ?? null,
             donorPhone: data.donorPhone ?? null,
@@ -168,6 +173,7 @@ export async function POST(request: Request) {
           };
         });
         const filtered = rows.filter((row) => {
+          if (scanSources.length > 0 && !scanSources.includes(row.scanSource ?? "")) return false;
           if (locationIds.length > 0 && !locationIds.includes(row.locationId ?? "")) return false;
           if (causeIds.length > 0 && !causeIds.includes(row.causeId ?? "")) return false;
           if (userId && row.userId !== userId) return false;
@@ -204,9 +210,14 @@ export async function POST(request: Request) {
             dealId: data.dealId ?? null,
             causeId: data.causeId ?? null,
             stripePaymentIntentId: data.stripePaymentIntentId ?? null,
+            scanSource: data.scanSource ?? null,
+            qrTarget: data.qrTarget ?? null,
+            qrLocationId: data.qrLocationId ?? null,
+            giveawayEntries: data.giveawayEntries ?? null,
           };
         });
         const filtered = rows.filter((row) => {
+          if (scanSources.length > 0 && !scanSources.includes(row.scanSource ?? "")) return false;
           if (locationIds.length > 0 && !locationIds.includes(row.locationId ?? "")) return false;
           if (causeIds.length > 0 && !causeIds.includes(row.causeId ?? "")) return false;
           if (userId && row.userId !== userId) return false;
@@ -460,6 +471,7 @@ export async function POST(request: Request) {
         transactionStatus,
         transactionTypes,
         rewardStatus,
+        scanSource: scanSources,
       },
     };
 

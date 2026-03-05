@@ -76,6 +76,20 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /config/{configId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /giveaways/{giveawayId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /giveaway_entries/{entryId} {
+      allow read, write: if isAdmin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

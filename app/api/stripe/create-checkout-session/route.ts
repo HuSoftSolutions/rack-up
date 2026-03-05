@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/server";
 import { getOptionalUser } from "@/lib/server/auth";
+import { adminFirestore } from "@/lib/firebase/admin";
+import { calculatePointsFromConfig, resolvePointsConfig } from "@/lib/server/points-config";
+import { parseQrToken } from "@/lib/server/qr-access";
+import type { CauseDoc } from "@/lib/types/business";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,13 +14,13 @@ type CreateCheckoutBody = {
   charityId: string;
   charityName?: string;
   businessId?: string;
-  userId?: string;
   causeId?: string;
   pointsOverride?: number;
   causeTitle?: string;
   businessName?: string;
   locationId?: string;
   locationSlug?: string;
+  qrToken?: string;
 };
 
 function badRequest(message: string, details?: Record<string, unknown>) {
@@ -35,19 +39,18 @@ export async function POST(request: Request) {
   const charityId = body.charityId?.trim();
   const charityName = body.charityName?.trim();
   const businessId = body.businessId?.trim();
-  const userIdFromBody = body.userId?.trim();
   const causeId = body.causeId?.trim();
   const causeTitle = body.causeTitle?.trim();
   const businessName = body.businessName?.trim();
   const locationId = body.locationId?.trim();
   const locationSlug = body.locationSlug?.trim();
-  const pointsOverride =
-    typeof body.pointsOverride === "number" && body.pointsOverride >= 0
-      ? body.pointsOverride
-      : undefined;
+  const qrToken = body.qrToken?.trim();
 
   const authContext = await getOptionalUser(request);
-  const userId = authContext?.uid ?? userIdFromBody;
+  if (!authContext?.uid) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+  const userId = authContext.uid;
   const customerEmail = authContext?.email ?? undefined;
 
   if (!Number.isInteger(amountCents) || amountCents < 50) {
@@ -55,6 +58,72 @@ export async function POST(request: Request) {
   }
   if (!charityId) {
     return badRequest("charityId is required.");
+  }
+  if (!causeId) {
+    return badRequest("causeId is required.");
+  }
+
+  let scanSource: "in_person" | "remote" = "remote";
+  let qrTarget: "location_landing" | "cause_specific" | "remote_landing" | "remote_cause" =
+    causeId ? "remote_cause" : "remote_landing";
+  let qrLocationId: string | null = null;
+
+  if (qrToken) {
+    try {
+      const payload = parseQrToken(qrToken);
+      if (payload) {
+        const matchesBusiness =
+          payload.s === "remote" ? true : payload.b === (businessId || charityId);
+        const matchesCause = payload.c ? payload.c === causeId : true;
+        const matchesLocation = payload.l ? payload.l === locationSlug : true;
+        if (matchesBusiness && matchesCause && matchesLocation) {
+          scanSource = payload.s;
+          if (payload.s === "in_person") {
+            qrTarget = payload.t === "location" ? "location_landing" : "cause_specific";
+          } else {
+            qrTarget = payload.t === "business" ? "remote_landing" : "remote_cause";
+            qrLocationId = payload.a ?? null;
+          }
+        }
+      }
+    } catch {
+      // If token parsing fails, fall back to remote defaults.
+    }
+  }
+
+  let computedPoints: number | null = null;
+  let computedBusinessId = businessId ?? null;
+  let computedLocationId = locationId ?? null;
+  let computedLocationSlug = locationSlug ?? null;
+  if (causeId) {
+    const causeSnap = await adminFirestore.collection("causes").doc(causeId).get();
+    if (!causeSnap.exists) {
+      return badRequest("Cause not found.");
+    }
+    const cause = causeSnap.data() as CauseDoc;
+    if (!computedBusinessId && typeof cause.businessId === "string" && cause.businessId.trim()) {
+      computedBusinessId = cause.businessId.trim();
+    }
+    const config = resolvePointsConfig(cause, scanSource);
+    const { points, matchedOption } = calculatePointsFromConfig(amountCents, config);
+    if (config.mode === "predefined" && !matchedOption) {
+      return badRequest("Invalid amount for this support option.");
+    }
+
+    const minCents = cause.minAmountCents ?? 50;
+    const maxCents = cause.maxAmountCents ?? 1000000;
+    if (amountCents < minCents) {
+      return badRequest(`Minimum support is $${(minCents / 100).toFixed(2)} for this cause.`);
+    }
+    if (amountCents > maxCents) {
+      return badRequest(`Maximum support is $${(maxCents / 100).toFixed(0)} for this cause.`);
+    }
+    computedPoints = points;
+  }
+
+  if (scanSource === "remote") {
+    computedLocationId = null;
+    computedLocationSlug = null;
   }
 
   const origin = request.headers.get("origin") ?? "http://localhost:3000";
@@ -81,16 +150,17 @@ export async function POST(request: Request) {
     ],
     metadata: {
       charityId,
-      ...(businessId ? { businessId } : {}),
-      ...(businessName ? { businessName } : {}),
+      ...(computedBusinessId ? { businessId: computedBusinessId } : {}),
+      ...(scanSource === "in_person" && businessName ? { businessName } : {}),
       ...(userId ? { userId } : {}),
       ...(causeId ? { causeId } : {}),
       ...(causeTitle ? { causeTitle } : {}),
-      ...(locationId ? { locationId } : {}),
-      ...(locationSlug ? { locationSlug } : {}),
-      ...(pointsOverride !== undefined
-        ? { pointsOverride: String(pointsOverride) }
-        : {}),
+      ...(scanSource === "in_person" && computedLocationId ? { locationId: computedLocationId } : {}),
+      ...(scanSource === "in_person" && computedLocationSlug ? { locationSlug: computedLocationSlug } : {}),
+      ...(computedPoints !== null ? { pointsOverride: String(computedPoints) } : {}),
+      ...(scanSource ? { scanSource } : {}),
+      ...(qrTarget ? { qrTarget } : {}),
+      ...(scanSource === "in_person" && qrLocationId ? { qrLocationId } : {}),
     },
   });
 

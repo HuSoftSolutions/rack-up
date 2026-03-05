@@ -3,8 +3,7 @@
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { collection, doc, getDocs, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
-import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
-import { firebaseStorage, firestore } from "@/lib/firebase/client";
+import { firestore } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { slugify } from "@/lib/utils/slugify";
 import type { BusinessDoc, LocationDoc } from "@/lib/types/business";
@@ -235,6 +234,10 @@ export default function AdminBusinessesPage() {
 
   async function submitLogo(e: React.FormEvent) {
     e.preventDefault();
+    if (!user) {
+      setLogoMessage("You must be signed in.");
+      return;
+    }
     if (!expandedId) {
       setLogoMessage("Expand a business first.");
       return;
@@ -246,16 +249,22 @@ export default function AdminBusinessesPage() {
     setLogoUploading(true);
     setLogoMessage(null);
     try {
-      const ext = logoFile.name.split(".").pop() || "png";
-      const path = `business-logos/${expandedId}/${Date.now()}.${ext}`;
-      const logoRef = storageRef(firebaseStorage, path);
-      await uploadBytes(logoRef, logoFile, {
-        contentType: logoFile.type || "image/png",
+      const idToken = await user.getIdToken();
+      const formData = new FormData();
+      formData.append("image", logoFile);
+      formData.append("businessId", expandedId);
+      const uploadRes = await fetch("/api/admin/businesses/upload-logo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+        body: formData,
       });
-      const logoUrl = await getDownloadURL(logoRef);
+      const uploadJson = (await uploadRes.json()) as { path?: string; url?: string; error?: string };
+      if (!uploadRes.ok || !uploadJson.path || !uploadJson.url) {
+        throw new Error(uploadJson.error ?? "Failed to upload logo.");
+      }
       await updateDoc(doc(firestore, "businesses", expandedId), {
-        logoPath: path,
-        logoUrl,
+        logoPath: uploadJson.path,
+        logoUrl: uploadJson.url,
         updatedAt: serverTimestamp(),
       } satisfies Partial<BusinessDoc>);
       setLogoFile(null);
@@ -270,6 +279,10 @@ export default function AdminBusinessesPage() {
 
   async function submitLocationLogo(e: React.FormEvent) {
     e.preventDefault();
+    if (!user) {
+      setLocationLogoMessage("You must be signed in.");
+      return;
+    }
     if (!expandedId) {
       setLocationLogoMessage("Expand a business first.");
       return;
@@ -285,18 +298,25 @@ export default function AdminBusinessesPage() {
     setLocationLogoUploading(true);
     setLocationLogoMessage(null);
     try {
-      const ext = locationLogoFile.name.split(".").pop() || "png";
-      const path = `location-logos/${expandedId}/${locationLogoId}/${Date.now()}.${ext}`;
-      const logoRef = storageRef(firebaseStorage, path);
-      await uploadBytes(logoRef, locationLogoFile, {
-        contentType: locationLogoFile.type || "image/png",
+      const idToken = await user.getIdToken();
+      const formData = new FormData();
+      formData.append("image", locationLogoFile);
+      formData.append("businessId", expandedId);
+      formData.append("locationId", locationLogoId);
+      const uploadRes = await fetch("/api/admin/businesses/upload-logo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+        body: formData,
       });
-      const logoUrl = await getDownloadURL(logoRef);
+      const uploadJson = (await uploadRes.json()) as { path?: string; url?: string; error?: string };
+      if (!uploadRes.ok || !uploadJson.path || !uploadJson.url) {
+        throw new Error(uploadJson.error ?? "Failed to upload logo.");
+      }
       await updateDoc(
         doc(firestore, "businesses", expandedId, "locations", locationLogoId),
         {
-          logoPath: path,
-          logoUrl,
+          logoPath: uploadJson.path,
+          logoUrl: uploadJson.url,
           updatedAt: serverTimestamp(),
         } satisfies Partial<LocationDoc>,
       );
@@ -1157,6 +1177,19 @@ export default function AdminBusinessesPage() {
                             ))}
                           </div>
                         )}
+                        <div className="mt-4 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
+                          <div className="text-xs uppercase tracking-wide text-zinc-500">Remote QR</div>
+                          <div className="mt-1 text-sm text-white">All charities (remote)</div>
+                          <div className="mt-1 text-xs text-zinc-500">
+                            Admin-only remote QR for website, email, and social media.
+                          </div>
+                          <Link
+                            href="/admin/qrs/remote"
+                            className="mt-2 inline-block text-xs font-semibold text-emerald-300 underline hover:text-emerald-200"
+                          >
+                            Open remote QR sheet
+                          </Link>
+                        </div>
                       </div>
                     )}
                   </div>

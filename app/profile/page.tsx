@@ -23,6 +23,7 @@ import { useBusinessAccess } from "@/lib/auth/business";
 import { Button } from "@/ui-kit/button";
 import { Dialog, DialogBody, DialogTitle } from "@/ui-kit/dialog";
 import PublicShell from "@/app/_components/PublicNav";
+import GiveawayProgressCard from "@/app/_components/GiveawayProgressCard";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -352,6 +353,8 @@ export default function ProfilePage() {
           <StatCard label="Current points" value={currentPoints} loading={transactionsLoading} />
           <StatCard label="Total supported" value={formatMoney(spentCents)} loading={donationsLoading} />
         </div>
+
+        <GiveawayProgressCard />
 
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-zinc-200">
           {statsError ? (

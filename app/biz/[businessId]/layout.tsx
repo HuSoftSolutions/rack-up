@@ -39,6 +39,7 @@ const manageItems: NavItem[] = [
   { href: (id) => `/biz/${id}/donations`, label: "Support" },
   { href: (id) => `/biz/${id}/charities`, label: "Charities" },
   { href: (id) => `/biz/${id}/locations`, label: "Locations" },
+  { href: (id) => `/biz/${id}/qrs`, label: "QR Builder" },
 ];
 
 function isCurrent(pathname: string, href: string, businessId: string) {

@@ -72,6 +72,10 @@ type DonationRow = {
   causeTitle: string | null;
   charityId: string | null;
   userId: string | null;
+  scanSource: string | null;
+  qrTarget: string | null;
+  qrLocationId: string | null;
+  giveawayEntries: number | null;
   donorName: string | null;
   donorEmail: string | null;
   donorPhone: string | null;
@@ -91,6 +95,10 @@ type TransactionRow = {
   dealId: string | null;
   causeId: string | null;
   stripePaymentIntentId: string | null;
+  scanSource: string | null;
+  qrTarget: string | null;
+  qrLocationId: string | null;
+  giveawayEntries: number | null;
 };
 
 type RewardRow = {
@@ -143,8 +151,9 @@ function toInputDate(value: Date) {
 
 const DONATION_STATUS = ["completed", "pending", "failed"] as const;
 const TRANSACTION_STATUS = ["completed", "pending", "failed"] as const;
-const TRANSACTION_TYPES = ["donation", "redemption"] as const;
+const TRANSACTION_TYPES = ["donation", "redemption", "adjustment"] as const;
 const REWARD_STATUS = ["issued", "used", "expired"] as const;
+const SCAN_SOURCES = ["in_person", "remote"] as const;
 
 export default function AdminReportsPage() {
   const { user } = useAuth();
@@ -174,6 +183,7 @@ export default function AdminReportsPage() {
   const [transactionStatus, setTransactionStatus] = useState<string[]>([]);
   const [transactionTypes, setTransactionTypes] = useState<string[]>([]);
   const [rewardStatus, setRewardStatus] = useState<string[]>([]);
+  const [scanSources, setScanSources] = useState<string[]>([]);
   const [limit, setLimit] = useState(1000);
   const [reportName, setReportName] = useState("");
   const [reportTags, setReportTags] = useState("");
@@ -253,6 +263,7 @@ export default function AdminReportsPage() {
       if (transactionStatus.length > 0) params.set("transactionStatus", transactionStatus.join(","));
       if (transactionTypes.length > 0) params.set("transactionTypes", transactionTypes.join(","));
       if (rewardStatus.length > 0) params.set("rewardStatus", rewardStatus.join(","));
+      if (scanSources.length > 0) params.set("scanSource", scanSources.join(","));
 
       const res = await fetch(`/api/admin/reports?${params.toString()}`, {
         method: "POST",
@@ -291,6 +302,7 @@ export default function AdminReportsPage() {
     transactionStatus,
     transactionTypes,
     rewardStatus,
+    scanSources,
   ]);
 
   function toggleInList(list: string[], value: string) {
@@ -441,6 +453,10 @@ export default function AdminReportsPage() {
         { key: "status", label: "Status", width: 12 },
         { key: "amountCents", label: "Amount (Cents)", width: 16, type: "number" },
         { key: "points", label: "Points", width: 10, type: "number" },
+        { key: "scanSource", label: "Scan Source", width: 12 },
+        { key: "qrTarget", label: "QR Target", width: 14 },
+        { key: "qrLocationId", label: "QR Location", width: 16 },
+        { key: "giveawayEntries", label: "Giveaway Entries", width: 16, type: "number" },
         { key: "businessId", label: "Business ID", width: 18 },
         { key: "businessName", label: "Business Name", width: 22 },
         { key: "locationId", label: "Location ID", width: 16 },
@@ -470,6 +486,10 @@ export default function AdminReportsPage() {
         { key: "type", label: "Type", width: 12 },
         { key: "pointsDelta", label: "Points Delta", width: 14, type: "number" },
         { key: "amountCents", label: "Amount (Cents)", width: 16, type: "number" },
+        { key: "scanSource", label: "Scan Source", width: 12 },
+        { key: "qrTarget", label: "QR Target", width: 14 },
+        { key: "qrLocationId", label: "QR Location", width: 16 },
+        { key: "giveawayEntries", label: "Giveaway Entries", width: 16, type: "number" },
         { key: "businessId", label: "Business ID", width: 18 },
         { key: "locationId", label: "Location ID", width: 16 },
         { key: "userId", label: "User ID", width: 22 },
@@ -1043,6 +1063,34 @@ export default function AdminReportsPage() {
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
               <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Scan source
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {SCAN_SOURCES.map((source) => {
+                const checked = scanSources.includes(source);
+                return (
+                  <label
+                    key={source}
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs transition ${
+                      checked
+                        ? "border-emerald-300 bg-emerald-300 text-emerald-950 shadow-lg shadow-emerald-400/30"
+                        : "border-white/15 bg-white/5 text-white hover:border-white/25"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={checked}
+                      onChange={() => setScanSources(toggleInList(scanSources, source))}
+                    />
+                    {source.replace("_", " ")}
+                  </label>
+                );
+              })}
+            </div>
+              </div>
+              <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
               Reward status
             </label>
             <div className="flex flex-wrap gap-2">
@@ -1126,6 +1174,9 @@ export default function AdminReportsPage() {
               { key: "createdAt", label: "Created", render: (row: DonationRow) => formatDate(row.createdAt) },
               { key: "amountCents", label: "Amount", render: (row: DonationRow) => formatMoney(row.amountCents) },
               { key: "status", label: "Status" },
+              { key: "scanSource", label: "Scan source" },
+              { key: "qrTarget", label: "QR target" },
+              { key: "giveawayEntries", label: "Entries" },
               { key: "businessName", label: "Business" },
               { key: "locationId", label: "Location" },
               { key: "causeTitle", label: "Cause" },
@@ -1145,6 +1196,9 @@ export default function AdminReportsPage() {
               { key: "status", label: "Status" },
               { key: "pointsDelta", label: "Points" },
               { key: "amountCents", label: "Amount", render: (row: TransactionRow) => formatMoney(row.amountCents) },
+              { key: "scanSource", label: "Scan source" },
+              { key: "qrTarget", label: "QR target" },
+              { key: "giveawayEntries", label: "Entries" },
               { key: "businessId", label: "Business" },
               { key: "locationId", label: "Location" },
               { key: "userId", label: "User" },

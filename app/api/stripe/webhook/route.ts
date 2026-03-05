@@ -5,9 +5,11 @@ import { stripe } from "@/lib/stripe/server";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { calculatePointsFromCents, normalizePointsOverride } from "@/lib/server/points";
 import { Timestamp } from "firebase-admin/firestore";
+import { donationQualifiesForGiveaway } from "@/lib/server/giveaway-eligibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const GIVEAWAY_ENTRY_POINTS = 500;
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -52,13 +54,19 @@ export async function POST(request: Request) {
       const causeTitle = session.metadata?.causeTitle ?? null;
       const locationId = session.metadata?.locationId ?? null;
       const locationSlug = session.metadata?.locationSlug ?? null;
+      const scanSource = session.metadata?.scanSource ?? "remote";
+      const qrTarget = session.metadata?.qrTarget ?? null;
+      const qrLocationId = session.metadata?.qrLocationId ?? null;
       const pointsOverride = normalizePointsOverride(session.metadata?.pointsOverride);
       const donorName = session.customer_details?.name ?? null;
       const donorEmail = session.customer_details?.email ?? session.customer_email ?? null;
       const donorPhone = session.customer_details?.phone ?? null;
-      const eventTimestamp = session.created
-        ? Timestamp.fromMillis(session.created * 1000)
-        : Timestamp.now();
+      const completedAtMs = event.created
+        ? event.created * 1000
+        : session.created
+          ? session.created * 1000
+          : Date.now();
+      const eventTimestamp = Timestamp.fromMillis(completedAtMs);
 
       if (!paymentIntentId) break;
 
@@ -75,30 +83,130 @@ export async function POST(request: Request) {
       const points = pointsOverride ?? calculatePointsFromCents(amountCents);
       const txRef = adminFirestore.collection("transactions").doc(paymentIntentId);
       const donationRef = adminFirestore.collection("donations").doc(paymentIntentId);
+      const giveawaysRef = adminFirestore.collection("giveaways");
 
       await adminFirestore.runTransaction(async (tx) => {
-        const existing = await tx.get(txRef);
-        if (existing.exists) return;
+        const [existingTxSnap, existingDonationSnap] = await Promise.all([
+          tx.get(txRef),
+          tx.get(donationRef),
+        ]);
+        const existingDonation = existingDonationSnap.exists
+          ? (existingDonationSnap.data() as { userId?: string | null } | undefined)
+          : undefined;
+        const resolvedUserId = userId ?? existingDonation?.userId ?? null;
+
+        const activeGiveawaysSnap = await giveawaysRef
+          .where("status", "==", "active")
+          .get();
+        const activeGiveaways = activeGiveawaysSnap.docs.filter((doc) => {
+          const data = doc.data() as { eligibility?: unknown };
+          if (
+            !donationQualifiesForGiveaway(
+              {
+                causeId,
+                businessId,
+                locationId: locationId ?? qrLocationId,
+                scanSource,
+              },
+              data.eligibility,
+            )
+          ) {
+            return false;
+          }
+          return true;
+        });
+        const eligibleGiveawayIds = activeGiveaways.map((doc) => doc.id);
+        const entriesByGiveawayId: Record<string, number> = {};
+        const safePoints = Math.max(0, points);
+        const now = Timestamp.now();
+
+        if (activeGiveaways.length > 0 && resolvedUserId) {
+          for (const giveawayDoc of activeGiveaways) {
+            const entryId = `${giveawayDoc.id}_${paymentIntentId}`;
+            const entryRef = adminFirestore.collection("giveaway_entries").doc(entryId);
+            const existingEntrySnap = await tx.get(entryRef);
+            if (existingEntrySnap.exists) {
+              const existingEntries = (existingEntrySnap.data() as { entriesCount?: number } | undefined)?.entriesCount;
+              entriesByGiveawayId[giveawayDoc.id] = typeof existingEntries === "number" ? existingEntries : 0;
+              continue;
+            }
+
+            const balanceRef = adminFirestore
+              .collection("giveaway_point_balances")
+              .doc(`${giveawayDoc.id}_${resolvedUserId}`);
+            const balanceSnap = await tx.get(balanceRef);
+            const balanceData = balanceSnap.data() as {
+              remainingPoints?: number;
+              totalPointsProcessed?: number;
+              totalEntriesAwarded?: number;
+            } | undefined;
+            const carryInRaw = balanceData?.remainingPoints;
+            const carryIn = typeof carryInRaw === "number" && carryInRaw > 0 ? Math.floor(carryInRaw) : 0;
+            const totalPointsForEntry = carryIn + safePoints;
+            const entriesCount = Math.floor(totalPointsForEntry / GIVEAWAY_ENTRY_POINTS);
+            const carryOut = totalPointsForEntry % GIVEAWAY_ENTRY_POINTS;
+            entriesByGiveawayId[giveawayDoc.id] = entriesCount;
+
+            tx.set(
+              balanceRef,
+              {
+                giveawayId: giveawayDoc.id,
+                userId: resolvedUserId,
+                remainingPoints: carryOut,
+                totalPointsProcessed: (balanceData?.totalPointsProcessed ?? 0) + safePoints,
+                totalEntriesAwarded: (balanceData?.totalEntriesAwarded ?? 0) + entriesCount,
+                lastDonationId: paymentIntentId,
+                updatedAt: now,
+              },
+              { merge: true },
+            );
+
+            tx.set(entryRef, {
+              giveawayId: giveawayDoc.id,
+              donationId: paymentIntentId,
+              userId: resolvedUserId,
+              entriesCount,
+              pointsApplied: safePoints,
+              pointsCarryIn: carryIn,
+              pointsCarryOut: carryOut,
+              entryUnitPoints: GIVEAWAY_ENTRY_POINTS,
+              scanSource,
+              amountCents,
+              createdAt: eventTimestamp,
+              updatedAt: now,
+            });
+          }
+        }
+
+        const totalEntries = Object.values(entriesByGiveawayId).reduce((sum, value) => sum + value, 0);
+        const firstEligibleGiveawayEntries =
+          eligibleGiveawayIds.length > 0 ? (entriesByGiveawayId[eligibleGiveawayIds[0]] ?? 0) : 0;
 
         tx.set(txRef, {
           type: "donation",
           status: "completed",
           amountCents,
           pointsDelta: points,
+          giveawayEntries: totalEntries,
           charityId,
           businessId,
           businessName,
           locationId,
           locationSlug,
-          userId,
+          scanSource,
+          qrTarget,
+          qrLocationId,
+          userId: resolvedUserId,
           causeId,
           causeTitle,
           stripePaymentIntentId: paymentIntentId,
           createdAt: eventTimestamp,
+          updatedAt: now,
+          webhookReplayed: existingTxSnap.exists,
         });
 
         tx.set(donationRef, {
-          userId,
+          userId: resolvedUserId,
           donorName,
           donorEmail,
           donorPhone,
@@ -111,6 +219,10 @@ export async function POST(request: Request) {
           causeTitle,
           amountCents,
           points,
+          giveawayEntries: totalEntries,
+          scanSource,
+          qrTarget,
+          qrLocationId,
           stripe: {
             paymentIntentId,
             checkoutSessionId: session.id,
@@ -120,6 +232,17 @@ export async function POST(request: Request) {
           },
           status: "completed",
           createdAt: eventTimestamp,
+          updatedAt: now,
+          giveawayCapture: {
+            lastAttemptAt: now,
+            eligibleGiveawayIds,
+            entriesByGiveawayId,
+            totalEntriesAcrossGiveaways: totalEntries,
+            totalEntriesPerGiveaway: firstEligibleGiveawayEntries,
+            entryUnitPoints: GIVEAWAY_ENTRY_POINTS,
+            cumulativePointsModel: true,
+            userIdPresent: Boolean(resolvedUserId),
+          },
         });
       });
 

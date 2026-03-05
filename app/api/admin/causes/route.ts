@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { adminFirestore, firebaseAdminApp } from "@/lib/firebase/admin";
 import { getStorage } from "firebase-admin/storage";
 import { AuthError, requireAdmin } from "@/lib/server/auth";
-import { createCauseQrToken } from "@/lib/server/qr-access";
+import { createCauseQrToken, createRemoteCauseQrToken } from "@/lib/server/qr-access";
 import type { CauseDoc } from "@/lib/types/business";
 import { slugify } from "@/lib/utils/slugify";
 import { Timestamp } from "firebase-admin/firestore";
@@ -127,6 +127,9 @@ export async function GET(request: Request) {
           ...data,
           imageUrl,
           businessLinks,
+          remoteUrl: `/donate/remote/${doc.id}?qr=${encodeURIComponent(
+            createRemoteCauseQrToken({ causeSlug: doc.id }),
+          )}`,
           createdAt: toIso(data.createdAt),
           updatedAt: toIso(data.updatedAt),
         };
@@ -158,6 +161,11 @@ export async function POST(request: Request) {
     const predefinedOptions = form.get("predefinedOptions")
       ? (JSON.parse(form.get("predefinedOptions") as string) as CauseDoc["predefinedOptions"])
       : [];
+    const remoteMode = (form.get("remoteMode") as "custom" | "predefined" | null) ?? "custom";
+    const remotePointsPerDollar = form.get("remotePointsPerDollar");
+    const remotePredefinedOptions = form.get("remotePredefinedOptions")
+      ? (JSON.parse(form.get("remotePredefinedOptions") as string) as CauseDoc["predefinedOptions"])
+      : [];
     const imageFile = form.get("image") instanceof File ? (form.get("image") as File) : null;
 
     const slug = slugify(title).toLowerCase();
@@ -182,6 +190,14 @@ export async function POST(request: Request) {
           }
         : {}),
       ...(mode === "predefined" ? { predefinedOptions: predefinedOptions ?? [] } : {}),
+      pointsConfig: {
+        remote: {
+          mode: remoteMode,
+          ...(remoteMode === "custom"
+            ? { pointsPerDollar: Number(remotePointsPerDollar || 0) }
+            : { predefinedOptions: remotePredefinedOptions ?? [] }),
+        },
+      },
       locationIds: [],
       active: true,
       imageUrl,
@@ -218,6 +234,11 @@ export async function PATCH(request: Request) {
     const predefinedOptions = form.get("predefinedOptions")
       ? (JSON.parse(form.get("predefinedOptions") as string) as CauseDoc["predefinedOptions"])
       : [];
+    const remoteMode = (form.get("remoteMode") as "custom" | "predefined" | null) ?? "custom";
+    const remotePointsPerDollar = form.get("remotePointsPerDollar");
+    const remotePredefinedOptions = form.get("remotePredefinedOptions")
+      ? (JSON.parse(form.get("remotePredefinedOptions") as string) as CauseDoc["predefinedOptions"])
+      : [];
     const active = form.get("active") ? form.get("active") === "true" : true;
     const imageFile = form.get("image") instanceof File ? (form.get("image") as File) : null;
 
@@ -250,6 +271,14 @@ export async function PATCH(request: Request) {
       minAmountCents: mode === "custom" ? parseOptionalNumber(minAmountCents) : undefined,
       maxAmountCents: mode === "custom" ? parseOptionalNumber(maxAmountCents) : undefined,
       predefinedOptions: mode === "predefined" ? predefinedOptions ?? [] : [],
+      pointsConfig: {
+        remote: {
+          mode: remoteMode,
+          ...(remoteMode === "custom"
+            ? { pointsPerDollar: Number(remotePointsPerDollar || 0) }
+            : { predefinedOptions: remotePredefinedOptions ?? [] }),
+        },
+      },
       active,
       imageUrl,
       updatedAt: Timestamp.now(),

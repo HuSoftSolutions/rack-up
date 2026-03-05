@@ -15,7 +15,16 @@ type DonationRow = {
   causeTitle: string | null;
   amountCents: number | null;
   points: number | null;
+  giveawayEntries: number | null;
+  scanSource: string | null;
   status: string | null;
+  giveawayCapture: {
+    lastAttemptAt?: string | null;
+    eligibleGiveawayIds?: string[];
+    totalEntriesPerGiveaway?: number;
+    userIdPresent?: boolean;
+    reconciledFromCheckoutStatus?: boolean;
+  } | null;
   stripe: {
     paymentIntentId?: string;
     checkoutSessionId?: string;
@@ -262,9 +271,40 @@ export default function AdminDonationsPage() {
                   </div>
                   <div>
                     <div className="text-xs uppercase tracking-wide text-zinc-400">
+                      Scan source
+                    </div>
+                    <div className="mt-1 font-medium">{selected.scanSource ?? "—"}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-zinc-400">
+                      Giveaway entries
+                    </div>
+                    <div className="mt-1 font-medium">{selected.giveawayEntries ?? "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-zinc-400">
                       Created
                     </div>
                     <div className="mt-1 font-medium">{formatDate(selected.createdAt)}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-1 rounded-lg border border-white/10 bg-white/[0.02] p-3">
+                  <div className="text-xs uppercase tracking-wide text-zinc-400">
+                    Giveaway capture diagnostics
+                  </div>
+                  <div className="text-xs text-zinc-300">
+                    Eligible giveaways: {selected.giveawayCapture?.eligibleGiveawayIds?.join(", ") || "none"}
+                  </div>
+                  <div className="text-xs text-zinc-300">
+                    User ID present: {selected.giveawayCapture?.userIdPresent ? "yes" : "no"}
+                  </div>
+                  <div className="text-xs text-zinc-300">
+                    Reconciled from checkout status:{" "}
+                    {selected.giveawayCapture?.reconciledFromCheckoutStatus ? "yes" : "no"}
                   </div>
                 </div>
 

@@ -42,7 +42,10 @@ export async function GET(request: Request) {
         causeTitle: data.causeTitle ?? null,
         amountCents: data.amountCents ?? null,
         points: data.points ?? null,
+        giveawayEntries: data.giveawayEntries ?? null,
+        scanSource: data.scanSource ?? null,
         status: data.status ?? null,
+        giveawayCapture: data.giveawayCapture ?? null,
         stripe: data.stripe ?? null,
         createdAt: serializeDate(data.createdAt),
       };

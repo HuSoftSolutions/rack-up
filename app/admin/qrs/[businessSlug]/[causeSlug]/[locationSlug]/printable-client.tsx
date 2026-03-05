@@ -13,7 +13,15 @@ type Config = {
   qrToken: string;
 };
 
-export default function PrintableQr({ config }: { config: Config }) {
+export default function PrintableQr({
+  config,
+  backHref = "/admin/qrs",
+  backLabel = "← Back to QR list",
+}: {
+  config: Config;
+  backHref?: string;
+  backLabel?: string;
+}) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const printableRef = useRef<HTMLDivElement | null>(null);
 
@@ -175,8 +183,8 @@ export default function PrintableQr({ config }: { config: Config }) {
         </div>
 
         <div className="print:hidden">
-          <Link className="text-sm underline" href="/admin/qrs">
-            ← Back to QR list
+          <Link className="text-sm underline" href={backHref}>
+            {backLabel}
           </Link>
         </div>
 

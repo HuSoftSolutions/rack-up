@@ -68,6 +68,11 @@ export default function AdminUsersPage() {
   const [manageSaving, setManageSaving] = useState(false);
   const [manageError, setManageError] = useState<string | null>(null);
   const [manageUser, setManageUser] = useState<AdminUser | null>(null);
+  const [pointsOpen, setPointsOpen] = useState(false);
+  const [pointsSaving, setPointsSaving] = useState(false);
+  const [pointsError, setPointsError] = useState<string | null>(null);
+  const [pointsUser, setPointsUser] = useState<AdminUser | null>(null);
+  const [pointsForm, setPointsForm] = useState({ pointsDelta: "", reason: "" });
   const [userFilter, setUserFilter] = useState<"all" | "public" | "business">("all");
   const [inviteForm, setInviteForm] = useState({
     email: "",
@@ -182,6 +187,42 @@ export default function AdminUsersPage() {
     );
     return `mailto:${inviteForm.email.trim()}?subject=${subject}&body=${body}`;
   }, [inviteForm.email, inviteStatus?.actionLink]);
+
+  async function submitPointsAdjustment() {
+    if (!user || !pointsUser) return;
+    setPointsSaving(true);
+    setPointsError(null);
+    try {
+      const pointsDelta = Number(pointsForm.pointsDelta);
+      if (!Number.isFinite(pointsDelta) || pointsDelta === 0) {
+        throw new Error("Points must be a non-zero number.");
+      }
+      if (!pointsForm.reason.trim()) {
+        throw new Error("Reason is required.");
+      }
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/admin/users/points", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: pointsUser.uid,
+          pointsDelta,
+          reason: pointsForm.reason.trim(),
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? "Failed to adjust points.");
+      setPointsOpen(false);
+      setPointsForm({ pointsDelta: "", reason: "" });
+    } catch (err) {
+      setPointsError(err instanceof Error ? err.message : "Failed to adjust points.");
+    } finally {
+      setPointsSaving(false);
+    }
+  }
 
   async function handleInvite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -712,6 +753,17 @@ export default function AdminUsersPage() {
                         Manage
                       </Button>
                       <Button
+                        outline
+                        onClick={() => {
+                          setPointsUser(u);
+                          setPointsForm({ pointsDelta: "", reason: "" });
+                          setPointsError(null);
+                          setPointsOpen(true);
+                        }}
+                      >
+                        Adjust points
+                      </Button>
+                      <Button
                         color="emerald"
                         disabled={assumeLoadingUid === u.uid}
                         onClick={() => handleAssume(u.uid)}
@@ -885,6 +937,56 @@ export default function AdminUsersPage() {
           </Button>
           <Button color="emerald" onClick={handleManageSave} disabled={manageSaving}>
             {manageSaving ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={pointsOpen} onClose={() => setPointsOpen(false)} size="sm">
+        <DialogTitle>Adjust points</DialogTitle>
+        <DialogBody className="space-y-4">
+          <div className="text-xs text-zinc-500">
+            {pointsUser?.email ?? pointsUser?.uid ?? ""}
+          </div>
+          {pointsError ? (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+              {pointsError}
+            </div>
+          ) : null}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Points delta
+            </label>
+            <Input
+              type="number"
+              value={pointsForm.pointsDelta}
+              onChange={(event) =>
+                setPointsForm((prev) => ({ ...prev, pointsDelta: event.target.value }))
+              }
+              placeholder="e.g. 500"
+            />
+            <div className="text-xs text-zinc-500">
+              Use a negative value to deduct points.
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Reason
+            </label>
+            <Input
+              value={pointsForm.reason}
+              onChange={(event) =>
+                setPointsForm((prev) => ({ ...prev, reason: event.target.value }))
+              }
+              placeholder="Manual adjustment reason"
+            />
+          </div>
+        </DialogBody>
+        <DialogActions>
+          <Button outline onClick={() => setPointsOpen(false)}>
+            Cancel
+          </Button>
+          <Button color="emerald" onClick={submitPointsAdjustment} disabled={pointsSaving}>
+            {pointsSaving ? "Saving…" : "Save adjustment"}
           </Button>
         </DialogActions>
       </Dialog>
