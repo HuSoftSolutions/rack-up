@@ -5,10 +5,12 @@ export default async function DonationRemoteCausePage({
   searchParams,
 }: {
   params: Promise<{ slug: string; causeSlug: string }>;
-  searchParams?: { qr?: string | string[] };
+  searchParams?:
+    | { qr?: string | string[] }
+    | Promise<{ qr?: string | string[] }>;
 }) {
   const { causeSlug } = await params;
-  const query = searchParams ?? {};
+  const query = searchParams ? await Promise.resolve(searchParams) : {};
   const qrValue = query?.qr;
   const qrTokenValue = Array.isArray(qrValue) ? qrValue[0] : qrValue ?? null;
   const target = qrTokenValue

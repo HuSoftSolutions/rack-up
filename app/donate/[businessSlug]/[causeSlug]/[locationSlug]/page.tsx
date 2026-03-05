@@ -6,7 +6,9 @@ import { inspectQrToken } from "@/lib/server/qr-access";
 
 type Props = {
   params: Promise<{ businessSlug: string; causeSlug: string; locationSlug: string }>;
-  searchParams?: { qr?: string | string[] };
+  searchParams?:
+    | { qr?: string | string[] }
+    | Promise<{ qr?: string | string[] }>;
 };
 
 type TimestampLike = {
@@ -43,7 +45,7 @@ function serializeDoc<T extends Record<string, unknown>>(doc: T) {
 
 export default async function DonationPage({ params, searchParams }: Props) {
   const { businessSlug, causeSlug, locationSlug } = await params;
-  const query = searchParams ?? {};
+  const query = searchParams ? await Promise.resolve(searchParams) : {};
   const qrValue = query?.qr;
   const qrTokenValue = Array.isArray(qrValue) ? qrValue[0] : qrValue ?? null;
   const qrInspect = inspectQrToken(qrTokenValue);

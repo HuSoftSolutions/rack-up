@@ -60,10 +60,13 @@ export default async function DonateRemoteMaybeCausePage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams?: { qr?: string | string[] };
+  searchParams?:
+    | { qr?: string | string[] }
+    | Promise<{ qr?: string | string[] }>;
 }) {
   const { slug } = await params;
-  const qrValue = searchParams?.qr;
+  const query = searchParams ? await Promise.resolve(searchParams) : {};
+  const qrValue = query?.qr;
   const qrTokenValue = Array.isArray(qrValue) ? qrValue[0] : qrValue ?? null;
 
   const config = await fetchRemoteCauseConfig(slug);
