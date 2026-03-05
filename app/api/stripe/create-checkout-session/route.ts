@@ -3,7 +3,7 @@ import { stripe } from "@/lib/stripe/server";
 import { getOptionalUser } from "@/lib/server/auth";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { calculatePointsFromConfig, resolvePointsConfig } from "@/lib/server/points-config";
-import { parseQrToken } from "@/lib/server/qr-access";
+import { inspectQrToken } from "@/lib/server/qr-access";
 import type { CauseDoc } from "@/lib/types/business";
 
 export const runtime = "nodejs";
@@ -70,8 +70,9 @@ export async function POST(request: Request) {
 
   if (qrToken) {
     try {
-      const payload = parseQrToken(qrToken);
-      if (payload) {
+      const qrInspect = inspectQrToken(qrToken);
+      if (qrInspect.ok) {
+        const payload = qrInspect.payload;
         const matchesBusiness =
           payload.s === "remote" ? true : payload.b === (businessId || charityId);
         const matchesCause = payload.c ? payload.c === causeId : true;
@@ -84,7 +85,24 @@ export async function POST(request: Request) {
             qrTarget = payload.t === "business" ? "remote_landing" : "remote_cause";
             qrLocationId = payload.a ?? null;
           }
+        } else if (process.env.QR_DEBUG === "1") {
+          console.warn("[qr-debug] checkout-session token context mismatch; fallback to remote", {
+            businessId,
+            charityId,
+            causeId,
+            locationSlug,
+            payloadBusiness: payload.b ?? null,
+            payloadCause: payload.c ?? null,
+            payloadLocation: payload.l ?? null,
+          });
         }
+      } else if (process.env.QR_DEBUG === "1") {
+        console.warn("[qr-debug] checkout-session invalid qr token; fallback to remote", {
+          reason: qrInspect.reason,
+          businessId,
+          causeId,
+          locationSlug,
+        });
       }
     } catch {
       // If token parsing fails, fall back to remote defaults.

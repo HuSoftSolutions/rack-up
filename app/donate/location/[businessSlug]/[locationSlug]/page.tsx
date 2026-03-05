@@ -5,7 +5,7 @@ import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
 import { Text } from "@/ui-kit/text";
 import { adminFirestore } from "@/lib/firebase/admin";
-import { createCauseQrToken, createRemoteCauseQrToken, parseQrToken } from "@/lib/server/qr-access";
+import { createCauseQrToken, createRemoteCauseQrToken, inspectQrToken } from "@/lib/server/qr-access";
 import { resolvePointsConfig } from "@/lib/server/points-config";
 import type { CauseDoc, LocationDoc } from "@/lib/types/business";
 
@@ -100,12 +100,15 @@ export default async function DonateLocationPage({
   const query = searchParams ?? {};
   const qrValue = query?.qr;
   const qrTokenValue = Array.isArray(qrValue) ? qrValue[0] : qrValue ?? null;
-  let scanSource: "in_person" | "remote" = "remote";
-  try {
-    const parsed = parseQrToken(qrTokenValue);
-    scanSource = parsed?.s ?? "remote";
-  } catch {
-    scanSource = "remote";
+  const qrInspect = inspectQrToken(qrTokenValue);
+  const scanSource: "in_person" | "remote" = qrInspect.ok ? qrInspect.payload.s : "remote";
+  const qrDebugEnabled = process.env.QR_DEBUG === "1";
+  if (qrDebugEnabled && !qrInspect.ok) {
+    console.warn("[qr-debug] location donation route fallback", {
+      reason: qrInspect.reason,
+      businessSlug,
+      locationSlug,
+    });
   }
   const data = await fetchLocationDonations(businessSlug, locationSlug);
   if (!data) notFound();
@@ -125,6 +128,11 @@ export default async function DonateLocationPage({
           Location: {data.location.name ?? data.location.id}. Select a cause below to support
           securely and earn Rack Up points.
         </Text>
+        {qrDebugEnabled && !qrInspect.ok ? (
+          <Text className="text-xs text-amber-300">
+            QR debug: token {qrInspect.reason}; this scan is treated as remote.
+          </Text>
+        ) : null}
       </header>
 
       {data.causes.length === 0 ? (

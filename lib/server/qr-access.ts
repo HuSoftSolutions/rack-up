@@ -12,6 +12,16 @@ type QrPayload = {
   a?: string;
 };
 
+export type QrParseFailureReason =
+  | "missing"
+  | "malformed"
+  | "invalid_signature"
+  | "invalid_payload";
+
+export type QrInspectResult =
+  | { ok: true; payload: QrPayload & { s: "in_person" | "remote" } }
+  | { ok: false; reason: QrParseFailureReason };
+
 function requireSecret(): Buffer {
   const secret = process.env[SECRET_ENV];
   if (!secret) {
@@ -138,23 +148,31 @@ export function createRemoteCauseQrToken(params: {
   return `${encoded}.${signature}`;
 }
 
-export function parseQrToken(token: string | null): (QrPayload & { s: "in_person" | "remote" }) | null {
-  if (!token) return null;
+export function inspectQrToken(token: string | null): QrInspectResult {
+  if (!token) return { ok: false, reason: "missing" };
   const [encodedPayload, signature] = token.split(".");
-  if (!encodedPayload || !signature) return null;
+  if (!encodedPayload || !signature) return { ok: false, reason: "malformed" };
   const expectedSignature = signPayload(encodedPayload);
-  if (!timingSafeEqual(signature, expectedSignature)) return null;
+  if (!timingSafeEqual(signature, expectedSignature)) return { ok: false, reason: "invalid_signature" };
   const payload = decodePayload(encodedPayload);
-  if (!payload || (payload.v !== 1 && payload.v !== 2)) return null;
+  if (!payload || (payload.v !== 1 && payload.v !== 2)) return { ok: false, reason: "invalid_payload" };
   if (payload.v === 1) {
     return {
+      ok: true,
+      payload: {
       ...payload,
       v: 2,
       s: "in_person",
-    } as QrPayload & { s: "in_person" };
+      } as QrPayload & { s: "in_person" },
+    };
   }
   const source = payload.s === "remote" ? "remote" : "in_person";
-  return { ...payload, s: source } as QrPayload & { s: "in_person" | "remote" };
+  return { ok: true, payload: { ...payload, s: source } as QrPayload & { s: "in_person" | "remote" } };
+}
+
+export function parseQrToken(token: string | null): (QrPayload & { s: "in_person" | "remote" }) | null {
+  const result = inspectQrToken(token);
+  return result.ok ? result.payload : null;
 }
 
 export function validateLocationQrToken(

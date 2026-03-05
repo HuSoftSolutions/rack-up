@@ -29,6 +29,7 @@ export default function DonateClient({
   scanSource,
   pointsConfig,
   qrToken,
+  qrDebugMessage,
 }: {
   business: Pick<BusinessDoc, "name" | "slug" | "description"> & { id: string };
   cause: CauseDoc & { id: string };
@@ -36,6 +37,7 @@ export default function DonateClient({
   scanSource: "in_person" | "remote";
   pointsConfig: PointsConfig;
   qrToken?: string | null;
+  qrDebugMessage?: string | null;
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -152,6 +154,11 @@ export default function DonateClient({
             This is a remote support link.
           </UiText>
         )}
+        {qrDebugMessage ? (
+          <UiText className="text-xs text-amber-300">
+            QR debug: {qrDebugMessage}
+          </UiText>
+        ) : null}
       </header>
 
       {cause.imageUrl ? (

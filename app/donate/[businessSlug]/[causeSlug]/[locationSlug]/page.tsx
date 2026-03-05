@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import DonateClient from "../../../start-donation";
 import { fetchDonationConfig } from "@/lib/server/firestore";
 import { resolvePointsConfig } from "@/lib/server/points-config";
-import { parseQrToken } from "@/lib/server/qr-access";
+import { inspectQrToken } from "@/lib/server/qr-access";
 
 type Props = {
   params: Promise<{ businessSlug: string; causeSlug: string; locationSlug: string }>;
@@ -46,12 +46,18 @@ export default async function DonationPage({ params, searchParams }: Props) {
   const query = searchParams ?? {};
   const qrValue = query?.qr;
   const qrTokenValue = Array.isArray(qrValue) ? qrValue[0] : qrValue ?? null;
-  let scanSource: "in_person" | "remote" = "remote";
-  try {
-    const parsed = parseQrToken(qrTokenValue);
-    scanSource = parsed?.s ?? "remote";
-  } catch {
-    scanSource = "remote";
+  const qrInspect = inspectQrToken(qrTokenValue);
+  const scanSource: "in_person" | "remote" = qrInspect.ok ? qrInspect.payload.s : "remote";
+  const qrDebugEnabled = process.env.QR_DEBUG === "1";
+  const qrDebugMessage =
+    qrDebugEnabled && !qrInspect.ok ? `token ${qrInspect.reason}; fallback to remote` : null;
+  if (qrDebugEnabled && !qrInspect.ok) {
+    console.warn("[qr-debug] in-person donation route fallback", {
+      reason: qrInspect.reason,
+      businessSlug,
+      causeSlug,
+      locationSlug,
+    });
   }
   const config = await fetchDonationConfig({ businessSlug, causeSlug, locationSlug });
   if (!config) notFound();
@@ -65,6 +71,7 @@ export default async function DonationPage({ params, searchParams }: Props) {
       scanSource={scanSource}
       pointsConfig={pointsConfig}
       qrToken={qrTokenValue}
+      qrDebugMessage={qrDebugMessage}
     />
   );
 }
