@@ -53,12 +53,13 @@ export default function AdminQrPage() {
 
   useEffect(() => {
     if (!user) return;
+    const currentUser = user;
     let canceled = false;
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const idToken = await user.getIdToken();
+        const idToken = await currentUser.getIdToken();
         const [entitiesRes, causesRes] = await Promise.all([
           fetch("/api/admin/entities", { headers: { Authorization: `Bearer ${idToken}` } }),
           fetch("/api/admin/causes", { headers: { Authorization: `Bearer ${idToken}` } }),

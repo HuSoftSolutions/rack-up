@@ -215,7 +215,7 @@ function formatDate(value: string | null) {
 }
 
 function pointsLabel(cause: LandingCause, source: "in_person" | "remote") {
-  const config = resolvePointsConfig(cause as CauseDoc, source);
+  const config = resolvePointsConfig(cause as unknown as CauseDoc, source);
   if (config.mode === "predefined") {
     const uniquePoints = Array.from(
       new Set(

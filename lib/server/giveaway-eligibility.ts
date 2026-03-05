@@ -65,7 +65,7 @@ export function donationQualifiesForGiveaway(
   }
   if (eligibility.scanSources && eligibility.scanSources.length > 0) {
     const source = context.scanSource === "in_person" || context.scanSource === "remote" ? context.scanSource : null;
-    matches.push(Boolean(source) && eligibility.scanSources.includes(source));
+    matches.push(source ? eligibility.scanSources.includes(source) : false);
   }
 
   if (matches.length === 0) return true;

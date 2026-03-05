@@ -37,7 +37,7 @@ function serializeDoc<T extends Record<string, unknown>>(doc: T) {
 }
 
 async function fetchRemoteCauseConfig(causeSlug: string): Promise<{
-  business: BusinessDoc & { id: string };
+  business: Pick<BusinessDoc, "name" | "slug" | "description"> & { id: string };
   cause: CauseDoc & { id: string };
 } | null> {
   const globalSnap = await adminFirestore.collection("causes").doc(causeSlug).get();

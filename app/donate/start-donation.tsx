@@ -30,7 +30,7 @@ export default function DonateClient({
   pointsConfig,
   qrToken,
 }: {
-  business: BusinessDoc & { id: string };
+  business: Pick<BusinessDoc, "name" | "slug" | "description"> & { id: string };
   cause: CauseDoc & { id: string };
   location?: (LocationDoc & { id: string }) | null;
   scanSource: "in_person" | "remote";
