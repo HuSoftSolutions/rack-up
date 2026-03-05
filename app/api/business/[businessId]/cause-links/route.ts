@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, hasLocationAccess, requireBusinessAccess } from "@/lib/server/auth";
+import { createCauseQrToken } from "@/lib/server/qr-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,10 +16,13 @@ export async function GET(
 
   try {
     const { membership } = await requireBusinessAccess(request, businessId);
-    const [causeSnap, linkSnap] = await Promise.all([
+    const [businessSnap, causeSnap, linkSnap] = await Promise.all([
+      adminFirestore.collection("businesses").doc(businessId).get(),
       adminFirestore.collection("causes").get(),
       adminFirestore.collection("businesses").doc(businessId).collection("cause_links").get(),
     ]);
+    const businessData = businessSnap.data() as { slug?: string } | undefined;
+    const businessSlug = businessData?.slug ?? businessId;
 
     const links = new Map(
       linkSnap.docs.map((d) => [d.id, d.data() as { locationIds?: string[] }]),
@@ -35,6 +39,16 @@ export async function GET(
         ...data,
         linked: Boolean(link),
         selectedLocationIds: filteredLocationIds,
+        urls: filteredLocationIds.map((locationId) => ({
+          locationId,
+          url: `/donate/${businessSlug}/${d.id}/${locationId}?qr=${encodeURIComponent(
+            createCauseQrToken({
+              businessSlug,
+              causeSlug: d.id,
+              locationSlug: locationId,
+            }),
+          )}`,
+        })),
       };
     });
 

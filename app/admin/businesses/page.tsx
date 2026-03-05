@@ -21,6 +21,10 @@ type CauseLink = {
   slug?: string;
   linked?: boolean;
   selectedLocationIds?: string[];
+  urls?: Array<{
+    locationId: string;
+    url: string;
+  }>;
 };
 
 type SubAction =
@@ -115,7 +119,9 @@ export default function AdminBusinessesPage() {
           business: biz,
           cause,
           location: loc,
-          url: `/donate/${biz.data.slug}/${cause.slug ?? cause.id}/${loc.slug}`,
+          url:
+            cause.urls?.find((entry) => entry.locationId === loc.id)?.url ??
+            `/donate/${biz.data.slug}/${cause.slug ?? cause.id}/${loc.slug}`,
         }));
       });
     });
