@@ -404,53 +404,55 @@ export default function ProfilePage() {
               ) : donations.length === 0 ? (
                 <div className="p-4 text-zinc-400">No support yet.</div>
               ) : (
-                <table className="min-w-full text-left text-xs">
-                  <thead className="bg-black/40 text-xs uppercase tracking-wide text-zinc-400">
-                    <tr>
-                      <th className="px-4 py-2">Date</th>
-                      <th className="px-4 py-2">Cause</th>
-                      <th className="px-4 py-2">Business</th>
-                      <th className="px-4 py-2">Amount</th>
-                      <th className="px-4 py-2">Points</th>
-                      <th className="px-4 py-2">Receipt</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {donations.map((donation) => (
-                      <tr key={donation.id} className="border-t border-white/10">
-                        <td className="px-4 py-2 text-zinc-300">
-                          {donation.createdAt?.toLocaleDateString() ?? "—"}
-                        </td>
-                        <td className="px-4 py-2 text-white">
-                          {donation.causeTitle ?? "Support"}
-                        </td>
-                        <td className="px-4 py-2 text-zinc-300">
-                          {donation.businessName ?? "—"}
-                        </td>
-                        <td className="px-4 py-2 text-zinc-200">
-                          {formatMoney(donation.amountCents)}
-                        </td>
-                        <td className="px-4 py-2 text-zinc-200">
-                          {donation.points ?? "—"}
-                        </td>
-                        <td className="px-4 py-2">
-                          {donation.receiptUrl ? (
-                            <a
-                              href={donation.receiptUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-emerald-200 underline"
-                            >
-                              View receipt
-                            </a>
-                          ) : (
-                            <span className="text-zinc-500">—</span>
-                          )}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="min-w-[720px] text-left text-xs">
+                    <thead className="bg-black/40 text-xs uppercase tracking-wide text-zinc-400">
+                      <tr>
+                        <th className="px-4 py-2">Date</th>
+                        <th className="px-4 py-2">Cause</th>
+                        <th className="px-4 py-2">Business</th>
+                        <th className="px-4 py-2">Amount</th>
+                        <th className="px-4 py-2">Points</th>
+                        <th className="px-4 py-2">Receipt</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {donations.map((donation) => (
+                        <tr key={donation.id} className="border-t border-white/10">
+                          <td className="px-4 py-2 text-zinc-300">
+                            {donation.createdAt?.toLocaleDateString() ?? "—"}
+                          </td>
+                          <td className="px-4 py-2 text-white">
+                            {donation.causeTitle ?? "Support"}
+                          </td>
+                          <td className="px-4 py-2 text-zinc-300">
+                            {donation.businessName ?? "—"}
+                          </td>
+                          <td className="px-4 py-2 text-zinc-200">
+                            {formatMoney(donation.amountCents)}
+                          </td>
+                          <td className="px-4 py-2 text-zinc-200">
+                            {donation.points ?? "—"}
+                          </td>
+                          <td className="px-4 py-2">
+                            {donation.receiptUrl ? (
+                              <a
+                                href={donation.receiptUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-emerald-200 underline"
+                              >
+                                View receipt
+                              </a>
+                            ) : (
+                              <span className="text-zinc-500">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           ) : (
@@ -460,50 +462,52 @@ export default function ProfilePage() {
               ) : rewardIssues.length === 0 ? (
                 <div className="p-4 text-zinc-400">No rewards yet.</div>
               ) : (
-                <table className="min-w-full text-left text-xs">
-                  <thead className="bg-black/40 text-xs uppercase tracking-wide text-zinc-400">
-                    <tr>
-                      <th className="px-4 py-2">Reward</th>
-                      <th className="px-4 py-2">Status</th>
-                      <th className="px-4 py-2">Issued</th>
-                      <th className="px-4 py-2">Expiry</th>
-                      <th className="px-4 py-2">Code</th>
-                      <th className="px-4 py-2">Receipt</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rewardIssues.map((reward) => (
-                      <tr key={reward.id} className="border-t border-white/10">
-                        <td className="px-4 py-2 text-white">
-                          {reward.rewardTitle ?? reward.dealId ?? "Reward"}
-                        </td>
-                        <td className="px-4 py-2 text-zinc-300 capitalize">
-                          {reward.status ?? "—"}
-                        </td>
-                        <td className="px-4 py-2 text-zinc-300">
-                          {reward.issuedAt?.toLocaleDateString() ?? "—"}
-                        </td>
-                        <td className="px-4 py-2 text-zinc-300">
-                          {reward.expiresAt ? reward.expiresAt.toLocaleDateString() : "No expiry"}
-                        </td>
-                        <td className="px-4 py-2 text-emerald-200">{reward.code ?? "—"}</td>
-                        <td className="px-4 py-2">
-                          {reward.id ? (
-                            <button
-                              type="button"
-                              onClick={() => openReceipt(reward.id)}
-                              className="text-emerald-200 underline"
-                            >
-                              View status
-                            </button>
-                          ) : (
-                            <span className="text-zinc-500">—</span>
-                          )}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="min-w-[720px] text-left text-xs">
+                    <thead className="bg-black/40 text-xs uppercase tracking-wide text-zinc-400">
+                      <tr>
+                        <th className="px-4 py-2">Reward</th>
+                        <th className="px-4 py-2">Status</th>
+                        <th className="px-4 py-2">Issued</th>
+                        <th className="px-4 py-2">Expiry</th>
+                        <th className="px-4 py-2">Code</th>
+                        <th className="px-4 py-2">Receipt</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {rewardIssues.map((reward) => (
+                        <tr key={reward.id} className="border-t border-white/10">
+                          <td className="px-4 py-2 text-white">
+                            {reward.rewardTitle ?? reward.dealId ?? "Reward"}
+                          </td>
+                          <td className="px-4 py-2 text-zinc-300 capitalize">
+                            {reward.status ?? "—"}
+                          </td>
+                          <td className="px-4 py-2 text-zinc-300">
+                            {reward.issuedAt?.toLocaleDateString() ?? "—"}
+                          </td>
+                          <td className="px-4 py-2 text-zinc-300">
+                            {reward.expiresAt ? reward.expiresAt.toLocaleDateString() : "No expiry"}
+                          </td>
+                          <td className="px-4 py-2 text-emerald-200">{reward.code ?? "—"}</td>
+                          <td className="px-4 py-2">
+                            {reward.id ? (
+                              <button
+                                type="button"
+                                onClick={() => openReceipt(reward.id)}
+                                className="text-emerald-200 underline"
+                              >
+                                View status
+                              </button>
+                            ) : (
+                              <span className="text-zinc-500">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
