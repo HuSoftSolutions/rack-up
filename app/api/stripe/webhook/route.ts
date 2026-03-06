@@ -6,10 +6,14 @@ import { adminFirestore } from "@/lib/firebase/admin";
 import { calculatePointsFromCents, normalizePointsOverride } from "@/lib/server/points";
 import { Timestamp } from "firebase-admin/firestore";
 import { donationQualifiesForGiveaway } from "@/lib/server/giveaway-eligibility";
+import {
+  getDefaultEntryUnitPoints,
+  getEntryMultiplier,
+  normalizeGiveawayEntryConfig,
+} from "@/lib/server/giveaway-entry-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const GIVEAWAY_ENTRY_POINTS = 500;
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -140,11 +144,16 @@ export async function POST(request: Request) {
               totalPointsProcessed?: number;
               totalEntriesAwarded?: number;
             } | undefined;
+            const giveawayData = giveawayDoc.data() as { entryConfig?: unknown };
+            const entryConfig = normalizeGiveawayEntryConfig(giveawayData.entryConfig);
+            const entryUnit = entryConfig.entryUnitPoints;
+            const entryMultiplier = getEntryMultiplier(entryConfig, scanSource);
             const carryInRaw = balanceData?.remainingPoints;
             const carryIn = typeof carryInRaw === "number" && carryInRaw > 0 ? Math.floor(carryInRaw) : 0;
             const totalPointsForEntry = carryIn + safePoints;
-            const entriesCount = Math.floor(totalPointsForEntry / GIVEAWAY_ENTRY_POINTS);
-            const carryOut = totalPointsForEntry % GIVEAWAY_ENTRY_POINTS;
+            const baseEntries = Math.floor(totalPointsForEntry / entryUnit);
+            const entriesCount = baseEntries * entryMultiplier;
+            const carryOut = totalPointsForEntry % entryUnit;
             entriesByGiveawayId[giveawayDoc.id] = entriesCount;
 
             tx.set(
@@ -169,7 +178,8 @@ export async function POST(request: Request) {
               pointsApplied: safePoints,
               pointsCarryIn: carryIn,
               pointsCarryOut: carryOut,
-              entryUnitPoints: GIVEAWAY_ENTRY_POINTS,
+              entryUnitPoints: entryUnit,
+              entryMultiplier,
               scanSource,
               amountCents,
               createdAt: eventTimestamp,
@@ -237,12 +247,12 @@ export async function POST(request: Request) {
             lastAttemptAt: now,
             eligibleGiveawayIds,
             entriesByGiveawayId,
-            totalEntriesAcrossGiveaways: totalEntries,
-            totalEntriesPerGiveaway: firstEligibleGiveawayEntries,
-            entryUnitPoints: GIVEAWAY_ENTRY_POINTS,
-            cumulativePointsModel: true,
-            userIdPresent: Boolean(resolvedUserId),
-          },
+          totalEntriesAcrossGiveaways: totalEntries,
+          totalEntriesPerGiveaway: firstEligibleGiveawayEntries,
+          entryUnitPoints: getDefaultEntryUnitPoints(),
+          cumulativePointsModel: true,
+          userIdPresent: Boolean(resolvedUserId),
+        },
         });
       });
 

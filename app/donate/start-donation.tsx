@@ -229,8 +229,8 @@ export default function DonateClient({
           Estimated points: <span className="font-semibold">{estimatedPoints}</span>
         </div>
         <div className="text-xs text-zinc-400">
-          Giveaway entries: 1 entry per 500 points earned in each eligible active giveaway. Points carry
-          over across donations and drawings are monthly.
+          Giveaway entries are based on each eligible giveaway&apos;s configured points threshold and
+          multiplier. Points carry over across donations and drawings are monthly.
         </div>
         <GiveawayProgressCard estimatedPoints={estimatedPoints} />
         {!loading && !user ? (

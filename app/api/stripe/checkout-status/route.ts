@@ -5,10 +5,14 @@ import { adminFirestore } from "@/lib/firebase/admin";
 import { calculatePointsFromCents, normalizePointsOverride } from "@/lib/server/points";
 import { Timestamp } from "firebase-admin/firestore";
 import { donationQualifiesForGiveaway } from "@/lib/server/giveaway-eligibility";
+import {
+  getDefaultEntryUnitPoints,
+  getEntryMultiplier,
+  normalizeGiveawayEntryConfig,
+} from "@/lib/server/giveaway-entry-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const GIVEAWAY_ENTRY_POINTS = 500;
 
 async function ensureGiveawayCapture(params: {
   session: Stripe.Checkout.Session;
@@ -105,12 +109,17 @@ async function ensureGiveawayCapture(params: {
           totalPointsProcessed?: number;
           totalEntriesAwarded?: number;
         } | undefined;
+        const giveawayData = giveawayDoc.data() as { entryConfig?: unknown };
+        const entryConfig = normalizeGiveawayEntryConfig(giveawayData.entryConfig);
+        const entryUnit = entryConfig.entryUnitPoints;
+        const entryMultiplier = getEntryMultiplier(entryConfig, scanSource);
         const carryIn = typeof balanceData?.remainingPoints === "number" && balanceData.remainingPoints > 0
           ? Math.floor(balanceData.remainingPoints)
           : 0;
         const totalPointsForEntry = carryIn + safePoints;
-        const entriesCount = Math.floor(totalPointsForEntry / GIVEAWAY_ENTRY_POINTS);
-        const carryOut = totalPointsForEntry % GIVEAWAY_ENTRY_POINTS;
+        const baseEntries = Math.floor(totalPointsForEntry / entryUnit);
+        const entriesCount = baseEntries * entryMultiplier;
+        const carryOut = totalPointsForEntry % entryUnit;
         entriesByGiveawayId[giveawayDoc.id] = entriesCount;
 
         tx.set(
@@ -137,7 +146,8 @@ async function ensureGiveawayCapture(params: {
             pointsApplied: safePoints,
             pointsCarryIn: carryIn,
             pointsCarryOut: carryOut,
-            entryUnitPoints: GIVEAWAY_ENTRY_POINTS,
+            entryUnitPoints: entryUnit,
+            entryMultiplier,
             scanSource,
             amountCents,
             createdAt: eventTimestamp,
@@ -216,7 +226,7 @@ async function ensureGiveawayCapture(params: {
           entriesByGiveawayId,
           totalEntriesAcrossGiveaways: totalEntries,
           totalEntriesPerGiveaway: firstEligibleGiveawayEntries,
-          entryUnitPoints: GIVEAWAY_ENTRY_POINTS,
+          entryUnitPoints: getDefaultEntryUnitPoints(),
           cumulativePointsModel: true,
           userIdPresent: Boolean(resolvedUserId),
           reconciledFromCheckoutStatus: true,

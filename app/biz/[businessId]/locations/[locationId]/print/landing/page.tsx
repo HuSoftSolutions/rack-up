@@ -38,7 +38,6 @@ type BusinessRow = {
 type LocationCause = {
   id: string;
   title: string;
-  description?: string;
   url: string;
 };
 
@@ -113,7 +112,6 @@ export default function LocationPrintLandingPage({
             return {
               id: cause.id,
               title: cause.title ?? cause.id,
-              description: cause.description ?? undefined,
               url: match.url,
             };
           })
@@ -186,7 +184,7 @@ export default function LocationPrintLandingPage({
     <div className="min-h-screen bg-white px-0 py-0 text-black">
       <div
         id="print-sheet"
-        className="mx-auto flex w-full max-w-3xl flex-col gap-4 bg-white px-8 py-8"
+        className="mx-auto flex w-full max-w-[8.27in] flex-col gap-4 bg-white px-8 py-8 print:min-h-[10.8in] print:max-w-none print:justify-between print:gap-3 print:px-5 print:py-5"
         ref={printableRef}
       >
         <header className="flex items-start justify-between gap-3 print:hidden">
@@ -218,7 +216,7 @@ export default function LocationPrintLandingPage({
           </div>
         </header>
 
-        <div className="overflow-hidden rounded-3xl border border-black/10 shadow-sm print:border-none print:shadow-none">
+        <div className="flex-1 overflow-hidden rounded-3xl border border-black/10 shadow-sm print:border-none print:shadow-none">
           <div className="grid gap-0 md:grid-cols-2">
             <div className="flex flex-col gap-4 bg-white p-6">
               <div className="text-xs uppercase tracking-wide text-zinc-500">
@@ -231,17 +229,14 @@ export default function LocationPrintLandingPage({
                 Scan the QR code to pick a cause and support securely. Every support earns Rack Up
                 points instantly.
               </p>
-              <div className="rounded-2xl border border-black/10 bg-black/[.03] p-4 text-sm">
-                <div className="font-semibold text-black">Available causes</div>
+                <div className="rounded-2xl border border-black/10 bg-black/[.03] p-4 text-sm">
+                <div className="font-semibold text-black">Available charities</div>
                 {causes.length === 0 ? (
-                  <div className="text-zinc-800">No causes are available right now.</div>
+                  <div className="text-zinc-800">No charities are available right now.</div>
                 ) : (
                   <ul className="mt-2 list-disc space-y-1 pl-5 text-zinc-800">
                     {causes.map((cause) => (
-                      <li key={cause.id}>
-                        <span className="font-semibold">{cause.title}</span>
-                        {cause.description ? ` — ${cause.description}` : ""}
-                      </li>
+                      <li key={cause.id} className="font-semibold">{cause.title}</li>
                     ))}
                   </ul>
                 )}

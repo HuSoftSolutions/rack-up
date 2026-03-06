@@ -3,6 +3,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireAdmin } from "@/lib/server/auth";
 import { normalizeGiveawayEligibility } from "@/lib/server/giveaway-eligibility";
+import { normalizeGiveawayEntryConfig } from "@/lib/server/giveaway-entry-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,6 +71,7 @@ export async function GET(request: Request) {
         startsAt: toIso(data.startsAt),
         endsAt: toIso(data.endsAt),
         eligibility: normalizeGiveawayEligibility(data.eligibility),
+        entryConfig: normalizeGiveawayEntryConfig(data.entryConfig),
         prize: normalizePrize(data.prize),
       };
     });
@@ -94,6 +96,7 @@ export async function POST(request: Request) {
       startsAt?: string | null;
       endsAt?: string | null;
       eligibility?: unknown;
+      entryConfig?: unknown;
       prize?: unknown;
     };
     if (!body.title?.trim()) {
@@ -108,6 +111,7 @@ export async function POST(request: Request) {
       startsAt: body.startsAt ? Timestamp.fromDate(new Date(body.startsAt)) : null,
       endsAt: body.endsAt ? Timestamp.fromDate(new Date(body.endsAt)) : null,
       eligibility: normalizeGiveawayEligibility(body.eligibility),
+      entryConfig: normalizeGiveawayEntryConfig(body.entryConfig),
       prize: normalizePrize(body.prize),
       scope: "global",
       createdAt: now,
@@ -124,6 +128,7 @@ export async function POST(request: Request) {
         startsAt: body.startsAt ? Timestamp.fromDate(new Date(body.startsAt)) : null,
         endsAt: body.endsAt ? Timestamp.fromDate(new Date(body.endsAt)) : null,
         eligibility: normalizeGiveawayEligibility(body.eligibility),
+        entryConfig: normalizeGiveawayEntryConfig(body.entryConfig),
         prize: normalizePrize(body.prize),
       },
     });
@@ -149,6 +154,7 @@ export async function PATCH(request: Request) {
       startsAt?: string | null;
       endsAt?: string | null;
       eligibility?: unknown;
+      entryConfig?: unknown;
       prize?: unknown;
     };
     const id = body.id?.trim();
@@ -170,6 +176,9 @@ export async function PATCH(request: Request) {
         ...(body.eligibility !== undefined
           ? { eligibility: normalizeGiveawayEligibility(body.eligibility) }
           : {}),
+        ...(body.entryConfig !== undefined
+          ? { entryConfig: normalizeGiveawayEntryConfig(body.entryConfig) }
+          : {}),
         ...(body.prize !== undefined ? { prize: normalizePrize(body.prize) } : {}),
         updatedAt: Timestamp.now(),
       },
@@ -188,6 +197,9 @@ export async function PATCH(request: Request) {
         ...(body.endsAt !== undefined ? { endsAt: body.endsAt } : {}),
         ...(body.eligibility !== undefined
           ? { eligibility: normalizeGiveawayEligibility(body.eligibility) }
+          : {}),
+        ...(body.entryConfig !== undefined
+          ? { entryConfig: normalizeGiveawayEntryConfig(body.entryConfig) }
           : {}),
         ...(body.prize !== undefined ? { prize: normalizePrize(body.prize) } : {}),
       },

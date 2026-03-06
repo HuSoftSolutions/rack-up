@@ -67,7 +67,7 @@ export default function GiveawayProgressCard({
   if (!authLoading && !user) {
     return (
       <div className={`rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-zinc-300 ${className}`}>
-        Sign in to track giveaway progress. Every 500 points earned = 1 entry.
+        Sign in to track giveaway progress. Entry thresholds vary by giveaway.
       </div>
     );
   }

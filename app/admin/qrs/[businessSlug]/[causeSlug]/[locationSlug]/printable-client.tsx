@@ -24,6 +24,9 @@ export default function PrintableQr({
 }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const printableRef = useRef<HTMLDivElement | null>(null);
+  const causeDescription = config.cause.description?.trim() ?? "";
+  const printableDescription =
+    causeDescription.length > 600 ? `${causeDescription.slice(0, 597)}...` : causeDescription;
 
   useEffect(() => {
     const origin =
@@ -76,7 +79,7 @@ export default function PrintableQr({
     <div className="min-h-screen bg-white px-0 py-0 text-black">
       <div
         id="print-sheet"
-        className="mx-auto flex w-full max-w-2xl flex-col gap-3 bg-white px-6 py-6"
+        className="mx-auto flex w-full max-w-[8.27in] flex-col gap-3 bg-white px-6 py-6 print:min-h-[10.8in] print:max-w-none print:gap-2 print:px-4 print:py-4"
         ref={printableRef}
       >
         <header className="flex items-start justify-between gap-3 print:hidden">
@@ -106,79 +109,68 @@ export default function PrintableQr({
           </div>
         </header>
 
-        <div className="overflow-hidden rounded-2xl border border-black/10 shadow-sm print:border-none print:shadow-none break-inside-avoid">
-          <div className="grid gap-0 md:grid-cols-2">
-            <div className="flex flex-col gap-3 bg-white p-6 break-inside-avoid">
-              <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-1 flex-col rounded-2xl border border-black/10 bg-white p-4 text-black shadow-sm print:min-h-[10.2in] print:rounded-none print:border-none print:p-2 print:shadow-none break-inside-avoid">
+          <div className="flex items-center justify-between gap-3">
+            <div className="rounded-xl bg-black p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/RackUp-01.svg" alt="Rack Up" className="h-7 w-auto" />
+            </div>
+            <div className="flex items-center gap-2">
+              {config.business.logoUrl ? (
+                <div className="rounded-xl bg-black p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={config.business.logoUrl}
+                    alt={`${config.business.name} logo`}
+                    className="h-10 w-auto max-w-[140px] object-contain"
+                  />
+                </div>
+              ) : null}
+              {config.location.logoUrl ? (
+                <div className="rounded-xl bg-black p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={config.location.logoUrl}
+                    alt={`${config.location.name ?? config.location.id} logo`}
+                    className="h-10 w-auto max-w-[140px] object-contain"
+                  />
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-5 text-xs font-semibold uppercase tracking-wide text-black">
+            {config.business.name} · {config.location.name}
+          </div>
+          <div className="mt-1 text-3xl font-semibold leading-tight text-black print:text-[30px]">{config.cause.title}</div>
+          {printableDescription ? (
+            <p className="mt-2 text-sm leading-6 text-black print:text-[13px] print:leading-5">{printableDescription}</p>
+          ) : null}
+
+          <div className="mt-3 rounded-2xl border border-black/10 bg-black/[.03] p-3 text-sm text-black print:text-[13px]">
+            <div className="font-semibold text-black">How to earn points here</div>
+            <div className="text-black">{pointsText}</div>
+          </div>
+
+          <div className="mt-5 flex flex-1 items-center justify-center">
+            {qrDataUrl ? (
+              <div className="rounded-2xl border border-black/10 bg-white p-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/RackUp-01.svg" alt="Rack Up" className="h-7 w-auto" />
-                <div className="flex items-center gap-2">
-                  {config.business.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={config.business.logoUrl}
-                      alt={`${config.business.name} logo`}
-                      className="h-10 w-auto max-w-[140px] object-contain"
-                    />
-                  ) : null}
-                  {config.location.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={config.location.logoUrl}
-                      alt={`${config.location.name ?? config.location.id} logo`}
-                      className="h-10 w-auto max-w-[140px] object-contain"
-                    />
-                  ) : null}
-                </div>
+                <img src={qrDataUrl} alt="QR code" className="h-64 w-64 print:h-72 print:w-72" />
               </div>
-              <div className="text-xs uppercase tracking-wide text-zinc-600">
-                {config.business.name} · {config.location.name}
+            ) : (
+              <div className="h-64 w-64 rounded-2xl border border-dashed border-black/20 p-4 text-sm text-black/70">
+                Generating QR…
               </div>
-              <div className="text-3xl font-semibold leading-tight">{config.cause.title}</div>
-              {config.cause.description ? (
-                <p className="text-sm text-zinc-700">{config.cause.description}</p>
-              ) : null}
-              <div className="rounded-2xl bg-black/[.03] p-4 text-sm">
-                <div className="font-semibold text-zinc-900">How to earn points here</div>
-                <div className="text-zinc-700">{pointsText}</div>
-              </div>
-              {config.cause.imageUrl ? (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={config.cause.imageUrl}
-                    alt="Cause header"
-                    className="mt-2 w-full max-h-52 rounded-2xl object-contain"
-                  />
-                </>
-              ) : null}
+            )}
+          </div>
+
+          <div className="mt-auto rounded-2xl border border-black/10 bg-black/[.03] p-3 text-center text-black">
+            <div className="text-base font-semibold">Scan this QR code to support this cause</div>
+            <div className="mt-1 text-sm">
+              Open the secure Rack Up page, choose an amount, and your points are added automatically.
             </div>
-            <div className="flex flex-col items-center justify-center gap-3 bg-white p-6">
-              <div className="w-full rounded-2xl border border-black/10 bg-black/[.03] p-4 text-center">
-                <div className="text-sm font-semibold text-zinc-900">Scan to support this cause</div>
-                <div className="mt-1 text-xs text-zinc-600">
-                  Open the secure Rack Up page, choose an amount, and your points are added
-                  automatically.
-                </div>
-              </div>
-              {qrDataUrl ? (
-                <div className="rounded-2xl border border-black/10 bg-white p-3 shadow-sm">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={qrDataUrl}
-                    alt="QR code"
-                    className="h-48 w-48 rounded-lg"
-                  />
-                </div>
-              ) : (
-                <div className="h-52 w-52 rounded-2xl border border-dashed border-black/20 p-4 text-sm text-zinc-500">
-                  Generating QR…
-                </div>
-              )}
-              <div className="text-xs text-zinc-600">
-                Tip: Open your camera, scan the code, and follow the prompts.
-              </div>
-            </div>
+            <div className="mt-1 text-xs">Tip: Open your camera, scan the code, and follow the prompts.</div>
           </div>
         </div>
 
@@ -188,7 +180,7 @@ export default function PrintableQr({
           </Link>
         </div>
 
-        <div className="mt-4 rounded-2xl bg-black/[.03] p-4 text-xs text-zinc-600 print:mt-2 print:text-[11px]">
+        <div className="mt-4 rounded-2xl bg-black/[.03] p-4 text-xs text-zinc-700 print:hidden">
           <div className="font-semibold text-zinc-900">How Rack Up works</div>
           <div className="mt-1">
             Scan the QR code to support. Choose an amount, complete the secure checkout, and earn

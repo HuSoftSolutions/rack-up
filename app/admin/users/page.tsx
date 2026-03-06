@@ -43,6 +43,12 @@ type InviteResult = {
   };
 };
 
+type GiveawayOption = {
+  id: string;
+  title: string;
+  status?: "draft" | "active" | "closed" | "drawn";
+};
+
 function formatDate(value: string | null) {
   if (!value) return "—";
   const d = new Date(value);
@@ -73,6 +79,16 @@ export default function AdminUsersPage() {
   const [pointsError, setPointsError] = useState<string | null>(null);
   const [pointsUser, setPointsUser] = useState<AdminUser | null>(null);
   const [pointsForm, setPointsForm] = useState({ pointsDelta: "", reason: "" });
+  const [manualEntriesOpen, setManualEntriesOpen] = useState(false);
+  const [manualEntriesSaving, setManualEntriesSaving] = useState(false);
+  const [manualEntriesError, setManualEntriesError] = useState<string | null>(null);
+  const [manualEntriesUser, setManualEntriesUser] = useState<AdminUser | null>(null);
+  const [manualEntriesForm, setManualEntriesForm] = useState({
+    giveawayIds: [] as string[],
+    entriesCount: "1",
+    reason: "",
+  });
+  const [giveawayOptions, setGiveawayOptions] = useState<GiveawayOption[]>([]);
   const [userFilter, setUserFilter] = useState<"all" | "public" | "business">("all");
   const [inviteForm, setInviteForm] = useState({
     email: "",
@@ -132,19 +148,46 @@ export default function AdminUsersPage() {
     [],
   );
 
+  const loadGiveaways = useCallback(
+    async (currentUser: NonNullable<typeof user>) => {
+      try {
+        const idToken = await currentUser.getIdToken();
+        const res = await fetch("/api/admin/giveaways", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const json = (await res.json()) as {
+          giveaways?: Array<{ id: string; title?: string; status?: "draft" | "active" | "closed" | "drawn" }>;
+        };
+        if (!res.ok || !json.giveaways) return;
+        setGiveawayOptions(
+          json.giveaways
+            .filter((giveaway) => giveaway.status === "active" || giveaway.status === "closed")
+            .map((giveaway) => ({
+              id: giveaway.id,
+              title: giveaway.title ?? giveaway.id,
+              status: giveaway.status,
+            })),
+        );
+      } catch {
+        // Silent fail for now.
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!user) return;
     let canceled = false;
     const currentUser = user;
     async function load() {
       if (canceled) return;
-      await Promise.all([loadUsers(currentUser), loadBusinesses(currentUser)]);
+      await Promise.all([loadUsers(currentUser), loadBusinesses(currentUser), loadGiveaways(currentUser)]);
     }
     void load();
     return () => {
       canceled = true;
     };
-  }, [loadBusinesses, loadUsers, user]);
+  }, [loadBusinesses, loadGiveaways, loadUsers, user]);
 
   const counts = useMemo(() => {
     return {
@@ -221,6 +264,46 @@ export default function AdminUsersPage() {
       setPointsError(err instanceof Error ? err.message : "Failed to adjust points.");
     } finally {
       setPointsSaving(false);
+    }
+  }
+
+  async function submitManualEntries() {
+    if (!user || !manualEntriesUser) return;
+    setManualEntriesSaving(true);
+    setManualEntriesError(null);
+    try {
+      if (manualEntriesForm.giveawayIds.length === 0) {
+        throw new Error("Select at least one giveaway.");
+      }
+      const entriesCount = Number(manualEntriesForm.entriesCount);
+      if (!Number.isFinite(entriesCount) || entriesCount <= 0) {
+        throw new Error("Entries must be a positive number.");
+      }
+      if (!manualEntriesForm.reason.trim()) {
+        throw new Error("Reason is required.");
+      }
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/admin/users/giveaway-entries", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: manualEntriesUser.uid,
+          giveawayIds: manualEntriesForm.giveawayIds,
+          entriesCount,
+          reason: manualEntriesForm.reason.trim(),
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? "Failed to add manual entries.");
+      setManualEntriesOpen(false);
+      setManualEntriesForm({ giveawayIds: [], entriesCount: "1", reason: "" });
+    } catch (err) {
+      setManualEntriesError(err instanceof Error ? err.message : "Failed to add manual entries.");
+    } finally {
+      setManualEntriesSaving(false);
     }
   }
 
@@ -764,6 +847,17 @@ export default function AdminUsersPage() {
                         Adjust points
                       </Button>
                       <Button
+                        outline
+                        onClick={() => {
+                          setManualEntriesUser(u);
+                          setManualEntriesForm({ giveawayIds: [], entriesCount: "1", reason: "" });
+                          setManualEntriesError(null);
+                          setManualEntriesOpen(true);
+                        }}
+                      >
+                        Add giveaway entries
+                      </Button>
+                      <Button
                         color="emerald"
                         disabled={assumeLoadingUid === u.uid}
                         onClick={() => handleAssume(u.uid)}
@@ -987,6 +1081,89 @@ export default function AdminUsersPage() {
           </Button>
           <Button color="emerald" onClick={submitPointsAdjustment} disabled={pointsSaving}>
             {pointsSaving ? "Saving…" : "Save adjustment"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={manualEntriesOpen} onClose={() => setManualEntriesOpen(false)} size="md">
+        <DialogTitle>Add giveaway entries</DialogTitle>
+        <DialogBody className="space-y-4">
+          <div className="text-xs text-zinc-500">
+            {manualEntriesUser?.email ?? manualEntriesUser?.uid ?? ""}
+          </div>
+          {manualEntriesError ? (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+              {manualEntriesError}
+            </div>
+          ) : null}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Giveaways
+            </label>
+            {giveawayOptions.length === 0 ? (
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400">
+                No active/closed giveaways available.
+              </div>
+            ) : (
+              <div className="max-h-48 space-y-2 overflow-auto rounded-lg border border-white/10 bg-white/5 p-2">
+                {giveawayOptions.map((giveaway) => {
+                  const checked = manualEntriesForm.giveawayIds.includes(giveaway.id);
+                  return (
+                    <label key={giveaway.id} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-white/5">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm text-white">{giveaway.title}</div>
+                        <div className="text-[11px] uppercase tracking-wide text-zinc-500">{giveaway.status}</div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) => {
+                          const next = event.target.checked
+                            ? [...manualEntriesForm.giveawayIds, giveaway.id]
+                            : manualEntriesForm.giveawayIds.filter((id) => id !== giveaway.id);
+                          setManualEntriesForm((prev) => ({ ...prev, giveawayIds: next }));
+                        }}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Entries per giveaway
+            </label>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={manualEntriesForm.entriesCount}
+              onChange={(event) =>
+                setManualEntriesForm((prev) => ({ ...prev, entriesCount: event.target.value }))
+              }
+              placeholder="e.g. 1"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Reason
+            </label>
+            <Input
+              value={manualEntriesForm.reason}
+              onChange={(event) =>
+                setManualEntriesForm((prev) => ({ ...prev, reason: event.target.value }))
+              }
+              placeholder="Manual giveaway entry reason"
+            />
+          </div>
+        </DialogBody>
+        <DialogActions>
+          <Button outline onClick={() => setManualEntriesOpen(false)}>
+            Cancel
+          </Button>
+          <Button color="emerald" onClick={submitManualEntries} disabled={manualEntriesSaving}>
+            {manualEntriesSaving ? "Saving…" : "Add entries"}
           </Button>
         </DialogActions>
       </Dialog>

@@ -352,16 +352,15 @@ export default async function Home() {
                 <div className="text-5xl font-bold text-emerald-400/20">03</div>
                 <h3 className="mt-2 text-lg font-semibold text-white">Earn rewards &amp; prizes</h3>
                 <p className="mt-1 text-sm leading-relaxed text-zinc-400">
-                  Giveaways are drawn monthly. Every 500 points earned equals one entry, and your points
-                  carry over between donations until an entry is reached.
+                  Giveaways are drawn monthly. Entry thresholds and multipliers can vary by giveaway,
+                  and your carryover points continue between donations until an entry is reached.
                 </p>
               </div>
             </div>
 
             <div className="mt-8 rounded-xl border border-emerald-300/20 bg-emerald-500/[0.08] p-4 text-sm text-emerald-100">
               <span className="font-semibold">Giveaway entry rules:</span> drawings happen once per month,
-              and entry credit is cumulative per giveaway. Example: earn 250 points now and 250 later to
-              receive 1 entry in each eligible active giveaway.
+              and entry credit is cumulative per giveaway using that giveaway&apos;s configured threshold.
             </div>
             <ClientOnly>
               <GiveawayProgressCard className="mt-3" />

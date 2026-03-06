@@ -143,7 +143,7 @@ export default function LocationPrintChooserPage({
           </div>
           <div className="mt-3">
             <Link
-              className="text-xs font-semibold text-emerald-300 underline hover:text-emerald-200"
+              className="inline-flex items-center rounded-md border border-emerald-300/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
               href={`/biz/${business.id}/locations/${location.id}/print/landing`}
             >
               Open printable sheet
@@ -161,13 +161,13 @@ export default function LocationPrintChooserPage({
           ) : (
             <div className="mt-3 space-y-2">
               {causes.map((cause) => (
-                <div key={cause.id} className="flex items-center justify-between">
-                  <div className="text-xs text-zinc-200">{cause.title}</div>
+                <div key={cause.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+                  <div className="text-xs font-medium text-zinc-200">{cause.title}</div>
                   <Link
-                    className="text-xs font-semibold text-emerald-300 underline hover:text-emerald-200"
+                    className="inline-flex items-center rounded-md border border-emerald-300/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
                     href={`/biz/${business.id}/locations/${location.id}/print/${cause.id}`}
                   >
-                    Print
+                    Open printable sheet
                   </Link>
                 </div>
               ))}

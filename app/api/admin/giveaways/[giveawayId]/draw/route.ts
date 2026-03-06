@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 type Entry = {
   id: string;
   userId: string;
-  donationId: string;
+  donationId: string | null;
   entriesCount: number;
 };
 
@@ -49,29 +49,37 @@ export async function POST(
       .where("giveawayId", "==", giveawayId)
       .get();
     const entries: Entry[] = entriesSnap.docs.map((doc) => {
-      const data = doc.data() as { userId?: string; donationId?: string; entriesCount?: number };
+      const data = doc.data() as { userId?: string; donationId?: string | null; entriesCount?: number };
       return {
         id: doc.id,
         userId: data.userId ?? "",
-        donationId: data.donationId ?? "",
+        donationId: data.donationId ?? null,
         entriesCount: data.entriesCount ?? 0,
       };
-    }).filter((entry) => Boolean(entry.userId) && Boolean(entry.donationId) && entry.entriesCount > 0);
+    }).filter((entry) => Boolean(entry.userId) && entry.entriesCount > 0);
 
     const winner = pickWeighted(entries);
     if (!winner) {
       return NextResponse.json({ error: "No entries available to draw." }, { status: 400 });
     }
 
-    const winnerDonationSnap = await adminFirestore.collection("donations").doc(winner.donationId).get();
-    const winnerDonation = winnerDonationSnap.exists
-      ? (winnerDonationSnap.data() as {
-          donorName?: string | null;
-          donorEmail?: string | null;
-          amountCents?: number | null;
-          causeTitle?: string | null;
-        })
-      : null;
+    let winnerDonation: {
+      donorName?: string | null;
+      donorEmail?: string | null;
+      amountCents?: number | null;
+      causeTitle?: string | null;
+    } | null = null;
+    if (winner.donationId) {
+      const winnerDonationSnap = await adminFirestore.collection("donations").doc(winner.donationId).get();
+      winnerDonation = winnerDonationSnap.exists
+        ? (winnerDonationSnap.data() as {
+            donorName?: string | null;
+            donorEmail?: string | null;
+            amountCents?: number | null;
+            causeTitle?: string | null;
+          })
+        : null;
+    }
     const winnerUserSnap = await adminFirestore.collection("users").doc(winner.userId).get();
     const winnerUserData = winnerUserSnap.exists
       ? (winnerUserSnap.data() as { phoneNumber?: string | null })
@@ -84,7 +92,7 @@ export async function POST(
         winner: {
           userId: winner.userId,
           entryId: winner.id,
-          donationId: winner.donationId,
+          donationId: winner.donationId ?? null,
           donorName: winnerDonation?.donorName ?? null,
           donorEmail: winnerDonation?.donorEmail ?? null,
           phoneNumber: winnerUserData?.phoneNumber ?? null,
@@ -105,7 +113,7 @@ export async function POST(
       payload: {
         winnerUserId: winner.userId,
         winnerEntryId: winner.id,
-        winnerDonationId: winner.donationId,
+        winnerDonationId: winner.donationId ?? null,
         winnerPhoneNumber: winnerUserData?.phoneNumber ?? null,
         entriesConsidered: entries.length,
         totalWeight: entries.reduce((sum, entry) => sum + entry.entriesCount, 0),

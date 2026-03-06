@@ -28,6 +28,13 @@ type Giveaway = {
     locationIds?: string[];
     scanSources?: ("in_person" | "remote")[];
   } | null;
+  entryConfig?: {
+    entryUnitPoints?: number;
+    entryMultiplier?: {
+      inPerson?: number;
+      remote?: number;
+    };
+  } | null;
   prize?: {
     name?: string;
     value?: string;
@@ -92,7 +99,26 @@ function eligibilitySummary(giveaway: Giveaway) {
   if (eligibility.scanSources?.length) parts.push(`sources: ${eligibility.scanSources.join(", ")}`);
   if (parts.length === 0) return "Open to all donations.";
   const mode = eligibility.matchMode === "any" ? "ANY" : "ALL";
-  return `${mode} of ${parts.join(" • ")}`;
+  const entryUnitPoints = giveaway.entryConfig?.entryUnitPoints ?? 500;
+  const inPersonMultiplier = giveaway.entryConfig?.entryMultiplier?.inPerson ?? 1;
+  const remoteMultiplier = giveaway.entryConfig?.entryMultiplier?.remote ?? 1;
+  return `${mode} of ${parts.join(" • ")} · ${entryUnitPoints} pts/entry · x${inPersonMultiplier} in-person · x${remoteMultiplier} remote`;
+}
+
+function GiveawayImageThumb({ imageUrl, title }: { imageUrl?: string; title: string }) {
+  if (imageUrl) {
+    return (
+      <div className="h-12 w-12 overflow-hidden rounded-md border border-white/10 bg-white/5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={imageUrl} alt={`${title} prize`} className="h-full w-full object-cover" />
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-white/15 bg-white/5 text-center text-[10px] font-semibold uppercase leading-tight tracking-wide text-zinc-500">
+      No image
+    </div>
+  );
 }
 
 const multiSelectStyles: StylesConfig<Option, true> = {
@@ -182,6 +208,9 @@ export default function AdminGiveawaysPage() {
   const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
   const [sourceInPerson, setSourceInPerson] = useState(false);
   const [sourceRemote, setSourceRemote] = useState(false);
+  const [entryUnitPoints, setEntryUnitPoints] = useState("500");
+  const [inPersonEntryMultiplier, setInPersonEntryMultiplier] = useState("1");
+  const [remoteEntryMultiplier, setRemoteEntryMultiplier] = useState("1");
   const [prizeName, setPrizeName] = useState("");
   const [prizeValue, setPrizeValue] = useState("");
   const [prizeImageUrl, setPrizeImageUrl] = useState("");
@@ -200,6 +229,9 @@ export default function AdminGiveawaysPage() {
     setSelectedLocationIds(giveaway?.eligibility?.locationIds ?? []);
     setSourceInPerson(Boolean(giveaway?.eligibility?.scanSources?.includes("in_person")));
     setSourceRemote(Boolean(giveaway?.eligibility?.scanSources?.includes("remote")));
+    setEntryUnitPoints(String(giveaway?.entryConfig?.entryUnitPoints ?? 500));
+    setInPersonEntryMultiplier(String(giveaway?.entryConfig?.entryMultiplier?.inPerson ?? 1));
+    setRemoteEntryMultiplier(String(giveaway?.entryConfig?.entryMultiplier?.remote ?? 1));
     setPrizeName(giveaway?.prize?.name ?? "");
     setPrizeValue(giveaway?.prize?.value ?? "");
     setPrizeImageUrl(giveaway?.prize?.imageUrl ?? "");
@@ -345,6 +377,9 @@ export default function AdminGiveawaysPage() {
     setSaving(true);
     setActionMessage(null);
     try {
+      const unit = Math.max(1, Math.floor(Number(entryUnitPoints) || 500));
+      const inPersonMultiplier = Math.max(1, Math.floor(Number(inPersonEntryMultiplier) || 1));
+      const remoteMultiplier = Math.max(1, Math.floor(Number(remoteEntryMultiplier) || 1));
       const idToken = await user.getIdToken();
       const payload = {
         title,
@@ -359,6 +394,13 @@ export default function AdminGiveawaysPage() {
               ...(sourceInPerson ? (["in_person"] as const) : []),
               ...(sourceRemote ? (["remote"] as const) : []),
           ],
+        },
+        entryConfig: {
+          entryUnitPoints: unit,
+          entryMultiplier: {
+            inPerson: inPersonMultiplier,
+            remote: remoteMultiplier,
+          },
         },
         prize: {
           name: prizeName.trim(),
@@ -580,6 +622,7 @@ async function drawWinner(id: string) {
           <table className="min-w-full border-collapse text-sm">
             <thead className="bg-white/[0.02] text-left text-xs uppercase tracking-wide text-zinc-400">
               <tr>
+                <th className="px-4 py-3">Image</th>
                 <th className="px-4 py-3">Title</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Winner</th>
@@ -589,13 +632,16 @@ async function drawWinner(id: string) {
             <tbody>
               {pendingGiveaways.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-zinc-400">
+                  <td colSpan={5} className="px-4 py-4 text-center text-zinc-400">
                     No giveaways match the selected statuses.
                   </td>
                 </tr>
               ) : (
                 pendingGiveaways.map((g) => (
                   <tr key={g.id} className="border-t border-white/5 hover:bg-white/[0.02]">
+                    <td className="px-4 py-3 align-top">
+                      <GiveawayImageThumb imageUrl={g.prize?.imageUrl} title={g.title} />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-semibold text-white">{g.title}</div>
                       <div className="text-xs text-zinc-400 line-clamp-2">{g.description}</div>
@@ -702,6 +748,7 @@ async function drawWinner(id: string) {
           <table className="min-w-full border-collapse text-sm">
             <thead className="bg-emerald-500/10 text-left text-xs uppercase tracking-wide text-emerald-100/90">
               <tr>
+                <th className="px-4 py-3">Image</th>
                 <th className="px-4 py-3">Giveaway</th>
                 <th className="px-4 py-3">Winner</th>
                 <th className="px-4 py-3">Donation</th>
@@ -712,13 +759,16 @@ async function drawWinner(id: string) {
             <tbody>
               {decidedGiveaways.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-center text-zinc-300">
+                  <td colSpan={6} className="px-4 py-4 text-center text-zinc-300">
                     No winners selected yet.
                   </td>
                 </tr>
               ) : (
                 decidedGiveaways.map((g) => (
                   <tr key={`winner-${g.id}`} className="border-t border-emerald-400/20 hover:bg-emerald-500/[0.08]">
+                    <td className="px-4 py-3 align-top">
+                      <GiveawayImageThumb imageUrl={g.prize?.imageUrl} title={g.title} />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-semibold text-white">{g.title}</div>
                       <div className="text-xs text-zinc-300">{g.description}</div>
@@ -1022,6 +1072,52 @@ async function drawWinner(id: string) {
                             />
                           </div>
                         </label>
+                      </fieldset>
+
+                      {/* Entry logic section */}
+                      <fieldset className="space-y-4 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4">
+                        <legend className="px-2 text-sm font-semibold text-white">Entry logic</legend>
+                        <label className="block">
+                          <span className="text-sm font-medium text-zinc-300">Points threshold per entry</span>
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            className="mt-1.5 h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-emerald-400/50 focus:ring-1 focus:ring-emerald-400/20"
+                            value={entryUnitPoints}
+                            onChange={(e) => setEntryUnitPoints(e.target.value)}
+                            placeholder="500"
+                          />
+                        </label>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <label className="block">
+                            <span className="text-sm font-medium text-zinc-300">In-person entry multiplier</span>
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              className="mt-1.5 h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-emerald-400/50 focus:ring-1 focus:ring-emerald-400/20"
+                              value={inPersonEntryMultiplier}
+                              onChange={(e) => setInPersonEntryMultiplier(e.target.value)}
+                              placeholder="1"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-sm font-medium text-zinc-300">Remote entry multiplier</span>
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              className="mt-1.5 h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-emerald-400/50 focus:ring-1 focus:ring-emerald-400/20"
+                              value={remoteEntryMultiplier}
+                              onChange={(e) => setRemoteEntryMultiplier(e.target.value)}
+                              placeholder="1"
+                            />
+                          </label>
+                        </div>
+                        <p className="text-xs text-zinc-500">
+                          Entries are calculated per giveaway from carryover points, then multiplied by source.
+                        </p>
                       </fieldset>
                     </div>
 
