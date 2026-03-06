@@ -280,7 +280,7 @@ export default function AdminDonationsPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <div className="text-xs uppercase tracking-wide text-zinc-400">
-                      Giveaway entries
+                      Community drawing entries
                     </div>
                     <div className="mt-1 font-medium">{selected.giveawayEntries ?? "—"}</div>
                   </div>
@@ -294,10 +294,10 @@ export default function AdminDonationsPage() {
 
                 <div className="space-y-1 rounded-lg border border-white/10 bg-white/[0.02] p-3">
                   <div className="text-xs uppercase tracking-wide text-zinc-400">
-                    Giveaway capture diagnostics
+                    Community drawing capture diagnostics
                   </div>
                   <div className="text-xs text-zinc-300">
-                    Eligible giveaways: {selected.giveawayCapture?.eligibleGiveawayIds?.join(", ") || "none"}
+                    Eligible community drawings: {selected.giveawayCapture?.eligibleGiveawayIds?.join(", ") || "none"}
                   </div>
                   <div className="text-xs text-zinc-300">
                     User ID present: {selected.giveawayCapture?.userIdPresent ? "yes" : "no"}

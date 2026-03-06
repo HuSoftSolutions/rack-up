@@ -273,7 +273,7 @@ export default function AdminUsersPage() {
     setManualEntriesError(null);
     try {
       if (manualEntriesForm.giveawayIds.length === 0) {
-        throw new Error("Select at least one giveaway.");
+        throw new Error("Select at least one community drawing.");
       }
       const entriesCount = Number(manualEntriesForm.entriesCount);
       if (!Number.isFinite(entriesCount) || entriesCount <= 0) {
@@ -297,11 +297,11 @@ export default function AdminUsersPage() {
         }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || json.error) throw new Error(json.error ?? "Failed to add manual entries.");
+      if (!res.ok || json.error) throw new Error(json.error ?? "Failed to add manual community drawing entries.");
       setManualEntriesOpen(false);
       setManualEntriesForm({ giveawayIds: [], entriesCount: "1", reason: "" });
     } catch (err) {
-      setManualEntriesError(err instanceof Error ? err.message : "Failed to add manual entries.");
+      setManualEntriesError(err instanceof Error ? err.message : "Failed to add manual community drawing entries.");
     } finally {
       setManualEntriesSaving(false);
     }
@@ -855,7 +855,7 @@ export default function AdminUsersPage() {
                           setManualEntriesOpen(true);
                         }}
                       >
-                        Add giveaway entries
+                        Add community drawing entries
                       </Button>
                       <Button
                         color="emerald"
@@ -1086,7 +1086,7 @@ export default function AdminUsersPage() {
       </Dialog>
 
       <Dialog open={manualEntriesOpen} onClose={() => setManualEntriesOpen(false)} size="md">
-        <DialogTitle>Add giveaway entries</DialogTitle>
+        <DialogTitle>Add community drawing entries</DialogTitle>
         <DialogBody className="space-y-4">
           <div className="text-xs text-zinc-500">
             {manualEntriesUser?.email ?? manualEntriesUser?.uid ?? ""}
@@ -1098,11 +1098,11 @@ export default function AdminUsersPage() {
           ) : null}
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Giveaways
+              Community drawings
             </label>
             {giveawayOptions.length === 0 ? (
               <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400">
-                No active/closed giveaways available.
+                No active/closed community drawings available.
               </div>
             ) : (
               <div className="max-h-48 space-y-2 overflow-auto rounded-lg border border-white/10 bg-white/5 p-2">
@@ -1132,7 +1132,7 @@ export default function AdminUsersPage() {
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Entries per giveaway
+              Entries per community drawing
             </label>
             <Input
               type="number"
@@ -1154,7 +1154,7 @@ export default function AdminUsersPage() {
               onChange={(event) =>
                 setManualEntriesForm((prev) => ({ ...prev, reason: event.target.value }))
               }
-              placeholder="Manual giveaway entry reason"
+              placeholder="Manual community drawing entry reason"
             />
           </div>
         </DialogBody>

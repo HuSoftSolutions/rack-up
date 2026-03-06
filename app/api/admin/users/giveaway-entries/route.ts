@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const reason = body.reason?.trim();
 
     if (!userId) return badRequest("userId is required.");
-    if (giveawayIds.length === 0) return badRequest("At least one giveaway is required.");
+    if (giveawayIds.length === 0) return badRequest("At least one community drawing is required.");
     if (!Number.isFinite(entriesCount) || entriesCount <= 0) {
       return badRequest("entriesCount must be a positive whole number.");
     }
@@ -51,12 +51,12 @@ export async function POST(request: Request) {
         const giveawayRef = adminFirestore.collection("giveaways").doc(giveawayId);
         const giveawaySnap = await tx.get(giveawayRef);
         if (!giveawaySnap.exists) {
-          throw new Error(`Giveaway not found: ${giveawayId}`);
+          throw new Error(`Community drawing not found: ${giveawayId}`);
         }
         const giveawayData = giveawaySnap.data() as { status?: string; title?: string } | undefined;
         const status = giveawayData?.status ?? "draft";
         if (status !== "active" && status !== "closed") {
-          throw new Error(`Giveaway ${giveawayId} must be active or closed.`);
+          throw new Error(`Community drawing ${giveawayId} must be active or closed.`);
         }
         const entryConfig = normalizeGiveawayEntryConfig(
           (giveawayData as { entryConfig?: unknown } | undefined)?.entryConfig,
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
       const status = err.message.includes("Admin") ? 403 : 401;
       return NextResponse.json({ error: err.message }, { status });
     }
-    const message = err instanceof Error ? err.message : "Failed to grant manual giveaway entries.";
+    const message = err instanceof Error ? err.message : "Failed to grant manual community drawing entries.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

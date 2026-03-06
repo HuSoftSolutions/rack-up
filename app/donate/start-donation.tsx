@@ -229,7 +229,7 @@ export default function DonateClient({
           Estimated points: <span className="font-semibold">{estimatedPoints}</span>
         </div>
         <div className="text-xs text-zinc-400">
-          Giveaway entries are based on each eligible giveaway&apos;s configured points threshold and
+          Community drawing entries are based on each eligible community drawing&apos;s configured points threshold and
           multiplier. Points carry over across donations and drawings are monthly.
         </div>
         <GiveawayProgressCard estimatedPoints={estimatedPoints} />

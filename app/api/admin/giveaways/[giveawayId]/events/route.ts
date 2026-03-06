@@ -29,7 +29,7 @@ export async function GET(request: Request, context: { params: Promise<{ giveawa
     await requireAdmin(request);
     const { giveawayId } = await context.params;
     if (!giveawayId) {
-      return NextResponse.json({ error: "giveawayId is required." }, { status: 400 });
+      return NextResponse.json({ error: "Community drawing ID is required." }, { status: 400 });
     }
     const url = new URL(request.url);
     const limit = clampLimit(url.searchParams.get("limit"), 200);
@@ -70,7 +70,7 @@ export async function GET(request: Request, context: { params: Promise<{ giveawa
       const status = err.message.includes("Admin") ? 403 : 401;
       return NextResponse.json({ error: err.message }, { status });
     }
-    const message = err instanceof Error ? err.message : "Failed to load giveaway history.";
+    const message = err instanceof Error ? err.message : "Failed to load community drawing history.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

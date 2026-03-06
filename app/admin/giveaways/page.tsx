@@ -247,7 +247,7 @@ export default function AdminGiveawaysPage() {
     setError(null);
     try {
       if ((prizeValue.trim() || prizeImageUrl.trim() || prizeDescription.trim()) && !prizeName.trim()) {
-        throw new Error("Giveaway item name is required when item details are provided.");
+        throw new Error("Community drawing item name is required when item details are provided.");
       }
       const idToken = await user.getIdToken();
       const [giveawaysRes, causesRes, entitiesRes] = await Promise.all([
@@ -264,7 +264,7 @@ export default function AdminGiveawaysPage() {
 
       const giveawaysJson = (await giveawaysRes.json()) as { giveaways?: Giveaway[]; error?: string };
       if (!giveawaysRes.ok || !giveawaysJson.giveaways) {
-        throw new Error(giveawaysJson.error ?? "Failed to load giveaways.");
+        throw new Error(giveawaysJson.error ?? "Failed to load community drawings.");
       }
       setGiveaways(giveawaysJson.giveaways);
 
@@ -305,7 +305,7 @@ export default function AdminGiveawaysPage() {
         setLocationOptions(locationOpts);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load giveaways.");
+      setError(err instanceof Error ? err.message : "Failed to load community drawings.");
     } finally {
       setLoading(false);
     }
@@ -418,12 +418,12 @@ export default function AdminGiveawaysPage() {
         body: JSON.stringify(editing ? { id: editingId, ...payload } : payload),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || json.error) throw new Error(json.error ?? "Failed to save giveaway.");
+      if (!res.ok || json.error) throw new Error(json.error ?? "Failed to save community drawing.");
       await loadGiveaways();
       setModalOpen(false);
       setActionMessage("Saved.");
     } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "Failed to save giveaway.");
+      setActionMessage(err instanceof Error ? err.message : "Failed to save community drawing.");
     } finally {
       setSaving(false);
     }
@@ -515,7 +515,7 @@ async function drawWinner(id: string) {
     if (!entriesGiveaway || entries.length === 0) return;
     const headers = [
       "Entry ID",
-      "Giveaway ID",
+      "Community Drawing ID",
       "Donation ID",
       "User ID",
       "Entries",
@@ -550,7 +550,7 @@ async function drawWinner(id: string) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `giveaway-${entriesGiveaway.id}-entries.csv`;
+    link.download = `community-drawing-${entriesGiveaway.id}-entries.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -568,8 +568,8 @@ async function drawWinner(id: string) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Admin</p>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Giveaways</h1>
-          <p className="mt-1 text-sm text-zinc-500">Create and manage global giveaways.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Community Drawings</h1>
+          <p className="mt-1 text-sm text-zinc-500">Create and manage global community drawings.</p>
         </div>
         <button
           type="button"
@@ -581,7 +581,7 @@ async function drawWinner(id: string) {
           }}
           className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-500 px-5 text-sm font-semibold text-white hover:bg-emerald-400"
         >
-          + New Giveaway
+          + New Community Drawing
         </button>
       </div>
 
@@ -599,7 +599,7 @@ async function drawWinner(id: string) {
       <div className="overflow-hidden rounded-xl border border-white/5 bg-white/[0.02]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-4 py-3 text-sm">
           <div>
-            <div className="font-semibold text-white">Giveaways Awaiting Winner</div>
+            <div className="font-semibold text-white">Community Drawings Awaiting Winner</div>
             <div className="text-xs text-zinc-500">
               {loading ? "Loading…" : `${pendingGiveaways.length} shown of ${giveaways.length} total`}
             </div>
@@ -633,7 +633,7 @@ async function drawWinner(id: string) {
               {pendingGiveaways.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-4 text-center text-zinc-400">
-                    No giveaways match the selected statuses.
+                    No community drawings match the selected statuses.
                   </td>
                 </tr>
               ) : (
@@ -740,7 +740,7 @@ async function drawWinner(id: string) {
           <div>
             <div className="font-semibold text-white">Winners Selected</div>
             <div className="text-xs text-emerald-100/70">
-              {loading ? "Loading…" : `${decidedGiveaways.length} giveaway${decidedGiveaways.length === 1 ? "" : "s"}`}
+              {loading ? "Loading…" : `${decidedGiveaways.length} community drawing${decidedGiveaways.length === 1 ? "" : "s"}`}
             </div>
           </div>
         </div>
@@ -749,7 +749,7 @@ async function drawWinner(id: string) {
             <thead className="bg-emerald-500/10 text-left text-xs uppercase tracking-wide text-emerald-100/90">
               <tr>
                 <th className="px-4 py-3">Image</th>
-                <th className="px-4 py-3">Giveaway</th>
+                <th className="px-4 py-3">Community drawing</th>
                 <th className="px-4 py-3">Winner</th>
                 <th className="px-4 py-3">Donation</th>
                 <th className="px-4 py-3">Drawn</th>
@@ -840,7 +840,7 @@ async function drawWinner(id: string) {
                   <div className="flex items-center justify-between border-b border-white/[0.06] bg-white/[0.02] px-6 py-4">
                     <div>
                       <h2 className="text-lg font-semibold text-white">
-                        {editing ? "Edit giveaway" : "New giveaway"}
+                        {editing ? "Edit community drawing" : "New community drawing"}
                       </h2>
                       {editing ? (
                         <p className="mt-0.5 text-xs text-zinc-500">ID: {editingId}</p>
@@ -865,7 +865,7 @@ async function drawWinner(id: string) {
                             className="mt-1.5 h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-emerald-400/50 focus:ring-1 focus:ring-emerald-400/20"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            placeholder="Giveaway title"
+                            placeholder="Community drawing title"
                           />
                         </label>
 
@@ -934,7 +934,7 @@ async function drawWinner(id: string) {
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={prizeImageUrl}
-                                  alt="Giveaway item preview"
+                                  alt="Community drawing item preview"
                                   className="h-20 w-20 rounded-lg border border-white/10 object-cover"
                                 />
                                 <button
@@ -1116,7 +1116,7 @@ async function drawWinner(id: string) {
                           </label>
                         </div>
                         <p className="text-xs text-zinc-500">
-                          Entries are calculated per giveaway from carryover points, then multiplied by source.
+                          Entries are calculated per community drawing from carryover points, then multiplied by source.
                         </p>
                       </fieldset>
                     </div>
@@ -1136,7 +1136,7 @@ async function drawWinner(id: string) {
                         onClick={saveGiveaway}
                         disabled={saving || prizeImageUploading}
                       >
-                        {saving ? "Saving…" : editing ? "Update giveaway" : "Create giveaway"}
+                        {saving ? "Saving…" : editing ? "Update community drawing" : "Create community drawing"}
                       </button>
                     </div>
                   </div>

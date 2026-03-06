@@ -31,7 +31,7 @@ const navItems: NavItem[] = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/causes", label: "Charities" },
   { href: "/admin/qrs", label: "QR Codes" },
-  { href: "/admin/giveaways", label: "Giveaways" },
+  { href: "/admin/giveaways", label: "Community Drawings" },
   { href: "/admin/businesses", label: "Businesses" },
   { href: "/admin/donations", label: "Support" },
 ];

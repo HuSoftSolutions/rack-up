@@ -78,6 +78,6 @@ export async function GET(request: Request) {
     if (err instanceof AuthError) {
       return NextResponse.json({ error: err.message }, { status: 401 });
     }
-    return NextResponse.json({ error: "Failed to load giveaway progress." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load community drawing progress." }, { status: 500 });
   }
 }

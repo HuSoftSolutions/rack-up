@@ -68,10 +68,10 @@ export default function PhoneEligibilityPrompt() {
   return (
     <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/80 px-4 py-8">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0f1217] p-6 text-white shadow-2xl">
-        <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Giveaway eligibility</div>
+        <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Community drawing eligibility</div>
         <div className="mt-1 text-xl font-semibold">Add your phone number</div>
         <p className="mt-2 text-sm text-zinc-300">
-          A phone number is required so we can contact giveaway winners quickly.
+          A phone number is required so we can contact community drawing winners quickly.
         </p>
 
         <label className="mt-4 block">

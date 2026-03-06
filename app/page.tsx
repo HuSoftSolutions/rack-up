@@ -352,15 +352,15 @@ export default async function Home() {
                 <div className="text-5xl font-bold text-emerald-400/20">03</div>
                 <h3 className="mt-2 text-lg font-semibold text-white">Earn rewards &amp; prizes</h3>
                 <p className="mt-1 text-sm leading-relaxed text-zinc-400">
-                  Giveaways are drawn monthly. Entry thresholds and multipliers can vary by giveaway,
+                  Community drawings are held monthly. Entry thresholds and multipliers can vary by community drawing,
                   and your carryover points continue between donations until an entry is reached.
                 </p>
               </div>
             </div>
 
             <div className="mt-8 rounded-xl border border-emerald-300/20 bg-emerald-500/[0.08] p-4 text-sm text-emerald-100">
-              <span className="font-semibold">Giveaway entry rules:</span> drawings happen once per month,
-              and entry credit is cumulative per giveaway using that giveaway&apos;s configured threshold.
+              <span className="font-semibold">Community drawing entry rules:</span> drawings happen once per month,
+              and entry credit is cumulative per community drawing using that community drawing&apos;s configured threshold.
             </div>
             <ClientOnly>
               <GiveawayProgressCard className="mt-3" />
@@ -384,7 +384,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* ── 4. Active Giveaways ── */}
+        {/* ── 4. Active Community Drawings ── */}
         <section className="space-y-8 py-20">
           <div className="flex flex-col items-center text-center">
             <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-300">
@@ -394,7 +394,7 @@ export default async function Home() {
               </span>
               Live prizes
             </span>
-            <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Current giveaway items</h2>
+            <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Current community drawing items</h2>
             <p className="mt-1 text-sm text-zinc-400">
               Win prizes by supporting verified causes.
             </p>
@@ -402,7 +402,7 @@ export default async function Home() {
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {giveaways.length === 0 ? (
               <div className="rounded-xl border border-emerald-400/20 bg-gradient-to-b from-emerald-500/[0.08] to-transparent p-5 text-sm text-zinc-300">
-                No giveaway items are published right now.
+                No community drawing items are published right now.
               </div>
             ) : (
               giveaways.map((giveaway) => (
@@ -424,7 +424,7 @@ export default async function Home() {
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
                     </span>
-                    Active giveaway
+                    Active community drawing
                   </div>
                   <div className="mt-1 text-lg font-semibold text-white">
                     {giveaway.prize?.name ?? giveaway.title}

@@ -149,7 +149,7 @@ export default function LocationPrintLandingPage({
     const url = publicUrl;
     let canceled = false;
     async function generate() {
-      const data = await QRCode.toDataURL(url, { margin: 1, width: 560 });
+      const data = await QRCode.toDataURL(url, { margin: 1, width: 300 });
       if (!canceled) setQrDataUrl(data);
     }
     void generate();
@@ -184,7 +184,7 @@ export default function LocationPrintLandingPage({
     <div className="min-h-screen bg-white px-0 py-0 text-black">
       <div
         id="print-sheet"
-        className="mx-auto flex w-full max-w-[8.27in] flex-col gap-4 bg-white px-8 py-8 print:min-h-[10.8in] print:max-w-none print:justify-between print:gap-3 print:px-5 print:py-5"
+        className="mx-auto flex w-full max-w-[8.27in] flex-col gap-3 bg-white px-6 py-6 print:min-h-[10.8in] print:max-w-none print:gap-2 print:px-4 print:py-4"
         ref={printableRef}
       >
         <header className="flex items-start justify-between gap-3 print:hidden">
@@ -216,67 +216,82 @@ export default function LocationPrintLandingPage({
           </div>
         </header>
 
-        <div className="flex-1 overflow-hidden rounded-3xl border border-black/10 shadow-sm print:border-none print:shadow-none">
-          <div className="grid gap-0 md:grid-cols-2">
-            <div className="flex flex-col gap-4 bg-white p-6">
-              <div className="text-xs uppercase tracking-wide text-zinc-500">
-                {toTitle(business.name)} · {toTitle(location.name)}
-              </div>
-              <div className="text-3xl font-semibold leading-tight text-black">
-                Choose a charity to support
-              </div>
-              <p className="text-sm text-zinc-800">
-                Scan the QR code to pick a cause and support securely. Every support earns Rack Up
-                points instantly.
-              </p>
-                <div className="rounded-2xl border border-black/10 bg-black/[.03] p-4 text-sm">
-                <div className="font-semibold text-black">Available charities</div>
-                {causes.length === 0 ? (
-                  <div className="text-zinc-800">No charities are available right now.</div>
-                ) : (
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-zinc-800">
-                    {causes.map((cause) => (
-                      <li key={cause.id} className="font-semibold">{cause.title}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+        <div className="flex flex-1 flex-col rounded-2xl border border-black/10 bg-white p-4 text-black shadow-sm print:min-h-[10.2in] print:rounded-none print:border-none print:p-2 print:shadow-none break-inside-avoid">
+          <div className="flex items-center justify-between gap-3">
+            <div className="rounded-xl bg-black p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/RackUp-01.svg" alt="Rack Up" className="h-7 w-auto" />
             </div>
-            <div className="flex flex-col items-center justify-center bg-white p-6">
-              {qrDataUrl ? (
-                <div className="rounded-3xl border border-black/10 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              {business.logoUrl ? (
+                <div className="rounded-xl bg-black p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrDataUrl} alt="QR code" className="h-80 w-80 rounded-2xl" />
+                  <img
+                    src={business.logoUrl}
+                    alt={`${business.name} logo`}
+                    className="h-10 w-auto max-w-[140px] object-contain"
+                  />
                 </div>
-              ) : (
-                <div className="h-80 w-80 rounded-3xl border border-dashed border-black/20 p-4 text-sm text-zinc-500">
-                  Generating QR...
+              ) : null}
+              {location.logoUrl ? (
+                <div className="rounded-xl bg-black p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={location.logoUrl}
+                    alt={`${location.name ?? location.id} logo`}
+                    className="h-10 w-auto max-w-[140px] object-contain"
+                  />
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
-        </div>
 
-        <div className="w-full rounded-3xl bg-zinc-700 px-8 py-4">
-          <div className="flex items-center justify-center gap-8">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/RackUp-01.svg" alt="Rack Up" className="h-14 w-auto" />
-            {business.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={business.logoUrl}
-                alt={`${business.name} logo`}
-                className="h-16 w-auto max-w-[220px] object-contain"
-              />
-            ) : null}
-            {location.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={location.logoUrl}
-                alt={`${location.name ?? location.id} logo`}
-                className="h-16 w-auto max-w-[220px] object-contain"
-              />
-            ) : null}
+          <div className="mt-5 text-xs font-semibold uppercase tracking-wide text-black">
+            {toTitle(business.name)} · {toTitle(location.name)}
+          </div>
+          <div className="mt-1 text-3xl font-semibold leading-tight text-black print:text-[30px]">
+            Choose a charity to support
+          </div>
+          <p className="mt-2 text-sm leading-6 text-black print:text-[13px] print:leading-5">
+            Scan this location QR to open the secure support page and choose from all available
+            charities at this location.
+          </p>
+
+          <div className="mt-3 rounded-2xl border border-black/10 bg-black/[.03] p-3 text-sm text-black print:text-[13px]">
+            <div className="font-semibold text-black">Available charities</div>
+            {causes.length === 0 ? (
+              <div className="mt-1 text-black">No charities are available right now.</div>
+            ) : (
+              <ul className="mt-1.5 list-disc space-y-1 pl-5 text-black">
+                {causes.map((cause) => (
+                  <li key={cause.id} className="font-semibold">
+                    {cause.title}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="mt-5 flex flex-1 items-center justify-center">
+            {qrDataUrl ? (
+              <div className="rounded-2xl border border-black/10 bg-white p-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrDataUrl} alt="QR code" className="h-64 w-64 print:h-72 print:w-72" />
+              </div>
+            ) : (
+              <div className="h-64 w-64 rounded-2xl border border-dashed border-black/20 p-4 text-sm text-black/70">
+                Generating QR...
+              </div>
+            )}
+          </div>
+
+          <div className="mt-auto rounded-2xl border border-black/10 bg-black/[.03] p-3 text-center text-black">
+            <div className="text-base font-semibold">Scan this QR code to choose a charity</div>
+            <div className="mt-1 text-sm">
+              Open the secure Rack Up page, select a charity, choose an amount, and earn points
+              automatically.
+            </div>
+            <div className="mt-1 text-xs">Tip: Open your camera, scan the code, and follow the prompts.</div>
           </div>
         </div>
 

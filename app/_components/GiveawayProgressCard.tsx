@@ -39,10 +39,10 @@ export default function GiveawayProgressCard({
           headers: { Authorization: `Bearer ${idToken}` },
         });
         const json = (await res.json()) as GiveawayProgress & { error?: string };
-        if (!res.ok) throw new Error(json.error ?? "Failed to load giveaway progress.");
+        if (!res.ok) throw new Error(json.error ?? "Failed to load community drawing progress.");
         if (!canceled) setProgress(json);
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load giveaway progress.");
+        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load community drawing progress.");
       } finally {
         if (!canceled) setLoading(false);
       }
@@ -67,7 +67,7 @@ export default function GiveawayProgressCard({
   if (!authLoading && !user) {
     return (
       <div className={`rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-zinc-300 ${className}`}>
-        Sign in to track giveaway progress. Entry thresholds vary by giveaway.
+        Sign in to track community drawing progress. Entry thresholds vary by community drawing.
       </div>
     );
   }
@@ -75,7 +75,7 @@ export default function GiveawayProgressCard({
   if (loading) {
     return (
       <div className={`rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-zinc-400 ${className}`}>
-        Loading giveaway progress...
+        Loading community drawing progress...
       </div>
     );
   }
@@ -95,14 +95,14 @@ export default function GiveawayProgressCard({
   return (
     <div className={`rounded-xl border border-emerald-300/20 bg-emerald-500/[0.08] p-3 ${className}`}>
       <div className="text-xs font-semibold uppercase tracking-wide text-emerald-200">
-        Giveaway progress
+        Community drawing progress
       </div>
       <div className="mt-1 text-sm text-emerald-50">
-        <span className="font-semibold">{pointsToNextEntry}</span> points until your next giveaway entry.
+        <span className="font-semibold">{pointsToNextEntry}</span> points until your next community drawing entry.
       </div>
       <div className="mt-1 text-xs text-emerald-100/90">
         Carryover: {carryPoints}/{entryUnit} points. Every {entryUnit} points earned = 1 entry
-        in each eligible active giveaway.
+        in each eligible active community drawing.
       </div>
       {projected ? (
         <div className="mt-1 text-xs text-emerald-100/90">

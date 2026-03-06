@@ -75,7 +75,7 @@ export default function PrintableRemoteLandingQr({ config }: { config: Config })
               <div className="text-3xl font-semibold leading-tight">Support remotely</div>
               <p className="text-sm text-zinc-700">
                 Scan to choose a charity and donate from anywhere. Remote points apply and each
-                donation counts toward giveaways.
+                donation counts toward community drawings.
               </p>
               <div className="rounded-2xl bg-black/[.03] p-4 text-sm">
                 <div className="font-semibold text-zinc-900">Remote support</div>

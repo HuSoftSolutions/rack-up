@@ -30,7 +30,7 @@ export async function GET(request: Request, context: { params: Promise<{ giveawa
     await requireAdmin(request);
     const { giveawayId } = await context.params;
     if (!giveawayId) {
-      return NextResponse.json({ error: "giveawayId is required." }, { status: 400 });
+      return NextResponse.json({ error: "Community drawing ID is required." }, { status: 400 });
     }
     const url = new URL(request.url);
     const limit = clampLimit(url.searchParams.get("limit"), 500);

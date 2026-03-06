@@ -34,14 +34,14 @@ export async function POST(
     const giveawayRef = adminFirestore.collection("giveaways").doc(giveawayId);
     const giveawaySnap = await giveawayRef.get();
     if (!giveawaySnap.exists) {
-      return NextResponse.json({ error: "Giveaway not found." }, { status: 404 });
+      return NextResponse.json({ error: "Community drawing not found." }, { status: 404 });
     }
     const giveaway = giveawaySnap.data() as { status?: string; winner?: unknown };
     if (giveaway.status === "drawn" || giveaway.winner) {
       return NextResponse.json({ error: "Winner already drawn." }, { status: 400 });
     }
     if (giveaway.status !== "active" && giveaway.status !== "closed") {
-      return NextResponse.json({ error: "Giveaway must be active or closed to draw." }, { status: 400 });
+      return NextResponse.json({ error: "Community drawing must be active or closed to draw." }, { status: 400 });
     }
 
     const entriesSnap = await adminFirestore

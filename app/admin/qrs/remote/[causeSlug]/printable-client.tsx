@@ -79,7 +79,7 @@ export default function PrintableRemoteCauseQr({ config }: { config: Config }) {
               <div className="text-3xl font-semibold leading-tight">{config.causeTitle}</div>
               <p className="text-sm text-zinc-700">
                 Scan to support this charity remotely. Remote points apply and each donation counts
-                toward giveaways.
+                toward community drawings.
               </p>
               <div className="rounded-2xl bg-black/[.03] p-4 text-sm">
                 <div className="font-semibold text-zinc-900">Remote support</div>

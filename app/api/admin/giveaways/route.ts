@@ -82,7 +82,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: err.message }, { status });
     }
     console.error(err);
-    return NextResponse.json({ error: "Failed to load giveaways." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load community drawings." }, { status: 500 });
   }
 }
 
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: err.message }, { status });
     }
     console.error(err);
-    return NextResponse.json({ error: "Failed to create giveaway." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to create community drawing." }, { status: 500 });
   }
 }
 
@@ -161,7 +161,7 @@ export async function PATCH(request: Request) {
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
     const ref = adminFirestore.collection("giveaways").doc(id);
     const snap = await ref.get();
-    if (!snap.exists) return NextResponse.json({ error: "Giveaway not found." }, { status: 404 });
+    if (!snap.exists) return NextResponse.json({ error: "Community drawing not found." }, { status: 404 });
     await ref.set(
       {
         ...(body.title ? { title: body.title.trim() } : {}),
@@ -211,6 +211,6 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: err.message }, { status });
     }
     console.error(err);
-    return NextResponse.json({ error: "Failed to update giveaway." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update community drawing." }, { status: 500 });
   }
 }
