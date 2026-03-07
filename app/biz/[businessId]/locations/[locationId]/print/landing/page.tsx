@@ -39,11 +39,34 @@ type LocationCause = {
   id: string;
   title: string;
   url: string;
+  pointsSummary: string;
 };
 
 function toTitle(value?: string | null) {
   if (!value) return "N/A";
   return value;
+}
+
+function toPointsSummary(cause: CauseRow): string {
+  const options = [...(cause.predefinedOptions ?? [])]
+    .filter((option) => Number.isFinite(option.amountCents) && Number.isFinite(option.points))
+    .sort((a, b) => a.amountCents - b.amountCents);
+
+  if (options.length > 0) {
+    return `Options: ${options
+      .map((option) => `${(option.amountCents / 100).toFixed(2)} -> ${option.points} pts`)
+      .join("; ")}.`;
+  }
+
+  const rate = typeof cause.pointsPerDollar === "number" ? cause.pointsPerDollar : null;
+  if (rate !== null) {
+    const min = typeof cause.minAmountCents === "number" ? `$${(cause.minAmountCents / 100).toFixed(2)}` : null;
+    const max = typeof cause.maxAmountCents === "number" ? `$${(cause.maxAmountCents / 100).toFixed(2)}` : null;
+    const range = min && max ? ` (${min} - ${max})` : min ? ` (from ${min})` : max ? ` (up to ${max})` : "";
+    return `${rate} pts per $1${range}.`;
+  }
+
+  return "Points vary by selected amount.";
 }
 
 export default function LocationPrintLandingPage({
@@ -113,6 +136,7 @@ export default function LocationPrintLandingPage({
               id: cause.id,
               title: cause.title ?? cause.id,
               url: match.url,
+              pointsSummary: toPointsSummary(cause),
             };
           })
           .filter(Boolean) as LocationCause[];
@@ -266,6 +290,22 @@ export default function LocationPrintLandingPage({
                 {causes.map((cause) => (
                   <li key={cause.id} className="font-semibold">
                     {cause.title}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-black/10 bg-black/[.03] p-3 text-sm text-black print:text-[13px]">
+            <div className="font-semibold text-black">How to earn points here</div>
+            {causes.length === 0 ? (
+              <div className="mt-1 text-black">Points details will appear when charities are available.</div>
+            ) : (
+              <ul className="mt-1.5 space-y-1.5 text-black">
+                {causes.map((cause) => (
+                  <li key={`points-${cause.id}`}>
+                    <span className="font-semibold">{cause.title}: </span>
+                    <span>{cause.pointsSummary}</span>
                   </li>
                 ))}
               </ul>
