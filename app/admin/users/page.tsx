@@ -7,6 +7,7 @@ import { Input } from "@/ui-kit/input";
 import { Select } from "@/ui-kit/select";
 import { Switch, SwitchField } from "@/ui-kit/switch";
 import { Dialog, DialogActions, DialogBody, DialogTitle } from "@/ui-kit/dialog";
+import { Dropdown, DropdownButton, DropdownItem, DropdownMenu } from "@/ui-kit/dropdown";
 
 type AdminUser = {
   uid: string;
@@ -790,7 +791,12 @@ export default function AdminUsersPage() {
                     <div className="font-medium text-white">{u.email ?? "—"}</div>
                     <div className="text-xs text-zinc-400">{u.uid}</div>
                   </td>
-                  <td className="px-4 py-2 text-zinc-200">{u.displayName ?? "—"}</td>
+                  <td className="px-4 py-2 text-zinc-200">
+                    <div className="space-y-0.5">
+                      <div className="font-medium text-white">{u.displayName ?? "—"}</div>
+                      <div className="text-xs text-zinc-400">{u.phoneNumber ?? "No phone"}</div>
+                    </div>
+                  </td>
                   <td className="px-4 py-2 text-zinc-200">{formatDate(u.createdAt)}</td>
                   <td className="px-4 py-2">
                     <div className="flex flex-wrap gap-2 text-xs">
@@ -831,39 +837,46 @@ export default function AdminUsersPage() {
                     </div>
                   </td>
                   <td className="px-4 py-2">
-                    <div className="flex flex-wrap gap-2">
-                      <Button outline onClick={() => openManage(u)}>
-                        Manage
-                      </Button>
-                      <Button
-                        outline
-                        onClick={() => {
-                          setPointsUser(u);
-                          setPointsForm({ pointsDelta: "", reason: "" });
-                          setPointsError(null);
-                          setPointsOpen(true);
-                        }}
-                      >
-                        Adjust points
-                      </Button>
-                      <Button
-                        outline
-                        onClick={() => {
-                          setManualEntriesUser(u);
-                          setManualEntriesForm({ giveawayIds: [], entriesCount: "1", reason: "" });
-                          setManualEntriesError(null);
-                          setManualEntriesOpen(true);
-                        }}
-                      >
-                        Add community drawing entries
-                      </Button>
-                      <Button
-                        color="emerald"
-                        disabled={assumeLoadingUid === u.uid}
-                        onClick={() => handleAssume(u.uid)}
-                      >
-                        {assumeLoadingUid === u.uid ? "Opening…" : "Assume"}
-                      </Button>
+                    <div className="flex justify-end">
+                      <Dropdown>
+                        <DropdownButton
+                          as="button"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                            <path d="M10 4.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm0 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm0 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" />
+                          </svg>
+                        </DropdownButton>
+                        <DropdownMenu anchor="bottom end">
+                          <DropdownItem onClick={() => openManage(u)}>Manage user</DropdownItem>
+                          <DropdownItem
+                            onClick={() => {
+                              setPointsUser(u);
+                              setPointsForm({ pointsDelta: "", reason: "" });
+                              setPointsError(null);
+                              setPointsOpen(true);
+                            }}
+                          >
+                            Adjust points
+                          </DropdownItem>
+                          <DropdownItem
+                            onClick={() => {
+                              setManualEntriesUser(u);
+                              setManualEntriesForm({ giveawayIds: [], entriesCount: "1", reason: "" });
+                              setManualEntriesError(null);
+                              setManualEntriesOpen(true);
+                            }}
+                          >
+                            Add community drawing entries
+                          </DropdownItem>
+                          <DropdownItem
+                            disabled={assumeLoadingUid === u.uid}
+                            onClick={() => handleAssume(u.uid)}
+                          >
+                            {assumeLoadingUid === u.uid ? "Opening…" : "Assume user"}
+                          </DropdownItem>
+                        </DropdownMenu>
+                      </Dropdown>
                     </div>
                   </td>
                 </tr>
