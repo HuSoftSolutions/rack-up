@@ -20,6 +20,19 @@ type StatusResponse = {
   locationId?: string | null;
   locationSlug?: string | null;
   receiptUrl?: string | null;
+  communityDrawingEntries?: number | null;
+  communityDrawings?: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    entriesAllocated: number;
+    prize?: {
+      name?: string;
+      value?: string;
+      imageUrl?: string;
+      description?: string;
+    } | null;
+  }>;
   error?: string;
 };
 
@@ -29,6 +42,7 @@ export default function DonateResultClient() {
   const sessionId = searchParams.get("session_id");
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(!!sessionId);
+  const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const confettiFired = useRef(false);
 
   useEffect(() => {
@@ -104,6 +118,29 @@ export default function DonateResultClient() {
       : status?.success
         ? "Points pending"
         : null;
+  const selectedDrawing =
+    status?.communityDrawings?.find((drawing) => drawing.id === selectedDrawingId) ?? null;
+
+  const awardedEntriesTotal =
+    typeof status?.communityDrawingEntries === "number"
+      ? status.communityDrawingEntries
+      : status?.communityDrawings?.reduce(
+          (sum, drawing) => sum + (Number.isFinite(drawing.entriesAllocated) ? drawing.entriesAllocated : 0),
+          0,
+        ) ?? 0;
+
+  useEffect(() => {
+    if (!selectedDrawing) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedDrawingId(null);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [selectedDrawing]);
 
   const shareText = useMemo(() => {
     if (!status?.success) return "";
@@ -144,6 +181,50 @@ export default function DonateResultClient() {
             <div className="mt-1 text-xs text-emerald-100/70">
               Added to your RackUp account.
             </div>
+          </div>
+        ) : null}
+
+        {status?.success ? (
+          <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-200/80">
+              Community drawing entries allocated
+            </div>
+            <div className="mt-2 text-4xl font-semibold text-emerald-300 sm:text-5xl">
+              {awardedEntriesTotal}
+            </div>
+            <div className="mt-1 text-xs text-emerald-100/70">
+              Based on your eligible active community drawings and their configured thresholds.
+            </div>
+
+            {status.communityDrawings && status.communityDrawings.length > 0 ? (
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {status.communityDrawings.map((drawing) => (
+                  <button
+                    key={drawing.id}
+                    type="button"
+                    onClick={() => setSelectedDrawingId(drawing.id)}
+                    className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 p-3 text-left transition hover:border-emerald-200/60 hover:bg-emerald-400/10"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-white">
+                        {drawing.prize?.name ?? drawing.title}
+                      </div>
+                      <div className="rounded-full border border-emerald-200/40 bg-emerald-300/10 px-2 py-0.5 text-xs font-semibold text-emerald-100">
+                        {drawing.entriesAllocated} entr{drawing.entriesAllocated === 1 ? "y" : "ies"}
+                      </div>
+                    </div>
+                    {drawing.prize?.value ? (
+                      <div className="mt-1 text-xs text-emerald-100/80">Estimated value: {drawing.prize.value}</div>
+                    ) : null}
+                    <div className="mt-1 text-xs text-emerald-200/80">Tap to view details</div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-3 rounded-xl border border-emerald-200/20 bg-emerald-900/20 p-3 text-sm text-emerald-100/85">
+                No entries were allocated from this payment yet.
+              </div>
+            )}
           </div>
         ) : null}
 
@@ -225,6 +306,75 @@ export default function DonateResultClient() {
           </div>
         </div>
       </div>
+
+      {selectedDrawing ? (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 px-4 py-6 backdrop-blur-sm"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setSelectedDrawingId(null);
+          }}
+        >
+          <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-[#0d1117] text-white shadow-2xl shadow-black/50">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <div className="text-sm font-semibold text-white">Community Drawing Details</div>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 transition hover:bg-white/10 hover:text-white"
+                onClick={() => setSelectedDrawingId(null)}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="grid gap-0 md:grid-cols-2">
+              <div className="flex items-center justify-center bg-black/30 p-4">
+                {selectedDrawing.prize?.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selectedDrawing.prize.imageUrl}
+                    alt={selectedDrawing.prize?.name ?? selectedDrawing.title}
+                    className="max-h-[70vh] w-auto max-w-full rounded-lg object-contain"
+                  />
+                ) : (
+                  <div className="flex h-64 w-full items-center justify-center rounded-lg border border-white/10 bg-black/30 text-sm text-zinc-500">
+                    Prize image coming soon
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3 p-5">
+                <div className="text-xs font-medium uppercase tracking-widest text-emerald-300">
+                  Active community drawing
+                </div>
+                <h3 className="text-2xl font-semibold text-white">
+                  {selectedDrawing.prize?.name ?? selectedDrawing.title}
+                </h3>
+                <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200 w-fit">
+                  {selectedDrawing.entriesAllocated} entr{selectedDrawing.entriesAllocated === 1 ? "y" : "ies"} from this donation
+                </div>
+                {selectedDrawing.prize?.value ? (
+                  <div className="text-sm font-semibold text-emerald-200">
+                    Estimated value: {selectedDrawing.prize.value}
+                  </div>
+                ) : null}
+                {selectedDrawing.prize?.description ? (
+                  <p className="text-sm leading-relaxed text-zinc-300">{selectedDrawing.prize.description}</p>
+                ) : null}
+                {selectedDrawing.description ? (
+                  <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Details</div>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
+                      {selectedDrawing.description}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

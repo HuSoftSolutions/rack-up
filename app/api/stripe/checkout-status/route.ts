@@ -14,6 +14,56 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type CommunityDrawingSummary = {
+  id: string;
+  title: string;
+  description: string;
+  entriesAllocated: number;
+  prize: {
+    name?: string;
+    value?: string;
+    imageUrl?: string;
+    description?: string;
+  } | null;
+};
+
+async function buildCommunityDrawingSummaries(
+  entriesByGiveawayId: Record<string, number>,
+): Promise<CommunityDrawingSummary[]> {
+  const giveawayIds = Object.keys(entriesByGiveawayId);
+  if (giveawayIds.length === 0) return [];
+
+  const docs = await Promise.all(
+    giveawayIds.map((id) => adminFirestore.collection("giveaways").doc(id).get()),
+  );
+
+  return docs
+    .filter((doc) => doc.exists)
+    .map((doc) => {
+      const data = doc.data() as Record<string, unknown>;
+      const prizeRaw =
+        data.prize && typeof data.prize === "object"
+          ? (data.prize as Record<string, unknown>)
+          : null;
+      const prize = prizeRaw
+        ? {
+            name: typeof prizeRaw.name === "string" ? prizeRaw.name : undefined,
+            value: typeof prizeRaw.value === "string" ? prizeRaw.value : undefined,
+            imageUrl: typeof prizeRaw.imageUrl === "string" ? prizeRaw.imageUrl : undefined,
+            description: typeof prizeRaw.description === "string" ? prizeRaw.description : undefined,
+          }
+        : null;
+      return {
+        id: doc.id,
+        title: typeof data.title === "string" ? data.title : doc.id,
+        description: typeof data.description === "string" ? data.description : "",
+        entriesAllocated: entriesByGiveawayId[doc.id] ?? 0,
+        prize,
+      } satisfies CommunityDrawingSummary;
+    })
+    .sort((a, b) => b.entriesAllocated - a.entriesAllocated);
+}
+
 async function ensureGiveawayCapture(params: {
   session: Stripe.Checkout.Session;
   paymentIntent: Stripe.PaymentIntent | null;
@@ -282,7 +332,31 @@ export async function GET(request: Request) {
         paymentIntentId,
         receiptUrl,
       });
+      const refreshedDonationSnap = await adminFirestore.collection("donations").doc(paymentIntentId).get();
+      if (refreshedDonationSnap.exists) {
+        donationDoc = refreshedDonationSnap.data() ?? null;
+      }
     }
+
+    const giveawayCapture =
+      donationDoc?.giveawayCapture && typeof donationDoc.giveawayCapture === "object"
+        ? (donationDoc.giveawayCapture as Record<string, unknown>)
+        : null;
+    const entriesByGiveawayIdRaw =
+      giveawayCapture?.entriesByGiveawayId && typeof giveawayCapture.entriesByGiveawayId === "object"
+        ? (giveawayCapture.entriesByGiveawayId as Record<string, unknown>)
+        : {};
+    const entriesByGiveawayId = Object.fromEntries(
+      Object.entries(entriesByGiveawayIdRaw).map(([key, value]) => [
+        key,
+        typeof value === "number" && Number.isFinite(value) ? value : 0,
+      ]),
+    );
+    const communityDrawings = await buildCommunityDrawingSummaries(entriesByGiveawayId);
+    const communityDrawingEntries =
+      typeof donationDoc?.giveawayEntries === "number"
+        ? donationDoc.giveawayEntries
+        : Object.values(entriesByGiveawayId).reduce((sum, value) => sum + value, 0);
 
     return NextResponse.json({
       status: session.status,
@@ -299,6 +373,8 @@ export async function GET(request: Request) {
       locationId: session.metadata?.locationId ?? donationDoc?.locationId ?? null,
       locationSlug: session.metadata?.locationSlug ?? donationDoc?.locationSlug ?? null,
       receiptUrl,
+      communityDrawingEntries,
+      communityDrawings,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to load session.";

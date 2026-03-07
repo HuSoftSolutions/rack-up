@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/ui-kit/badge";
 import { Button } from "@/ui-kit/button";
 import { Field, Fieldset, Label } from "@/ui-kit/fieldset";
@@ -21,6 +21,11 @@ type PointsConfig = {
 };
 
 type PredefinedOption = NonNullable<CauseDoc["predefinedOptions"]>[number];
+
+function sortPredefinedOptions(options: PredefinedOption[] | undefined): PredefinedOption[] {
+  if (!options?.length) return [];
+  return [...options].sort((a, b) => a.amountCents - b.amountCents);
+}
 
 export default function DonateClient({
   business,
@@ -43,14 +48,18 @@ export default function DonateClient({
   const router = useRouter();
   const pathname = usePathname();
   const redirectTarget = pathname || "/rewards";
+  const sortedPredefinedOptions = useMemo(
+    () => sortPredefinedOptions(pointsConfig.predefinedOptions),
+    [pointsConfig.predefinedOptions],
+  );
   const [amount, setAmount] = useState(() =>
-    pointsConfig.mode === "predefined" && pointsConfig.predefinedOptions?.[0]
-      ? pointsConfig.predefinedOptions[0].amountCents / 100
+    pointsConfig.mode === "predefined" && sortedPredefinedOptions[0]
+      ? sortedPredefinedOptions[0].amountCents / 100
       : 10,
   );
   const [selectedOption, setSelectedOption] = useState<PredefinedOption | null>(
-    pointsConfig.mode === "predefined" && pointsConfig.predefinedOptions?.[0]
-      ? pointsConfig.predefinedOptions[0]
+    pointsConfig.mode === "predefined" && sortedPredefinedOptions[0]
+      ? sortedPredefinedOptions[0]
       : null,
   );
   const [submitting, setSubmitting] = useState(false);
@@ -64,6 +73,18 @@ export default function DonateClient({
     const rate = pointsConfig.pointsPerDollar ?? 100;
     return Math.floor(amount * rate);
   }, [amount, pointsConfig.mode, pointsConfig.pointsPerDollar, selectedOption]);
+
+  useEffect(() => {
+    if (pointsConfig.mode !== "predefined") return;
+    if (sortedPredefinedOptions.length === 0) return;
+    const stillExists = selectedOption
+      ? sortedPredefinedOptions.some((opt) => opt.amountCents === selectedOption.amountCents)
+      : false;
+    if (!stillExists) {
+      setSelectedOption(sortedPredefinedOptions[0]);
+      setAmount(sortedPredefinedOptions[0].amountCents / 100);
+    }
+  }, [pointsConfig.mode, selectedOption, sortedPredefinedOptions]);
 
   function sendToAuth() {
     const encoded = encodeURIComponent(redirectTarget);
@@ -173,13 +194,13 @@ export default function DonateClient({
       ) : null}
 
       <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/30 backdrop-blur">
-        {pointsConfig.mode === "predefined" && pointsConfig.predefinedOptions ? (
+        {pointsConfig.mode === "predefined" && sortedPredefinedOptions.length > 0 ? (
           <div className="space-y-3">
             <Heading level={3} className="text-base font-semibold text-white">
               Choose an amount
             </Heading>
             <div className="flex flex-wrap gap-3">
-              {pointsConfig.predefinedOptions.map((opt) => {
+              {sortedPredefinedOptions.map((opt) => {
                 const selected = selectedOption?.amountCents === opt.amountCents;
                 const styleProps = selected
                   ? ({ color: "emerald" } as const)
