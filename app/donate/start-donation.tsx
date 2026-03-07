@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/ui-kit/badge";
 import { Button } from "@/ui-kit/button";
@@ -47,7 +47,12 @@ export default function DonateClient({
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const redirectTarget = pathname || "/rewards";
+  const searchParams = useSearchParams();
+  const redirectTarget = useMemo(() => {
+    const path = pathname || "/rewards";
+    const query = searchParams?.toString();
+    return query ? `${path}?${query}` : path;
+  }, [pathname, searchParams]);
   const sortedPredefinedOptions = useMemo(
     () => sortPredefinedOptions(pointsConfig.predefinedOptions),
     [pointsConfig.predefinedOptions],

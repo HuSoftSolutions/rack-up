@@ -35,7 +35,10 @@ export default function SignUpClient() {
     if (loading) return;
     if (!user) return;
     (async () => {
-      const target = (await fetchRedirectTarget()) ?? redirectParam;
+      const target =
+        redirectParam && redirectParam !== "/"
+          ? redirectParam
+          : (await fetchRedirectTarget()) ?? "/";
       router.replace(target);
     })();
   }, [loading, redirectParam, router, user]);
@@ -60,7 +63,10 @@ export default function SignUpClient() {
         const json = (await profileRes.json()) as { error?: string };
         throw new Error(json.error ?? "Unable to save profile.");
       }
-      const target = (await fetchRedirectTarget()) ?? redirectParam;
+      const target =
+        redirectParam && redirectParam !== "/"
+          ? redirectParam
+          : (await fetchRedirectTarget()) ?? "/";
       router.replace(target);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed.");
