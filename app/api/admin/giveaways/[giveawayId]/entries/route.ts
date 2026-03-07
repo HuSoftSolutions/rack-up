@@ -68,14 +68,45 @@ export async function GET(request: Request, context: { params: Promise<{ giveawa
       scanSource === "in_person" || scanSource === "remote"
         ? withEntries.filter((row) => row.scanSource === scanSource)
         : withEntries;
-    filtered.sort((a, b) => {
+    const userIds = Array.from(
+      new Set(filtered.map((row) => row.userId).filter((value): value is string => Boolean(value))),
+    );
+    const usersById = new Map<string, { fullName: string | null; email: string | null; phoneNumber: string | null }>();
+    for (let i = 0; i < userIds.length; i += 300) {
+      const batch = userIds.slice(i, i + 300);
+      const refs = batch.map((uid) => adminFirestore.collection("users").doc(uid));
+      if (refs.length === 0) continue;
+      const snaps = await adminFirestore.getAll(...refs);
+      snaps.forEach((userSnap) => {
+        const userData = userSnap.data() as
+          | { fullName?: string | null; displayName?: string | null; email?: string | null; phoneNumber?: string | null }
+          | undefined;
+        usersById.set(userSnap.id, {
+          fullName: userData?.fullName ?? userData?.displayName ?? null,
+          email: userData?.email ?? null,
+          phoneNumber: userData?.phoneNumber ?? null,
+        });
+      });
+    }
+
+    const enriched = filtered.map((row) => {
+      const user = row.userId ? usersById.get(row.userId) : null;
+      return {
+        ...row,
+        userDisplayName: user?.fullName ?? null,
+        userEmail: user?.email ?? null,
+        userPhoneNumber: user?.phoneNumber ?? null,
+      };
+    });
+
+    enriched.sort((a, b) => {
       const left = a.createdAt ? Date.parse(a.createdAt) : 0;
       const right = b.createdAt ? Date.parse(b.createdAt) : 0;
       return right - left;
     });
 
-    const totalEntries = filtered.reduce((sum, row) => sum + (row.entriesCount ?? 0), 0);
-    return NextResponse.json({ entries: filtered, totalEntries });
+    const totalEntries = enriched.reduce((sum, row) => sum + (row.entriesCount ?? 0), 0);
+    return NextResponse.json({ entries: enriched, totalEntries });
   } catch (err) {
     if (err instanceof AuthError) {
       return NextResponse.json({ error: err.message }, { status: 403 });

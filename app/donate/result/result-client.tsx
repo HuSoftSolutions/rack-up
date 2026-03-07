@@ -120,6 +120,7 @@ export default function DonateResultClient() {
         : null;
   const selectedDrawing =
     status?.communityDrawings?.find((drawing) => drawing.id === selectedDrawingId) ?? null;
+  const hasCommunityDrawings = (status?.communityDrawings?.length ?? 0) > 0;
 
   const awardedEntriesTotal =
     typeof status?.communityDrawingEntries === "number"
@@ -184,7 +185,7 @@ export default function DonateResultClient() {
           </div>
         ) : null}
 
-        {status?.success ? (
+        {status?.success && hasCommunityDrawings ? (
           <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-5">
             <div className="text-xs font-semibold uppercase tracking-wide text-emerald-200/80">
               Community drawing entries allocated
@@ -220,11 +221,7 @@ export default function DonateResultClient() {
                   </button>
                 ))}
               </div>
-            ) : (
-              <div className="mt-3 rounded-xl border border-emerald-200/20 bg-emerald-900/20 p-3 text-sm text-emerald-100/85">
-                No entries were allocated from this payment yet.
-              </div>
-            )}
+            ) : null}
           </div>
         ) : null}
 

@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import React, { useEffect, useMemo, useState } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { Badge } from "@/ui-kit/badge";
 import { Button } from "@/ui-kit/button";
 import { Field, Fieldset, Label } from "@/ui-kit/fieldset";
@@ -24,6 +24,7 @@ export default function SignUpClient() {
     [redirect],
   );
   const { user, loading } = useAuth();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -45,6 +46,7 @@ export default function SignUpClient() {
     setError(null);
     try {
       const cred = await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
+      await updateProfile(cred.user, { displayName: fullName.trim() });
       const idToken = await cred.user.getIdToken();
       const profileRes = await fetch("/api/users/profile", {
         method: "PATCH",
@@ -52,11 +54,11 @@ export default function SignUpClient() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ phoneNumber }),
+        body: JSON.stringify({ displayName: fullName, phoneNumber }),
       });
       if (!profileRes.ok) {
         const json = (await profileRes.json()) as { error?: string };
-        throw new Error(json.error ?? "Unable to save phone number.");
+        throw new Error(json.error ?? "Unable to save profile.");
       }
       const target = (await fetchRedirectTarget()) ?? redirectParam;
       router.replace(target);
@@ -88,6 +90,16 @@ export default function SignUpClient() {
 
         <form className="space-y-4" onSubmit={onSubmit}>
           <Fieldset className="space-y-4">
+            <Field>
+              <Label className="text-white">Full name</Label>
+              <Input
+                autoComplete="name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+              />
+            </Field>
+
             <Field>
               <Label className="text-white">Email</Label>
               <Input

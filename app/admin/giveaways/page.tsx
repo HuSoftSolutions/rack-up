@@ -48,6 +48,9 @@ type GiveawayEntry = {
   giveawayId: string;
   donationId: string | null;
   userId: string | null;
+  userDisplayName: string | null;
+  userEmail: string | null;
+  userPhoneNumber: string | null;
   entriesCount: number;
   scanSource: string | null;
   amountCents: number | null;
@@ -518,6 +521,9 @@ async function drawWinner(id: string) {
       "Community Drawing ID",
       "Donation ID",
       "User ID",
+      "User Name",
+      "User Email",
+      "User Phone",
       "Entries",
       "Scan Source",
       "Amount Cents",
@@ -528,6 +534,9 @@ async function drawWinner(id: string) {
       row.giveawayId,
       row.donationId ?? "",
       row.userId ?? "",
+      row.userDisplayName ?? "",
+      row.userEmail ?? "",
+      row.userPhoneNumber ?? "",
       String(row.entriesCount ?? 0),
       row.scanSource ?? "",
       row.amountCents ?? "",
@@ -1214,6 +1223,8 @@ async function drawWinner(id: string) {
                       <tr className="border-b border-white/[0.04]">
                         <th className="px-6 py-2.5 font-medium">Created</th>
                         <th className="px-4 py-2.5 font-medium">User</th>
+                        <th className="px-4 py-2.5 font-medium">Email</th>
+                        <th className="px-4 py-2.5 font-medium">Phone</th>
                         <th className="px-4 py-2.5 font-medium">Donation</th>
                         <th className="px-4 py-2.5 font-medium">Amount</th>
                         <th className="px-4 py-2.5 font-medium">Entries</th>
@@ -1223,13 +1234,13 @@ async function drawWinner(id: string) {
                     <tbody>
                       {entriesLoading ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-8 text-center text-zinc-500">
+                          <td colSpan={8} className="px-6 py-8 text-center text-zinc-500">
                             Loading entries…
                           </td>
                         </tr>
                       ) : entries.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-8 text-center text-zinc-500">
+                          <td colSpan={8} className="px-6 py-8 text-center text-zinc-500">
                             No entries yet.
                           </td>
                         </tr>
@@ -1237,7 +1248,14 @@ async function drawWinner(id: string) {
                         entries.map((entry) => (
                           <tr key={entry.id} className="border-t border-white/[0.03] transition hover:bg-white/[0.02]">
                             <td className="px-6 py-2.5 text-zinc-300">{formatDate(entry.createdAt)}</td>
-                            <td className="px-4 py-2.5 font-mono text-xs text-zinc-400">{entry.userId ?? "—"}</td>
+                            <td className="px-4 py-2.5 text-xs text-zinc-200">
+                              <div className="space-y-0.5">
+                                <div className="font-medium text-white">{entry.userDisplayName ?? "—"}</div>
+                                <div className="font-mono text-[11px] text-zinc-500">{entry.userId ?? "—"}</div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5 text-xs text-zinc-300">{entry.userEmail ?? "—"}</td>
+                            <td className="px-4 py-2.5 text-xs text-zinc-300">{entry.userPhoneNumber ?? "—"}</td>
                             <td className="px-4 py-2.5 font-mono text-xs text-zinc-500">{entry.donationId ?? "—"}</td>
                             <td className="px-4 py-2.5 font-semibold text-white">{formatMoney(entry.amountCents)}</td>
                             <td className="px-4 py-2.5">
