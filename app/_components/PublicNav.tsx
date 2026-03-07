@@ -110,6 +110,13 @@ function PublicNavbar() {
             >
               <NavbarLabel>My rewards</NavbarLabel>
             </NavbarItem>
+            <NavbarItem
+              href="/rewards/giveaways"
+              current={pathname.startsWith("/rewards/giveaways")}
+              className="hidden md:inline-flex"
+            >
+              <NavbarLabel>My Community Drawings</NavbarLabel>
+            </NavbarItem>
             <NavbarItem onClick={handleSignOut} className="hidden md:inline-flex">
               <NavbarLabel>Sign out</NavbarLabel>
             </NavbarItem>
@@ -182,6 +189,9 @@ function PublicSidebar() {
               </SidebarItem>
               <SidebarItem href="/rewards/history" current={pathname.startsWith("/rewards/history")}>
                 <SidebarLabel>My rewards</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/rewards/giveaways" current={pathname.startsWith("/rewards/giveaways")}>
+                <SidebarLabel>My Community Drawings</SidebarLabel>
               </SidebarItem>
             </>
           ) : (

@@ -92,13 +92,13 @@ export default function LandingCommunityDrawings({
 
       {selected ? (
         <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 px-4 py-6 backdrop-blur-sm"
+          className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/80 px-4 py-4 backdrop-blur-sm sm:items-center sm:py-6"
           onClick={(event) => {
             if (event.target === event.currentTarget) setSelectedId(null);
           }}
         >
-          <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-[#0d1117] shadow-2xl shadow-black/50">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#0d1117] shadow-2xl shadow-black/50">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#0d1117] px-4 py-3">
               <div className="text-sm font-semibold text-white">Community Drawing Details</div>
               <button
                 type="button"
@@ -111,7 +111,8 @@ export default function LandingCommunityDrawings({
               </button>
             </div>
 
-            <div className="grid gap-0 md:grid-cols-2">
+            <div className="min-h-0 overflow-y-auto">
+              <div className="grid gap-0 md:grid-cols-2">
               <div className="flex items-center justify-center bg-black/30 p-4">
                 {selected.prize?.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -147,6 +148,7 @@ export default function LandingCommunityDrawings({
                   </div>
                 ) : null}
               </div>
+            </div>
             </div>
           </div>
         </div>
