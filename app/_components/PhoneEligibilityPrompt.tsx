@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthProvider";
 
 export default function PhoneEligibilityPrompt() {
   const { user, loading } = useAuth();
+  const pathname = usePathname();
   const [checking, setChecking] = useState(false);
   const [open, setOpen] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -14,7 +16,27 @@ export default function PhoneEligibilityPrompt() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const shouldCheck = useMemo(() => !loading && Boolean(user), [loading, user]);
+  const isAuthFlowRoute = useMemo(() => {
+    if (!pathname) return false;
+    return (
+      pathname.startsWith("/signup") ||
+      pathname.startsWith("/signin") ||
+      pathname.startsWith("/invite") ||
+      pathname.startsWith("/assume")
+    );
+  }, [pathname]);
+
+  const shouldCheck = useMemo(
+    () => !loading && Boolean(user) && !isAuthFlowRoute,
+    [isAuthFlowRoute, loading, user],
+  );
+
+  useEffect(() => {
+    if (!isAuthFlowRoute) return;
+    setOpen(false);
+    setChecking(false);
+    setError(null);
+  }, [isAuthFlowRoute]);
 
   useEffect(() => {
     if (!shouldCheck || !user) return;
