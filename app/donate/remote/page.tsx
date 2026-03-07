@@ -1,8 +1,8 @@
 import PublicShell from "@/app/_components/PublicNav";
 import { Badge } from "@/ui-kit/badge";
-import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
 import { Text } from "@/ui-kit/text";
+import CauseSelectionList from "@/app/donate/_components/CauseSelectionList";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { createRemoteCauseQrToken } from "@/lib/server/qr-access";
 import { resolvePointsConfig } from "@/lib/server/points-config";
@@ -19,13 +19,14 @@ async function fetchRemoteCauses(): Promise<CauseOption[]> {
   return causes;
 }
 
-function pointsSummary(cause: CauseOption) {
-  const config = resolvePointsConfig(cause, "remote");
+function pointsSummary(cause: CauseOption, source: "in_person" | "remote") {
+  const config = resolvePointsConfig(cause, source);
   if (config.mode === "predefined" && config.predefinedOptions?.length) {
-    const options = config.predefinedOptions
-      .map((opt) => `${(opt.amountCents / 100).toFixed(2)} = ${opt.points} pts`)
+    const options = [...config.predefinedOptions]
+      .sort((a, b) => a.amountCents - b.amountCents)
+      .map((opt) => `$${(opt.amountCents / 100).toFixed(2)} -> ${opt.points} pts`)
       .join(", ");
-    return `Preset options: ${options}.`;
+    return options;
   }
   const min = cause.minAmountCents ? `$${(cause.minAmountCents / 100).toFixed(2)}` : null;
   const max = cause.maxAmountCents ? `$${(cause.maxAmountCents / 100).toFixed(2)}` : null;
@@ -54,34 +55,21 @@ export default async function DonateRemoteLandingPage() {
           No causes are available right now. Please check back soon.
         </div>
       ) : (
-        <div className="space-y-4">
-          {causes.map((cause) => (
-            <div
-              key={cause.id}
-              className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-lg shadow-black/30"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-2">
-                  <Heading level={2} className="text-xl font-semibold text-white">
-                    {cause.title ?? cause.id}
-                  </Heading>
-                  {cause.description ? (
-                    <Text className="text-zinc-300">{cause.description}</Text>
-                  ) : null}
-                  <Text className="text-xs text-zinc-400">{pointsSummary(cause)}</Text>
-                </div>
-                <Button
-                  href={`/donate/remote/${cause.id}?qr=${encodeURIComponent(
-                    createRemoteCauseQrToken({ causeSlug: cause.id }),
-                  )}`}
-                  color="emerald"
-                >
-                  Support this cause
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <CauseSelectionList
+          causes={causes.map((cause) => ({
+            id: cause.id,
+            title: cause.title ?? cause.id,
+            description: cause.description,
+            imageUrl: cause.imageUrl,
+            pointsDetails: {
+              inPerson: pointsSummary(cause, "in_person"),
+              remote: pointsSummary(cause, "remote"),
+            },
+            supportHref: `/donate/remote/${cause.id}?qr=${encodeURIComponent(
+              createRemoteCauseQrToken({ causeSlug: cause.id }),
+            )}`,
+          }))}
+        />
       )}
     </PublicShell>
   );

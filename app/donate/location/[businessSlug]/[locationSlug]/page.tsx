@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import PublicShell from "@/app/_components/PublicNav";
 import { Badge } from "@/ui-kit/badge";
-import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
 import { Text } from "@/ui-kit/text";
+import CauseSelectionList from "@/app/donate/_components/CauseSelectionList";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { createCauseQrToken, createRemoteCauseQrToken, inspectQrToken } from "@/lib/server/qr-access";
 import { resolvePointsConfig } from "@/lib/server/points-config";
@@ -71,16 +71,17 @@ async function fetchLocationDonations(
   };
 }
 
-function pointsSummary(cause: CauseWithSource) {
+function pointsSummary(cause: CauseWithSource, source: "in_person" | "remote") {
   const config = resolvePointsConfig(
     cause,
-    cause.scanSource ?? "in_person",
+    source,
   );
   if (config.mode === "predefined" && config.predefinedOptions?.length) {
-    const options = config.predefinedOptions
-      .map((opt) => `${(opt.amountCents / 100).toFixed(2)} = ${opt.points} pts`)
+    const options = [...config.predefinedOptions]
+      .sort((a, b) => a.amountCents - b.amountCents)
+      .map((opt) => `$${(opt.amountCents / 100).toFixed(2)} -> ${opt.points} pts`)
       .join(", ");
-    return `Preset options: ${options}.`;
+    return options;
   }
   const min = cause.minAmountCents ? `$${(cause.minAmountCents / 100).toFixed(2)}` : null;
   const max = cause.maxAmountCents ? `$${(cause.maxAmountCents / 100).toFixed(2)}` : null;
@@ -142,46 +143,32 @@ export default async function DonateLocationPage({
           No causes are available at this location right now. Please check back soon.
         </div>
       ) : (
-        <div className="space-y-4">
-          {causesWithSource.map((cause) => (
-            <div
-              key={cause.linkId}
-              className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-lg shadow-black/30"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-2">
-                  <Heading level={2} className="text-xl font-semibold text-white">
-                    {cause.title ?? cause.id}
-                  </Heading>
-                  {cause.description ? (
-                    <Text className="text-zinc-300">{cause.description}</Text>
-                  ) : null}
-                  <Text className="text-xs text-zinc-400">{pointsSummary(cause)}</Text>
-                </div>
-                <Button
-                  href={
-                    scanSource === "remote"
-                      ? `/donate/remote/${cause.linkId}?qr=${encodeURIComponent(
-                          createRemoteCauseQrToken({
-                            causeSlug: cause.linkId,
-                          }),
-                        )}`
-                      : `/donate/${businessSlug}/${cause.linkId}/${locationSlug}?qr=${encodeURIComponent(
-                          createCauseQrToken({
-                            businessSlug,
-                            locationSlug,
-                            causeSlug: cause.linkId,
-                          }),
-                        )}`
-                  }
-                  color="emerald"
-                >
-                  Support this cause
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <CauseSelectionList
+          causes={causesWithSource.map((cause) => ({
+            id: cause.linkId,
+            title: cause.title ?? cause.id,
+            description: cause.description,
+            imageUrl: cause.imageUrl,
+            pointsDetails: {
+              inPerson: pointsSummary(cause, "in_person"),
+              remote: pointsSummary(cause, "remote"),
+            },
+            supportHref:
+              scanSource === "remote"
+                ? `/donate/remote/${cause.linkId}?qr=${encodeURIComponent(
+                    createRemoteCauseQrToken({
+                      causeSlug: cause.linkId,
+                    }),
+                  )}`
+                : `/donate/${businessSlug}/${cause.linkId}/${locationSlug}?qr=${encodeURIComponent(
+                    createCauseQrToken({
+                      businessSlug,
+                      locationSlug,
+                      causeSlug: cause.linkId,
+                    }),
+                  )}`,
+          }))}
+        />
       )}
     </PublicShell>
   );
