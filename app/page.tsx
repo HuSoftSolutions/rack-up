@@ -2,6 +2,7 @@ import Link from "next/link";
 import LandingAuthActions from "@/app/_components/LandingAuthActions";
 import LandingEligibilityCta from "@/app/_components/LandingEligibilityCta";
 import GiveawayProgressCard from "@/app/_components/GiveawayProgressCard";
+import LandingCommunityDrawings from "@/app/_components/LandingCommunityDrawings";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { ClientOnly } from "@/app/_components/ClientOnly";
 import PublicShell from "@/app/_components/PublicNav";
@@ -399,48 +400,7 @@ export default async function Home() {
               Win prizes by supporting verified causes.
             </p>
           </div>
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {giveaways.length === 0 ? (
-              <div className="rounded-xl border border-emerald-400/20 bg-gradient-to-b from-emerald-500/[0.08] to-transparent p-5 text-sm text-zinc-300">
-                No community drawing items are published right now.
-              </div>
-            ) : (
-              giveaways.map((giveaway) => (
-                <div key={`giveaway-${giveaway.id}`} className="group rounded-xl border border-emerald-400/20 bg-gradient-to-b from-emerald-500/[0.08] to-transparent p-4 transition hover:border-emerald-400/40 hover:from-emerald-500/[0.12]">
-                  {giveaway.prize?.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={giveaway.prize.imageUrl}
-                      alt={giveaway.prize?.name ?? giveaway.title}
-                      className="h-48 w-full rounded-lg border border-white/10 object-cover transition group-hover:border-white/20"
-                    />
-                  ) : (
-                    <div className="flex h-48 w-full items-center justify-center rounded-lg border border-white/10 bg-black/30 text-xs text-zinc-500">
-                      Prize image coming soon
-                    </div>
-                  )}
-                  <div className="mt-4 flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-emerald-300">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    </span>
-                    Active community drawing
-                  </div>
-                  <div className="mt-1 text-lg font-semibold text-white">
-                    {giveaway.prize?.name ?? giveaway.title}
-                  </div>
-                  {giveaway.prize?.value ? (
-                    <div className="mt-1 text-sm font-medium text-emerald-200/80">Estimated value: {giveaway.prize.value}</div>
-                  ) : null}
-                  {giveaway.prize?.description ? (
-                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-zinc-300">{giveaway.prize.description}</p>
-                  ) : giveaway.description ? (
-                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-zinc-300">{giveaway.description}</p>
-                  ) : null}
-                </div>
-              ))
-            )}
-          </div>
+          <LandingCommunityDrawings drawings={giveaways} />
         </section>
 
         {/* ── 5. Featured Partners ── */}
