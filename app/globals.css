@@ -44,3 +44,12 @@ select option:disabled,
 select optgroup:disabled {
   color: #a1a1aa;
 }
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

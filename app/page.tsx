@@ -288,7 +288,7 @@ export default async function Home() {
                 Support activity will appear here once campaigns are active.
               </div>
             ) : (
-              <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+              <div className="hide-scrollbar mt-3 flex gap-3 overflow-x-auto pb-2">
                 {donations.slice(0, 8).map((d) => (
                   <div
                     key={d.id}
@@ -482,7 +482,7 @@ export default async function Home() {
             </div>
           ) : (
             <div
-              className="mt-6 flex gap-4 overflow-x-auto pb-2"
+              className="hide-scrollbar mt-6 flex gap-4 overflow-x-auto pb-2"
               style={{ maskImage: "linear-gradient(to right, black 90%, transparent)", WebkitMaskImage: "linear-gradient(to right, black 90%, transparent)" }}
             >
               {donations.slice(0, 8).map((d) => (
