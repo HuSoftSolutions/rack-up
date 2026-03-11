@@ -19,12 +19,6 @@ function toIso(value: unknown): string | null {
   return null;
 }
 
-function clampLimit(value: string | null, fallback = 500) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(Math.max(50, parsed), 5000);
-}
-
 export async function GET(request: Request, context: { params: Promise<{ giveawayId: string }> }) {
   try {
     await requireAdmin(request);
@@ -33,13 +27,12 @@ export async function GET(request: Request, context: { params: Promise<{ giveawa
       return NextResponse.json({ error: "Community drawing ID is required." }, { status: 400 });
     }
     const url = new URL(request.url);
-    const limit = clampLimit(url.searchParams.get("limit"), 500);
     const scanSource = url.searchParams.get("scanSource");
 
     const query = adminFirestore
       .collection("giveaway_entries")
       .where("giveawayId", "==", giveawayId);
-    const snap = await query.limit(limit).get();
+    const snap = await query.get();
 
     const rows = snap.docs.map((doc) => {
       const data = doc.data() as {

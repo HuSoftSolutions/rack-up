@@ -57,6 +57,11 @@ export async function GET(request: Request) {
         data.winner && typeof data.winner === "object"
           ? (data.winner as Record<string, unknown>)
           : null;
+      const winnersRaw = Array.isArray(data.winners)
+        ? (data.winners as Array<Record<string, unknown>>)
+        : winnerRaw
+          ? [winnerRaw]
+          : [];
       return {
         id: doc.id,
         ...data,
@@ -66,6 +71,10 @@ export async function GET(request: Request) {
               drawnAt: toIso(winnerRaw.drawnAt),
             }
           : null,
+        winners: winnersRaw.map((winner) => ({
+          ...winner,
+          drawnAt: toIso(winner.drawnAt),
+        })),
         createdAt: toIso(data.createdAt),
         updatedAt: toIso(data.updatedAt),
         startsAt: toIso(data.startsAt),

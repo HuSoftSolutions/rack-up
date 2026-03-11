@@ -13,6 +13,18 @@ type Entry = {
   entriesCount: number;
 };
 
+type WinnerRecord = {
+  userId?: string | null;
+  entryId?: string | null;
+  donationId?: string | null;
+  donorName?: string | null;
+  donorEmail?: string | null;
+  phoneNumber?: string | null;
+  amountCents?: number | null;
+  causeTitle?: string | null;
+  drawnAt?: unknown;
+};
+
 function pickWeighted(entries: Entry[]): Entry | null {
   const total = entries.reduce((sum, e) => sum + (e.entriesCount || 0), 0);
   if (total <= 0) return null;
@@ -36,31 +48,49 @@ export async function POST(
     if (!giveawaySnap.exists) {
       return NextResponse.json({ error: "Community drawing not found." }, { status: 404 });
     }
-    const giveaway = giveawaySnap.data() as { status?: string; winner?: unknown };
-    if (giveaway.status === "drawn" || giveaway.winner) {
-      return NextResponse.json({ error: "Winner already drawn." }, { status: 400 });
-    }
-    if (giveaway.status !== "active" && giveaway.status !== "closed") {
+    const giveaway = giveawaySnap.data() as { status?: string; winner?: unknown; winners?: unknown };
+    if (giveaway.status !== "active" && giveaway.status !== "closed" && giveaway.status !== "drawn") {
       return NextResponse.json({ error: "Community drawing must be active or closed to draw." }, { status: 400 });
     }
+
+    const existingWinnersRaw = Array.isArray(giveaway.winners)
+      ? (giveaway.winners as WinnerRecord[])
+      : giveaway.winner && typeof giveaway.winner === "object"
+        ? [giveaway.winner as WinnerRecord]
+        : [];
+    const priorWinnerUserIds = new Set(
+      existingWinnersRaw
+        .map((winner) => (typeof winner?.userId === "string" ? winner.userId : null))
+        .filter((userId): userId is string => Boolean(userId)),
+    );
 
     const entriesSnap = await adminFirestore
       .collection("giveaway_entries")
       .where("giveawayId", "==", giveawayId)
       .get();
-    const entries: Entry[] = entriesSnap.docs.map((doc) => {
-      const data = doc.data() as { userId?: string; donationId?: string | null; entriesCount?: number };
-      return {
-        id: doc.id,
-        userId: data.userId ?? "",
-        donationId: data.donationId ?? null,
-        entriesCount: data.entriesCount ?? 0,
-      };
-    }).filter((entry) => Boolean(entry.userId) && entry.entriesCount > 0);
+    const entries: Entry[] = entriesSnap.docs
+      .map((doc) => {
+        const data = doc.data() as { userId?: string; donationId?: string | null; entriesCount?: number };
+        return {
+          id: doc.id,
+          userId: data.userId ?? "",
+          donationId: data.donationId ?? null,
+          entriesCount: data.entriesCount ?? 0,
+        };
+      })
+      .filter(
+        (entry) =>
+          Boolean(entry.userId) &&
+          entry.entriesCount > 0 &&
+          !priorWinnerUserIds.has(entry.userId),
+      );
 
     const winner = pickWeighted(entries);
     if (!winner) {
-      return NextResponse.json({ error: "No entries available to draw." }, { status: 400 });
+      return NextResponse.json(
+        { error: "No eligible entries available to draw (all entrants may already be winners)." },
+        { status: 400 },
+      );
     }
 
     let winnerDonation: {
@@ -85,21 +115,24 @@ export async function POST(
       ? (winnerUserSnap.data() as { phoneNumber?: string | null })
       : null;
     const now = Timestamp.now();
+    const winnerRecord = {
+      userId: winner.userId,
+      entryId: winner.id,
+      donationId: winner.donationId ?? null,
+      donorName: winnerDonation?.donorName ?? null,
+      donorEmail: winnerDonation?.donorEmail ?? null,
+      phoneNumber: winnerUserData?.phoneNumber ?? null,
+      amountCents: winnerDonation?.amountCents ?? null,
+      causeTitle: winnerDonation?.causeTitle ?? null,
+      drawnAt: now,
+    };
+    const winners = [...existingWinnersRaw, winnerRecord];
 
     await giveawayRef.set(
       {
         status: "drawn",
-        winner: {
-          userId: winner.userId,
-          entryId: winner.id,
-          donationId: winner.donationId ?? null,
-          donorName: winnerDonation?.donorName ?? null,
-          donorEmail: winnerDonation?.donorEmail ?? null,
-          phoneNumber: winnerUserData?.phoneNumber ?? null,
-          amountCents: winnerDonation?.amountCents ?? null,
-          causeTitle: winnerDonation?.causeTitle ?? null,
-          drawnAt: now,
-        },
+        winner: winnerRecord,
+        winners,
         updatedAt: now,
       },
       { merge: true },
@@ -111,6 +144,8 @@ export async function POST(
       actorUserId: admin.uid,
       at: now,
       payload: {
+        drawNumber: winners.length,
+        repick: existingWinnersRaw.length > 0,
         winnerUserId: winner.userId,
         winnerEntryId: winner.id,
         winnerDonationId: winner.donationId ?? null,
@@ -124,6 +159,7 @@ export async function POST(
       ok: true,
       winner: {
         ...winner,
+        drawNumber: winners.length,
         donorName: winnerDonation?.donorName ?? null,
         donorEmail: winnerDonation?.donorEmail ?? null,
         phoneNumber: winnerUserData?.phoneNumber ?? null,

@@ -21,6 +21,17 @@ type Giveaway = {
     causeTitle?: string | null;
     drawnAt?: string;
   } | null;
+  winners?: Array<{
+    userId?: string;
+    entryId?: string;
+    donationId?: string;
+    donorName?: string | null;
+    donorEmail?: string | null;
+    phoneNumber?: string | null;
+    amountCents?: number | null;
+    causeTitle?: string | null;
+    drawnAt?: string;
+  }> | null;
   eligibility?: {
     matchMode?: "all" | "any";
     causeIds?: string[];
@@ -78,6 +89,18 @@ function formatDate(value?: string | null) {
 function formatMoney(cents?: number | null) {
   if (typeof cents !== "number") return "—";
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+function giveawayWinnerCount(giveaway: Giveaway) {
+  if (Array.isArray(giveaway.winners) && giveaway.winners.length > 0) return giveaway.winners.length;
+  return giveaway.winner?.userId || giveaway.winner?.donationId ? 1 : 0;
+}
+
+function giveawayLatestWinner(giveaway: Giveaway) {
+  if (Array.isArray(giveaway.winners) && giveaway.winners.length > 0) {
+    return giveaway.winners[giveaway.winners.length - 1] ?? null;
+  }
+  return giveaway.winner ?? null;
 }
 
 function formatCurrencyInput(value: string) {
@@ -191,7 +214,7 @@ export default function AdminGiveawaysPage() {
 
   const pendingGiveaways = useMemo(() => {
     return giveaways.filter((g) => {
-      const hasWinner = Boolean(g.winner?.userId || g.winner?.donationId);
+      const hasWinner = giveawayWinnerCount(g) > 0;
       if (hasWinner) return false;
       const giveawayStatus = (g.status ?? "draft") as "draft" | "active" | "closed" | "drawn";
       return pendingStatuses.includes(giveawayStatus);
@@ -199,7 +222,7 @@ export default function AdminGiveawaysPage() {
   }, [giveaways, pendingStatuses]);
 
   const decidedGiveaways = useMemo(() => {
-    return giveaways.filter((g) => Boolean(g.winner?.userId || g.winner?.donationId));
+    return giveaways.filter((g) => giveawayWinnerCount(g) > 0);
   }, [giveaways]);
 
   const [title, setTitle] = useState("");
@@ -432,27 +455,32 @@ export default function AdminGiveawaysPage() {
     }
   }
 
-async function drawWinner(id: string) {
+  async function drawWinner(id: string, mode: "draw" | "repick" = "draw") {
     if (!user) return;
     setActionMessage(null);
     try {
       const idToken = await user.getIdToken();
       const res = await fetch(`/api/admin/giveaways/${id}/draw`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${idToken}` },
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mode }),
       });
       const json = (await res.json()) as {
         ok?: boolean;
         error?: string;
-        winner?: { userId?: string; donationId?: string; donorName?: string | null };
+        winner?: { userId?: string; donationId?: string; donorName?: string | null; drawNumber?: number };
       };
       if (!res.ok || json.error) throw new Error(json.error ?? "Failed to draw winner.");
       await loadGiveaways();
       const winnerLabel =
         json.winner?.donorName ?? json.winner?.userId ?? json.winner?.donationId ?? "winner selected";
-      setActionMessage(`Winner drawn: ${winnerLabel}.`);
+      const drawNumber = typeof json.winner?.drawNumber === "number" ? ` (#${json.winner.drawNumber})` : "";
+      setActionMessage(`${mode === "repick" ? "Repick completed" : "Winner drawn"}${drawNumber}: ${winnerLabel}.`);
     } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "Failed to draw winner.");
+      setActionMessage(err instanceof Error ? err.message : "Failed to run drawing.");
     }
   }
 
@@ -464,7 +492,6 @@ async function drawWinner(id: string) {
       try {
         const idToken = await user.getIdToken();
         const params = new URLSearchParams();
-        params.set("limit", "1000");
         if (entriesSource !== "all") params.set("scanSource", entriesSource);
         const res = await fetch(`/api/admin/giveaways/${giveawayId}/entries?${params.toString()}`, {
           headers: { Authorization: `Bearer ${idToken}` },
@@ -773,8 +800,11 @@ async function drawWinner(id: string) {
                   </td>
                 </tr>
               ) : (
-                decidedGiveaways.map((g) => (
-                  <tr key={`winner-${g.id}`} className="border-t border-emerald-400/20 hover:bg-emerald-500/[0.08]">
+                decidedGiveaways.map((g) => {
+                  const latestWinner = giveawayLatestWinner(g);
+                  const winnerCount = giveawayWinnerCount(g);
+                  return (
+                    <tr key={`winner-${g.id}`} className="border-t border-emerald-400/20 hover:bg-emerald-500/[0.08]">
                     <td className="px-4 py-3 align-top">
                       <GiveawayImageThumb imageUrl={g.prize?.imageUrl} title={g.title} />
                     </td>
@@ -787,25 +817,40 @@ async function drawWinner(id: string) {
                           {g.prize.value ? ` (${g.prize.value})` : ""}
                         </div>
                       ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-zinc-200">
-                      <div className="space-y-1">
-                        <div className="font-semibold text-white">{g.winner?.donorName ?? g.winner?.userId ?? "—"}</div>
-                        {g.winner?.donorEmail ? <div>{g.winner.donorEmail}</div> : null}
-                        {g.winner?.phoneNumber ? <div>{g.winner.phoneNumber}</div> : null}
-                        {g.winner?.userId ? <div className="text-zinc-400">User: {g.winner.userId}</div> : null}
+                      <div className="mt-1 text-xs text-emerald-100/70">
+                        {winnerCount} winner{winnerCount === 1 ? "" : "s"} selected
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-zinc-200">
                       <div className="space-y-1">
-                        <div className="font-semibold text-white">{formatMoney(g.winner?.amountCents ?? null)}</div>
-                        <div>{g.winner?.causeTitle ?? "—"}</div>
-                        <div className="text-zinc-400">{g.winner?.donationId ?? "—"}</div>
+                        <div className="font-semibold text-white">{latestWinner?.donorName ?? latestWinner?.userId ?? "—"}</div>
+                        {latestWinner?.donorEmail ? <div>{latestWinner.donorEmail}</div> : null}
+                        {latestWinner?.phoneNumber ? <div>{latestWinner.phoneNumber}</div> : null}
+                        {latestWinner?.userId ? <div className="text-zinc-400">User: {latestWinner.userId}</div> : null}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-zinc-100">{formatDate(g.winner?.drawnAt)}</td>
+                    <td className="px-4 py-3 text-xs text-zinc-200">
+                      <div className="space-y-1">
+                        <div className="font-semibold text-white">{formatMoney(latestWinner?.amountCents ?? null)}</div>
+                        <div>{latestWinner?.causeTitle ?? "—"}</div>
+                        <div className="text-zinc-400">{latestWinner?.donationId ?? "—"}</div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-100">{formatDate(latestWinner?.drawnAt)}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          className={`text-xs font-semibold underline underline-offset-2 ${
+                            g.status === "active" || g.status === "closed" || g.status === "drawn"
+                              ? "text-emerald-300 hover:text-emerald-200"
+                              : "text-zinc-500 cursor-not-allowed"
+                          }`}
+                          onClick={() => drawWinner(g.id, "repick")}
+                          disabled={!(g.status === "active" || g.status === "closed" || g.status === "drawn")}
+                        >
+                          Repick winner
+                        </button>
                         <button
                           type="button"
                           className="text-xs font-semibold text-purple-300 underline underline-offset-2 hover:text-purple-200"
@@ -829,8 +874,9 @@ async function drawWinner(id: string) {
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -1168,7 +1214,9 @@ async function drawWinner(id: string) {
                   <div className="flex items-center gap-4">
                     <div>
                       <h2 className="text-lg font-semibold text-white">{entriesGiveaway.title}</h2>
-                      <p className="mt-0.5 text-xs text-zinc-500">{entriesTotal} total entries</p>
+                      <p className="mt-0.5 text-xs text-zinc-500">
+                        {entriesTotal} weighted entries across {entries.length} qualifying records
+                      </p>
                     </div>
                   </div>
                   <button
@@ -1225,7 +1273,6 @@ async function drawWinner(id: string) {
                         <th className="px-4 py-2.5 font-medium">User</th>
                         <th className="px-4 py-2.5 font-medium">Email</th>
                         <th className="px-4 py-2.5 font-medium">Phone</th>
-                        <th className="px-4 py-2.5 font-medium">Donation</th>
                         <th className="px-4 py-2.5 font-medium">Amount</th>
                         <th className="px-4 py-2.5 font-medium">Entries</th>
                         <th className="px-4 py-2.5 font-medium">Source</th>
@@ -1234,19 +1281,23 @@ async function drawWinner(id: string) {
                     <tbody>
                       {entriesLoading ? (
                         <tr>
-                          <td colSpan={8} className="px-6 py-8 text-center text-zinc-500">
+                          <td colSpan={7} className="px-6 py-8 text-center text-zinc-500">
                             Loading entries…
                           </td>
                         </tr>
                       ) : entries.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-6 py-8 text-center text-zinc-500">
+                          <td colSpan={7} className="px-6 py-8 text-center text-zinc-500">
                             No entries yet.
                           </td>
                         </tr>
                       ) : (
                         entries.map((entry) => (
-                          <tr key={entry.id} className="border-t border-white/[0.03] transition hover:bg-white/[0.02]">
+                          <tr
+                            key={entry.id}
+                            className="border-t border-white/[0.03] transition hover:bg-white/[0.02]"
+                            title={entry.donationId ? `Donation ID: ${entry.donationId}` : "No donation ID"}
+                          >
                             <td className="px-6 py-2.5 text-zinc-300">{formatDate(entry.createdAt)}</td>
                             <td className="px-4 py-2.5 text-xs text-zinc-200">
                               <div className="space-y-0.5">
@@ -1256,7 +1307,6 @@ async function drawWinner(id: string) {
                             </td>
                             <td className="px-4 py-2.5 text-xs text-zinc-300">{entry.userEmail ?? "—"}</td>
                             <td className="px-4 py-2.5 text-xs text-zinc-300">{entry.userPhoneNumber ?? "—"}</td>
-                            <td className="px-4 py-2.5 font-mono text-xs text-zinc-500">{entry.donationId ?? "—"}</td>
                             <td className="px-4 py-2.5 font-semibold text-white">{formatMoney(entry.amountCents)}</td>
                             <td className="px-4 py-2.5">
                               <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">
