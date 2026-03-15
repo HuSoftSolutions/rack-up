@@ -10,6 +10,9 @@ type Giveaway = {
   title: string;
   description?: string;
   status?: "draft" | "active" | "closed" | "drawn";
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  winnerCount?: number;
   winner?: {
     userId?: string;
     entryId?: string;
@@ -96,11 +99,53 @@ function giveawayWinnerCount(giveaway: Giveaway) {
   return giveaway.winner?.userId || giveaway.winner?.donationId ? 1 : 0;
 }
 
+function giveawayTargetWinnerCount(giveaway: Giveaway) {
+  return normalizeWinnerCount(giveaway.winnerCount);
+}
+
+function giveawayWinners(giveaway: Giveaway) {
+  if (Array.isArray(giveaway.winners) && giveaway.winners.length > 0) return giveaway.winners;
+  return giveaway.winner ? [giveaway.winner] : [];
+}
+
+function normalizeWinnerCount(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(1, Math.floor(parsed));
+}
+
 function giveawayLatestWinner(giveaway: Giveaway) {
-  if (Array.isArray(giveaway.winners) && giveaway.winners.length > 0) {
-    return giveaway.winners[giveaway.winners.length - 1] ?? null;
-  }
-  return giveaway.winner ?? null;
+  const winners = giveawayWinners(giveaway);
+  if (winners.length === 0) return null;
+  return winners.reduce((latest, current) => {
+    const latestTs = latest?.drawnAt ? Date.parse(latest.drawnAt) : 0;
+    const currentTs = current?.drawnAt ? Date.parse(current.drawnAt) : 0;
+    if (!Number.isFinite(latestTs)) return current;
+    if (!Number.isFinite(currentTs)) return latest;
+    return currentTs > latestTs ? current : latest;
+  }, winners[0] ?? null);
+}
+
+function toMillis(value?: string | null) {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sortGiveaways(items: Giveaway[]) {
+  return [...items].sort((a, b) => {
+    const aLatestWinner = giveawayLatestWinner(a);
+    const bLatestWinner = giveawayLatestWinner(b);
+    const aDrawnAt = toMillis(aLatestWinner?.drawnAt ?? null);
+    const bDrawnAt = toMillis(bLatestWinner?.drawnAt ?? null);
+    if (aDrawnAt !== bDrawnAt) return bDrawnAt - aDrawnAt;
+
+    const aUpdated = toMillis(a.updatedAt ?? a.createdAt ?? null);
+    const bUpdated = toMillis(b.updatedAt ?? b.createdAt ?? null);
+    if (aUpdated !== bUpdated) return bUpdated - aUpdated;
+
+    return a.title.localeCompare(b.title);
+  });
 }
 
 function formatCurrencyInput(value: string) {
@@ -202,6 +247,7 @@ export default function AdminGiveawaysPage() {
     "draft",
     "active",
     "closed",
+    "drawn",
   ]);
   const [causeOptions, setCauseOptions] = useState<Option[]>([]);
   const [businessOptions, setBusinessOptions] = useState<Option[]>([]);
@@ -213,16 +259,19 @@ export default function AdminGiveawaysPage() {
   );
 
   const pendingGiveaways = useMemo(() => {
-    return giveaways.filter((g) => {
-      const hasWinner = giveawayWinnerCount(g) > 0;
-      if (hasWinner) return false;
+    const filtered = giveaways.filter((g) => {
+      const drawnCount = giveawayWinnerCount(g);
+      const targetCount = giveawayTargetWinnerCount(g);
+      if (drawnCount >= targetCount) return false;
       const giveawayStatus = (g.status ?? "draft") as "draft" | "active" | "closed" | "drawn";
       return pendingStatuses.includes(giveawayStatus);
     });
+    return sortGiveaways(filtered);
   }, [giveaways, pendingStatuses]);
 
   const decidedGiveaways = useMemo(() => {
-    return giveaways.filter((g) => giveawayWinnerCount(g) > 0);
+    const filtered = giveaways.filter((g) => giveawayWinnerCount(g) >= giveawayTargetWinnerCount(g));
+    return sortGiveaways(filtered);
   }, [giveaways]);
 
   const [title, setTitle] = useState("");
@@ -237,6 +286,7 @@ export default function AdminGiveawaysPage() {
   const [entryUnitPoints, setEntryUnitPoints] = useState("500");
   const [inPersonEntryMultiplier, setInPersonEntryMultiplier] = useState("1");
   const [remoteEntryMultiplier, setRemoteEntryMultiplier] = useState("1");
+  const [winnerCount, setWinnerCount] = useState("1");
   const [prizeName, setPrizeName] = useState("");
   const [prizeValue, setPrizeValue] = useState("");
   const [prizeImageUrl, setPrizeImageUrl] = useState("");
@@ -258,6 +308,7 @@ export default function AdminGiveawaysPage() {
     setEntryUnitPoints(String(giveaway?.entryConfig?.entryUnitPoints ?? 500));
     setInPersonEntryMultiplier(String(giveaway?.entryConfig?.entryMultiplier?.inPerson ?? 1));
     setRemoteEntryMultiplier(String(giveaway?.entryConfig?.entryMultiplier?.remote ?? 1));
+    setWinnerCount(String(normalizeWinnerCount(giveaway?.winnerCount)));
     setPrizeName(giveaway?.prize?.name ?? "");
     setPrizeValue(giveaway?.prize?.value ?? "");
     setPrizeImageUrl(giveaway?.prize?.imageUrl ?? "");
@@ -406,6 +457,7 @@ export default function AdminGiveawaysPage() {
       const unit = Math.max(1, Math.floor(Number(entryUnitPoints) || 500));
       const inPersonMultiplier = Math.max(1, Math.floor(Number(inPersonEntryMultiplier) || 1));
       const remoteMultiplier = Math.max(1, Math.floor(Number(remoteEntryMultiplier) || 1));
+      const normalizedWinnerCount = Math.max(1, Math.floor(Number(winnerCount) || 1));
       const idToken = await user.getIdToken();
       const payload = {
         title,
@@ -428,6 +480,7 @@ export default function AdminGiveawaysPage() {
             remote: remoteMultiplier,
           },
         },
+        winnerCount: normalizedWinnerCount,
         prize: {
           name: prizeName.trim(),
           value: prizeValue.trim(),
@@ -455,7 +508,7 @@ export default function AdminGiveawaysPage() {
     }
   }
 
-  async function drawWinner(id: string, mode: "draw" | "repick" = "draw") {
+  async function drawWinner(id: string, mode: "draw" | "repick" = "draw", winnerIndex?: number) {
     if (!user) return;
     setActionMessage(null);
     try {
@@ -466,11 +519,15 @@ export default function AdminGiveawaysPage() {
           Authorization: `Bearer ${idToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify({
+          mode,
+          ...(typeof winnerIndex === "number" ? { winnerIndex } : {}),
+        }),
       });
       const json = (await res.json()) as {
         ok?: boolean;
         error?: string;
+        drawnNow?: number;
         winner?: { userId?: string; donationId?: string; donorName?: string | null; drawNumber?: number };
       };
       if (!res.ok || json.error) throw new Error(json.error ?? "Failed to draw winner.");
@@ -478,9 +535,43 @@ export default function AdminGiveawaysPage() {
       const winnerLabel =
         json.winner?.donorName ?? json.winner?.userId ?? json.winner?.donationId ?? "winner selected";
       const drawNumber = typeof json.winner?.drawNumber === "number" ? ` (#${json.winner.drawNumber})` : "";
-      setActionMessage(`${mode === "repick" ? "Repick completed" : "Winner drawn"}${drawNumber}: ${winnerLabel}.`);
+      if (mode === "repick") {
+        setActionMessage(`Repick completed${drawNumber}: ${winnerLabel}.`);
+      } else {
+        const drawnNow = typeof json.drawnNow === "number" ? json.drawnNow : 1;
+        setActionMessage(
+          drawnNow > 1
+            ? `Winners drawn: ${drawnNow} selected. Latest${drawNumber}: ${winnerLabel}.`
+            : `Winner drawn${drawNumber}: ${winnerLabel}.`,
+        );
+      }
     } catch (err) {
       setActionMessage(err instanceof Error ? err.message : "Failed to run drawing.");
+    }
+  }
+
+  async function resetDrawing(id: string) {
+    if (!user) return;
+    const confirmed = window.confirm(
+      "Reset this community drawing? This clears all selected winners so you can redraw.",
+    );
+    if (!confirmed) return;
+    setActionMessage(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/admin/giveaways/${id}/reset`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string; clearedWinnerCount?: number };
+      if (!res.ok || json.error) throw new Error(json.error ?? "Failed to reset drawing.");
+      await loadGiveaways();
+      const cleared = typeof json.clearedWinnerCount === "number" ? json.clearedWinnerCount : 0;
+      setActionMessage(`Drawing reset. Cleared ${cleared} winner${cleared === 1 ? "" : "s"}.`);
+    } catch (err) {
+      setActionMessage(err instanceof Error ? err.message : "Failed to reset drawing.");
     }
   }
 
@@ -691,35 +782,34 @@ export default function AdminGiveawaysPage() {
                     </td>
                     <td className="px-4 py-3 capitalize text-white">{g.status ?? "draft"}</td>
                     <td className="px-4 py-3 text-xs text-zinc-300">
-                      {g.winner?.userId ? (
-                        <div className="space-y-1">
-                          <div className="font-semibold text-white">
-                            {g.winner.donorName ?? g.winner.userId}
-                          </div>
-                          {g.winner.donorEmail ? (
-                            <div className="text-zinc-400">{g.winner.donorEmail}</div>
-                          ) : null}
-                          {g.winner.phoneNumber ? (
-                            <div className="text-zinc-400">{g.winner.phoneNumber}</div>
-                          ) : null}
-                          {typeof g.winner.amountCents === "number" ? (
-                            <div className="text-zinc-400">
-                              {formatMoney(g.winner.amountCents)}{g.winner.causeTitle ? ` · ${g.winner.causeTitle}` : ""}
+                      {(() => {
+                        const drawnCount = giveawayWinnerCount(g);
+                        const targetCount = giveawayTargetWinnerCount(g);
+                        const latestWinner = giveawayLatestWinner(g);
+                        return (
+                          <div className="space-y-1">
+                            <div className="font-semibold text-white">
+                              {drawnCount} of {targetCount} winner{targetCount === 1 ? "" : "s"} drawn
                             </div>
-                          ) : null}
-                          <div className="text-zinc-500">
-                            Drawn {formatDate(g.winner.drawnAt)} · Donation {g.winner.donationId ?? "—"}
+                            {latestWinner?.userId ? (
+                              <>
+                                <div className="text-zinc-400">
+                                  Latest: {latestWinner.donorName ?? latestWinner.userId}
+                                </div>
+                                <div className="text-zinc-500">Drawn {formatDate(latestWinner.drawnAt)}</div>
+                              </>
+                            ) : (
+                              <div className="text-zinc-500">No winners drawn yet.</div>
+                            )}
                           </div>
-                        </div>
-                      ) : (
-                        "—"
-                      )}
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
+                      <div className="flex flex-col items-end gap-2">
                         <button
                           type="button"
-                          className="text-xs font-semibold text-emerald-300 underline underline-offset-2 hover:text-emerald-200"
+                          className="inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-md border border-emerald-400/30 bg-emerald-500/10 px-3 text-xs font-semibold whitespace-nowrap text-emerald-200 transition hover:bg-emerald-500/20"
                           onClick={() => {
                             setEditingId(g.id);
                             setModalOpen(true);
@@ -730,7 +820,7 @@ export default function AdminGiveawaysPage() {
                         </button>
                         <button
                           type="button"
-                          className="text-xs font-semibold text-purple-300 underline underline-offset-2 hover:text-purple-200"
+                          className="inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-md border border-violet-400/30 bg-violet-500/10 px-3 text-xs font-semibold whitespace-nowrap text-violet-200 transition hover:bg-violet-500/20"
                           onClick={() => {
                             setEntriesGiveaway(g);
                             setEntriesSource("all");
@@ -741,7 +831,7 @@ export default function AdminGiveawaysPage() {
                         </button>
                         <button
                           type="button"
-                          className="text-xs font-semibold text-sky-300 underline underline-offset-2 hover:text-sky-200"
+                          className="inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-md border border-sky-400/30 bg-sky-500/10 px-3 text-xs font-semibold whitespace-nowrap text-sky-200 transition hover:bg-sky-500/20"
                           onClick={() => {
                             setHistoryGiveaway(g);
                             setHistoryOpen(true);
@@ -751,16 +841,32 @@ export default function AdminGiveawaysPage() {
                         </button>
                         <button
                           type="button"
-                          className={`text-xs font-semibold underline underline-offset-2 ${
+                          className={`inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-md border px-3 text-xs font-semibold whitespace-nowrap transition ${
                             g.status === "active" || g.status === "closed"
-                              ? "text-emerald-300 hover:text-emerald-200"
-                              : "text-zinc-500 cursor-not-allowed"
+                              ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
+                              : "border-zinc-700/60 bg-zinc-800/40 text-zinc-500 cursor-not-allowed"
                           }`}
                           onClick={() => drawWinner(g.id)}
                           disabled={!(g.status === "active" || g.status === "closed")}
                         >
-                          Draw winner
+                          {(() => {
+                            const remaining = Math.max(
+                              0,
+                              giveawayTargetWinnerCount(g) - giveawayWinnerCount(g),
+                            );
+                            if (remaining <= 1) return "Draw winner";
+                            return `Draw ${remaining} winners`;
+                          })()}
                         </button>
+                        {giveawayWinnerCount(g) > 0 ? (
+                          <button
+                            type="button"
+                            className="inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-md border border-rose-400/30 bg-rose-500/10 px-3 text-xs font-semibold whitespace-nowrap text-rose-200 transition hover:bg-rose-500/20"
+                            onClick={() => resetDrawing(g.id)}
+                          >
+                            Reset drawing
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -801,8 +907,9 @@ export default function AdminGiveawaysPage() {
                 </tr>
               ) : (
                 decidedGiveaways.map((g) => {
-                  const latestWinner = giveawayLatestWinner(g);
+                  const winners = giveawayWinners(g);
                   const winnerCount = giveawayWinnerCount(g);
+                  const targetWinnerCount = giveawayTargetWinnerCount(g);
                   return (
                     <tr key={`winner-${g.id}`} className="border-t border-emerald-400/20 hover:bg-emerald-500/[0.08]">
                     <td className="px-4 py-3 align-top">
@@ -818,42 +925,63 @@ export default function AdminGiveawaysPage() {
                         </div>
                       ) : null}
                       <div className="mt-1 text-xs text-emerald-100/70">
-                        {winnerCount} winner{winnerCount === 1 ? "" : "s"} selected
+                        {winnerCount} of {targetWinnerCount} winner{targetWinnerCount === 1 ? "" : "s"} selected
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-zinc-200">
-                      <div className="space-y-1">
-                        <div className="font-semibold text-white">{latestWinner?.donorName ?? latestWinner?.userId ?? "—"}</div>
-                        {latestWinner?.donorEmail ? <div>{latestWinner.donorEmail}</div> : null}
-                        {latestWinner?.phoneNumber ? <div>{latestWinner.phoneNumber}</div> : null}
-                        {latestWinner?.userId ? <div className="text-zinc-400">User: {latestWinner.userId}</div> : null}
+                      <div className="space-y-2">
+                        {winners.map((winner, winnerIndex) => (
+                          <div key={`${g.id}-winner-${winnerIndex}`} className="rounded-md border border-white/10 p-2">
+                            <div className="font-semibold text-white">
+                              #{winnerIndex + 1}: {winner?.donorName ?? winner?.userId ?? "—"}
+                            </div>
+                            {winner?.donorEmail ? <div>{winner.donorEmail}</div> : null}
+                            {winner?.phoneNumber ? <div>{winner.phoneNumber}</div> : null}
+                            {winner?.userId ? <div className="text-zinc-400">User: {winner.userId}</div> : null}
+                          </div>
+                        ))}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-zinc-200">
-                      <div className="space-y-1">
-                        <div className="font-semibold text-white">{formatMoney(latestWinner?.amountCents ?? null)}</div>
-                        <div>{latestWinner?.causeTitle ?? "—"}</div>
-                        <div className="text-zinc-400">{latestWinner?.donationId ?? "—"}</div>
+                      <div className="space-y-2">
+                        {winners.map((winner, winnerIndex) => (
+                          <div key={`${g.id}-donation-${winnerIndex}`} className="rounded-md border border-white/10 p-2">
+                            <div className="font-semibold text-white">{formatMoney(winner?.amountCents ?? null)}</div>
+                            <div>{winner?.causeTitle ?? "—"}</div>
+                            <div className="text-zinc-400">{winner?.donationId ?? "—"}</div>
+                          </div>
+                        ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-zinc-100">{formatDate(latestWinner?.drawnAt)}</td>
+                    <td className="px-4 py-3 text-zinc-100">
+                      <div className="space-y-2">
+                        {winners.map((winner, winnerIndex) => (
+                          <div key={`${g.id}-drawn-${winnerIndex}`} className="rounded-md border border-white/10 p-2 text-xs">
+                            #{winnerIndex + 1}: {formatDate(winner?.drawnAt)}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
+                      <div className="flex flex-col items-end gap-2">
+                        {winners.map((winner, winnerIndex) => (
+                          <button
+                            key={`${g.id}-repick-${winnerIndex}`}
+                            type="button"
+                            className={`inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-md border px-3 text-xs font-semibold whitespace-nowrap transition ${
+                              g.status === "active" || g.status === "closed" || g.status === "drawn"
+                                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
+                                : "border-zinc-700/60 bg-zinc-800/40 text-zinc-500 cursor-not-allowed"
+                            }`}
+                            onClick={() => drawWinner(g.id, "repick", winnerIndex)}
+                            disabled={!(g.status === "active" || g.status === "closed" || g.status === "drawn")}
+                          >
+                            Repick #{winnerIndex + 1}
+                          </button>
+                        ))}
                         <button
                           type="button"
-                          className={`text-xs font-semibold underline underline-offset-2 ${
-                            g.status === "active" || g.status === "closed" || g.status === "drawn"
-                              ? "text-emerald-300 hover:text-emerald-200"
-                              : "text-zinc-500 cursor-not-allowed"
-                          }`}
-                          onClick={() => drawWinner(g.id, "repick")}
-                          disabled={!(g.status === "active" || g.status === "closed" || g.status === "drawn")}
-                        >
-                          Repick winner
-                        </button>
-                        <button
-                          type="button"
-                          className="text-xs font-semibold text-purple-300 underline underline-offset-2 hover:text-purple-200"
+                          className="inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-md border border-violet-400/30 bg-violet-500/10 px-3 text-xs font-semibold whitespace-nowrap text-violet-200 transition hover:bg-violet-500/20"
                           onClick={() => {
                             setEntriesGiveaway(g);
                             setEntriesSource("all");
@@ -864,13 +992,20 @@ export default function AdminGiveawaysPage() {
                         </button>
                         <button
                           type="button"
-                          className="text-xs font-semibold text-sky-300 underline underline-offset-2 hover:text-sky-200"
+                          className="inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-md border border-sky-400/30 bg-sky-500/10 px-3 text-xs font-semibold whitespace-nowrap text-sky-200 transition hover:bg-sky-500/20"
                           onClick={() => {
                             setHistoryGiveaway(g);
                             setHistoryOpen(true);
                           }}
                         >
                           History
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-md border border-rose-400/30 bg-rose-500/10 px-3 text-xs font-semibold whitespace-nowrap text-rose-200 transition hover:bg-rose-500/20"
+                          onClick={() => resetDrawing(g.id)}
+                        >
+                          Reset drawing
                         </button>
                       </div>
                     </td>
@@ -1170,6 +1305,18 @@ export default function AdminGiveawaysPage() {
                             />
                           </label>
                         </div>
+                        <label className="block">
+                          <span className="text-sm font-medium text-zinc-300">Number of winners to draw</span>
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            className="mt-1.5 h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-emerald-400/50 focus:ring-1 focus:ring-emerald-400/20"
+                            value={winnerCount}
+                            onChange={(e) => setWinnerCount(e.target.value)}
+                            placeholder="1"
+                          />
+                        </label>
                         <p className="text-xs text-zinc-500">
                           Entries are calculated per community drawing from carryover points, then multiplied by source.
                         </p>

@@ -115,6 +115,12 @@ export async function GET(request: Request) {
           data.winner && typeof data.winner === "object"
             ? (data.winner as Record<string, unknown>)
             : null;
+        const winnersRaw = Array.isArray(data.winners)
+          ? (data.winners as Array<Record<string, unknown>>)
+          : winnerRaw
+            ? [winnerRaw]
+            : [];
+        const latestWinner = winnersRaw[winnersRaw.length - 1] ?? null;
 
         return {
           id: doc.id,
@@ -132,11 +138,11 @@ export async function GET(request: Request) {
                 description: typeof prizeRaw.description === "string" ? prizeRaw.description : undefined,
               }
             : null,
-          winner: winnerRaw
+          winner: latestWinner
             ? {
-                drawnAt: toIso(winnerRaw.drawnAt),
-                donorName: typeof winnerRaw.donorName === "string" ? winnerRaw.donorName : null,
-                donorEmail: typeof winnerRaw.donorEmail === "string" ? winnerRaw.donorEmail : null,
+                drawnAt: toIso(latestWinner.drawnAt),
+                donorName: typeof latestWinner.donorName === "string" ? latestWinner.donorName : null,
+                donorEmail: typeof latestWinner.donorEmail === "string" ? latestWinner.donorEmail : null,
               }
             : null,
         } satisfies DrawingSummary;

@@ -44,6 +44,12 @@ function normalizePrize(value: unknown): {
   return prize;
 }
 
+function normalizeWinnerCount(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(1, Math.floor(parsed));
+}
+
 export async function GET(request: Request) {
   try {
     await requireAdmin(request);
@@ -65,6 +71,7 @@ export async function GET(request: Request) {
       return {
         id: doc.id,
         ...data,
+        winnerCount: normalizeWinnerCount(data.winnerCount),
         winner: winnerRaw
           ? {
               ...winnerRaw,
@@ -107,6 +114,7 @@ export async function POST(request: Request) {
       eligibility?: unknown;
       entryConfig?: unknown;
       prize?: unknown;
+      winnerCount?: unknown;
     };
     if (!body.title?.trim()) {
       return NextResponse.json({ error: "title required" }, { status: 400 });
@@ -122,6 +130,7 @@ export async function POST(request: Request) {
       eligibility: normalizeGiveawayEligibility(body.eligibility),
       entryConfig: normalizeGiveawayEntryConfig(body.entryConfig),
       prize: normalizePrize(body.prize),
+      winnerCount: normalizeWinnerCount(body.winnerCount),
       scope: "global",
       createdAt: now,
       updatedAt: now,
@@ -139,6 +148,7 @@ export async function POST(request: Request) {
         eligibility: normalizeGiveawayEligibility(body.eligibility),
         entryConfig: normalizeGiveawayEntryConfig(body.entryConfig),
         prize: normalizePrize(body.prize),
+        winnerCount: normalizeWinnerCount(body.winnerCount),
       },
     });
     return NextResponse.json({ ok: true, id: ref.id });
@@ -165,6 +175,7 @@ export async function PATCH(request: Request) {
       eligibility?: unknown;
       entryConfig?: unknown;
       prize?: unknown;
+      winnerCount?: unknown;
     };
     const id = body.id?.trim();
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -189,6 +200,9 @@ export async function PATCH(request: Request) {
           ? { entryConfig: normalizeGiveawayEntryConfig(body.entryConfig) }
           : {}),
         ...(body.prize !== undefined ? { prize: normalizePrize(body.prize) } : {}),
+        ...(body.winnerCount !== undefined
+          ? { winnerCount: normalizeWinnerCount(body.winnerCount) }
+          : {}),
         updatedAt: Timestamp.now(),
       },
       { merge: true },
@@ -211,6 +225,9 @@ export async function PATCH(request: Request) {
           ? { entryConfig: normalizeGiveawayEntryConfig(body.entryConfig) }
           : {}),
         ...(body.prize !== undefined ? { prize: normalizePrize(body.prize) } : {}),
+        ...(body.winnerCount !== undefined
+          ? { winnerCount: normalizeWinnerCount(body.winnerCount) }
+          : {}),
       },
     });
     return NextResponse.json({ ok: true });
