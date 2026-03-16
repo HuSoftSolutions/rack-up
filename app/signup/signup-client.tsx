@@ -19,6 +19,7 @@ export default function SignUpClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect");
+  const referralCode = searchParams.get("ref");
   const redirectParam = useMemo(
     () => (redirect && redirect.startsWith("/") ? redirect : "/"),
     [redirect],
@@ -30,6 +31,16 @@ export default function SignUpClient() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function appendQueryParams(path: string, params: Record<string, string>) {
+    const [base, queryString = ""] = path.split("?", 2);
+    const search = new URLSearchParams(queryString);
+    Object.entries(params).forEach(([key, value]) => {
+      search.set(key, value);
+    });
+    const nextQuery = search.toString();
+    return nextQuery ? `${base}?${nextQuery}` : base;
+  }
 
   useEffect(() => {
     if (loading) return;
@@ -63,11 +74,42 @@ export default function SignUpClient() {
         const json = (await profileRes.json()) as { error?: string };
         throw new Error(json.error ?? "Unable to save profile.");
       }
+
+      let awardedInvitedPoints = 0;
+      const normalizedReferralCode = referralCode?.trim();
+      if (normalizedReferralCode) {
+        try {
+          const claimRes = await fetch("/api/referrals/claim", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ code: normalizedReferralCode }),
+          });
+          const claimJson = (await claimRes.json()) as {
+            ok?: boolean;
+            invitedPoints?: number;
+          };
+          if (claimRes.ok && claimJson.ok && typeof claimJson.invitedPoints === "number") {
+            awardedInvitedPoints = Math.max(0, Math.floor(claimJson.invitedPoints));
+          }
+        } catch {
+          // Non-blocking: account creation should not fail on referral claim errors.
+        }
+      }
       const target =
         redirectParam && redirectParam !== "/"
           ? redirectParam
           : (await fetchRedirectTarget()) ?? "/";
-      router.replace(target);
+      const targetWithReferral =
+        awardedInvitedPoints > 0
+          ? appendQueryParams(target, {
+              referralSignup: "1",
+              referralPoints: String(awardedInvitedPoints),
+            })
+          : target;
+      router.replace(targetWithReferral);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign up failed.");
       setSubmitting(false);

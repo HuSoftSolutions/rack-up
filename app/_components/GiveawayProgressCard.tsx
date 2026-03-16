@@ -91,25 +91,43 @@ export default function GiveawayProgressCard({
   const entryUnit = progress?.entryUnitPoints ?? 500;
   const pointsToNextEntry = progress?.pointsToNextEntry ?? 500;
   const carryPoints = progress?.carryPoints ?? 0;
+  const progressPct = entryUnit > 0 ? Math.min(100, ((entryUnit - pointsToNextEntry) / entryUnit) * 100) : 0;
 
   return (
-    <div className={`rounded-xl border border-emerald-300/20 bg-emerald-500/[0.08] p-3 ${className}`}>
-      <div className="text-xs font-semibold uppercase tracking-wide text-emerald-200">
-        Community drawing progress
+    <div className={`rounded-2xl border border-emerald-300/20 bg-emerald-500/[0.08] p-5 ${className}`}>
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold uppercase tracking-wider text-emerald-300">
+          Community drawing progress
+        </div>
+        <div className="text-xs text-emerald-200/70">
+          Every {entryUnit} pts = 1 entry
+        </div>
       </div>
-      <div className="mt-1 text-sm text-emerald-50">
-        <span className="font-semibold">{pointsToNextEntry}</span> points until your next community drawing entry.
+
+      <div className="mt-3">
+        <div className="flex items-end justify-between text-sm">
+          <span className="text-emerald-100">
+            <span className="text-lg font-bold text-emerald-300">{pointsToNextEntry}</span> pts to next entry
+          </span>
+          <span className="text-xs text-emerald-200/60">{Math.round(progressPct)}%</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-emerald-900/40">
+          <div
+            className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+        <div className="mt-1.5 text-xs text-emerald-200/60">
+          {carryPoints} / {entryUnit} carryover points
+        </div>
       </div>
-      <div className="mt-1 text-xs text-emerald-100/90">
-        Carryover: {carryPoints}/{entryUnit} points. Every {entryUnit} points earned = 1 entry
-        in each eligible active community drawing.
-      </div>
+
       {projected ? (
-        <div className="mt-1 text-xs text-emerald-100/90">
-          This donation projects {projected.entriesGained} new entr{projected.entriesGained === 1 ? "y" : "ies"}; then {projected.pointsToNext} points to the following entry.
+        <div className="mt-3 rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+          This donation adds {projected.entriesGained} entr{projected.entriesGained === 1 ? "y" : "ies"}, then {projected.pointsToNext} pts to the next.
         </div>
       ) : null}
-      <div className="mt-1 text-xs text-emerald-100/80">
+      <div className="mt-2 text-[11px] text-emerald-200/50">
         Drawings happen monthly. Entries are added automatically.
       </div>
     </div>

@@ -9,10 +9,11 @@ export async function GET(request: Request) {
   try {
     await requireAdmin(request);
 
-    const [businessesSnap, causesSnap, dealsSnap] = await Promise.all([
+    const [businessesSnap, causesSnap, dealsSnap, scanEventsSnap] = await Promise.all([
       adminFirestore.collection("businesses").get(),
       adminFirestore.collection("causes").get(),
       adminFirestore.collection("deals").get(),
+      adminFirestore.collection("scan_events").get(),
     ]);
 
     const businesses = await Promise.all(
@@ -57,7 +58,16 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json({ businesses, causes, deals });
+    const scanEvents = scanEventsSnap.docs.map((doc) => {
+      const data = doc.data() as { title?: string; active?: boolean };
+      return {
+        id: doc.id,
+        title: data.title ?? doc.id,
+        active: data.active ?? true,
+      };
+    });
+
+    return NextResponse.json({ businesses, causes, deals, scanEvents });
   } catch (err) {
     if (err instanceof AuthError) {
       const status = err.message.includes("Admin") ? 403 : 401;

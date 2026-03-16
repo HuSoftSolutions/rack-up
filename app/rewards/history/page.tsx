@@ -210,23 +210,37 @@ export default function RewardHistoryPage() {
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-2">
-          <Badge color="emerald">Rewards</Badge>
-          <Heading level={1} className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Your redeemed rewards
-          </Heading>
-          <Text className="max-w-2xl text-zinc-200">
-            Show active rewards in person to staff. They&apos;ll mark them as used in the business console.
-          </Text>
+      {/* ── Header ── */}
+      <header className="rounded-3xl border border-white/10 bg-white/5 p-6 sm:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-6">
+          <div className="space-y-3">
+            <Badge color="emerald">Rewards</Badge>
+            <Heading level={1} className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Your redeemed rewards
+            </Heading>
+            <Text className="max-w-2xl text-zinc-300">
+              Show active rewards in person to staff. They&apos;ll mark them as used in the business console.
+            </Text>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button href="/rewards" outline>
+              Browse rewards
+            </Button>
+            <Button href="/profile" color="emerald">
+              Profile
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button href="/rewards" outline>
-            Browse rewards
-          </Button>
-          <Button href="/profile" color="emerald">
-            Profile
-          </Button>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-1.5 text-xs font-semibold text-emerald-300">
+            {loading || loadingIssues ? "Loading…" : `${active.length} active`}
+          </span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs text-zinc-400">
+            {loadingIssues ? "Loading…" : `${history.length} past`}
+          </span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs text-zinc-400">
+            {loadingDonations ? "Loading…" : `${donations.length} donation${donations.length !== 1 ? "s" : ""}`}
+          </span>
         </div>
       </header>
 
@@ -242,175 +256,184 @@ export default function RewardHistoryPage() {
         </div>
       ) : null}
 
-      <section className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-5">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-white">Active rewards</div>
-          <div className="text-xs text-zinc-400">{loading || loadingIssues ? "Loading…" : `${active.length} active`}</div>
+      {/* ── Active Rewards ── */}
+      <section className="rounded-3xl border border-white/10 bg-white/5">
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <h2 className="text-base font-semibold text-white">Active rewards</h2>
         </div>
-        {loadingIssues ? (
-          <div className="space-y-2 text-sm text-zinc-400">Loading your rewards…</div>
-        ) : active.length === 0 ? (
-          <div className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-zinc-300">
-            Nothing active right now. Redeem a reward to see it here.
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {active.map((issue) => (
-              <div key={issue.id} className="space-y-2 rounded-2xl border border-white/10 bg-black/40 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-white">
-                      {issue.title ?? issue.dealId ?? "Reward"}
-                    </div>
-                    <div className="text-xs text-zinc-400">
-                      {issue.businessName ?? issue.businessId ?? "Partner"}
-                    </div>
-                    {issue.redeemLocationName ? (
-                      <div className="text-xs text-zinc-500">{issue.redeemLocationName}</div>
-                    ) : null}
-                  </div>
-                  <StatusBadge status={issue.status} />
-                </div>
-                <div className="flex items-center gap-3 text-xs text-zinc-400">
-                  <span>Issued {formatDate(issue.issuedAt)}</span>
-                  <span className="opacity-50">•</span>
-                  <span>
-                    {issue.expiresAt ? `Expires ${formatDate(issue.expiresAt)}` : "No expiry"}
-                  </span>
-                </div>
-                <div className="text-xs text-zinc-300">
-                  Show this code or receipt at the location so staff can mark it used.
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400">
-                  <span className="font-mono text-emerald-200">{issue.code ?? "—"}</span>
-                  <a className="text-emerald-200 underline" href={`/rewards/receipt/${issue.id}`}>
-                    View receipt
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-5">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-white">History</div>
-          <div className="text-xs text-zinc-400">{loadingIssues ? "Loading…" : `${history.length} past rewards`}</div>
-        </div>
-        {loadingIssues ? (
-          <div className="space-y-2 text-sm text-zinc-400">Loading history…</div>
-        ) : history.length === 0 ? (
-          <div className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-zinc-300">
-            No redeemed rewards in your history yet.
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-white/10">
-            <table className="min-w-full text-sm">
-              <thead className="bg-black/40 text-left text-xs uppercase tracking-wide text-zinc-400">
-                <tr>
-                  <th className="px-4 py-2">Reward</th>
-                  <th className="px-4 py-2">Status</th>
-                  <th className="px-4 py-2">Issued</th>
-                  <th className="px-4 py-2">Location</th>
-                  <th className="px-4 py-2">Used/Expiry</th>
-                  <th className="px-4 py-2 text-right">Receipt</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((issue) => (
-                  <tr key={issue.id} className="border-t border-white/5">
-                    <td className="px-4 py-2">
-                      <div className="font-semibold text-white">{issue.title ?? issue.dealId ?? "Reward"}</div>
-                      <div className="text-xs text-zinc-400">
+        <div className="p-5">
+          {loadingIssues ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {Array.from({ length: 2 }).map((_, idx) => (
+                <div key={idx} className="h-32 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+              ))}
+            </div>
+          ) : active.length === 0 ? (
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] px-5 py-6 text-center text-sm text-zinc-500">
+              Nothing active right now. Redeem a reward to see it here.
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {active.map((issue) => (
+                <div key={issue.id} className="rounded-2xl border border-emerald-400/15 bg-emerald-500/[0.04] p-5 transition hover:border-emerald-400/30">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-base font-semibold text-white">
+                        {issue.title ?? issue.dealId ?? "Reward"}
+                      </div>
+                      <div className="mt-0.5 text-xs text-zinc-400">
                         {issue.businessName ?? issue.businessId ?? "Partner"}
+                        {issue.redeemLocationName ? ` · ${issue.redeemLocationName}` : ""}
                       </div>
-                    </td>
-                    <td className="px-4 py-2">
-                      <StatusBadge status={issue.status} />
-                    </td>
-                    <td className="px-4 py-2 text-xs text-zinc-400">{formatDate(issue.issuedAt)}</td>
-                    <td className="px-4 py-2 text-xs text-zinc-400">
-                      {issue.redeemLocationName ?? "—"}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-zinc-400">
-                      {issue.status === "used"
-                        ? formatDate(issue.usedAt)
-                        : issue.expiresAt
-                          ? formatDate(issue.expiresAt)
-                          : "No expiry"}
-                    </td>
-                    <td className="px-4 py-2 text-right text-xs text-emerald-200">{issue.code ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                    </div>
+                    <StatusBadge status={issue.status} />
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
+                    <span>Issued {formatDate(issue.issuedAt)}</span>
+                    <span className="text-zinc-700">·</span>
+                    <span>
+                      {issue.expiresAt ? `Expires ${formatDate(issue.expiresAt)}` : "No expiry"}
+                    </span>
+                  </div>
+                  <div className="mt-3 text-xs text-zinc-400">
+                    Show this code or receipt at the location so staff can mark it used.
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <span className="rounded-md border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 font-mono text-sm font-semibold text-emerald-300">{issue.code ?? "—"}</span>
+                    <a
+                      className="inline-flex items-center rounded-md border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-emerald-200 transition hover:bg-white/10"
+                      href={`/rewards/receipt/${issue.id}`}
+                    >
+                      View receipt
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
 
-      <section className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-5">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-white">Support receipts</div>
-          <div className="text-xs text-zinc-400">
-            {loadingDonations ? "Loading…" : `${donations.length} support`}
-          </div>
+      {/* ── History Table ── */}
+      <section className="rounded-3xl border border-white/10 bg-white/5">
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <h2 className="text-base font-semibold text-white">History</h2>
         </div>
-        {loadingDonations ? (
-          <div className="space-y-2 text-sm text-zinc-400">Loading support…</div>
-        ) : donations.length === 0 ? (
-          <div className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-zinc-300">
-            No support yet.
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-white/10">
-            <table className="min-w-full text-sm">
-              <thead className="bg-black/40 text-left text-xs uppercase tracking-wide text-zinc-400">
-                <tr>
-                  <th className="px-4 py-2">Date</th>
-                  <th className="px-4 py-2">Cause</th>
-                  <th className="px-4 py-2">Business</th>
-                  <th className="px-4 py-2">Amount</th>
-                  <th className="px-4 py-2 text-right">Receipt</th>
-                </tr>
-              </thead>
-              <tbody>
-                {donations.map((donation) => (
-                  <tr key={donation.id} className="border-t border-white/5">
-                    <td className="px-4 py-2 text-xs text-zinc-400">
-                      {formatDate(donation.createdAt)}
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="font-semibold text-white">
-                        {donation.causeTitle ?? "Support"}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 text-xs text-zinc-400">
-                      {donation.businessName ?? "—"}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-zinc-400">
-                      {formatMoney(donation.amountCents)}
-                    </td>
-                    <td className="px-4 py-2 text-right text-xs">
-                      {donation.receiptUrl ? (
-                        <a
-                          href={donation.receiptUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-emerald-200 underline"
-                        >
-                          View receipt
-                        </a>
-                      ) : (
-                        <span className="text-zinc-500">—</span>
-                      )}
-                    </td>
+        <div className="p-1">
+          {loadingIssues ? (
+            <div className="p-6 text-sm text-zinc-400">Loading history…</div>
+          ) : history.length === 0 ? (
+            <div className="p-6 text-center text-sm text-zinc-500">
+              No redeemed rewards in your history yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-[11px] uppercase tracking-wider text-zinc-500">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-medium">Reward</th>
+                    <th className="px-5 py-3 text-left font-medium">Status</th>
+                    <th className="px-5 py-3 text-left font-medium">Issued</th>
+                    <th className="px-5 py-3 text-left font-medium">Location</th>
+                    <th className="px-5 py-3 text-left font-medium">Used/Expiry</th>
+                    <th className="px-5 py-3 text-right font-medium">Code</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {history.map((issue) => (
+                    <tr key={issue.id} className="transition hover:bg-white/[0.03]">
+                      <td className="px-5 py-3">
+                        <div className="font-medium text-white">{issue.title ?? issue.dealId ?? "Reward"}</div>
+                        <div className="text-xs text-zinc-500">
+                          {issue.businessName ?? issue.businessId ?? "Partner"}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <StatusBadge status={issue.status} />
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-3 text-xs text-zinc-400">{formatDate(issue.issuedAt)}</td>
+                      <td className="px-5 py-3 text-xs text-zinc-400">
+                        {issue.redeemLocationName ?? "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-3 text-xs text-zinc-400">
+                        {issue.status === "used"
+                          ? formatDate(issue.usedAt)
+                          : issue.expiresAt
+                            ? formatDate(issue.expiresAt)
+                            : "No expiry"}
+                      </td>
+                      <td className="px-5 py-3 text-right font-mono text-xs text-emerald-300">{issue.code ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Donation Receipts Table ── */}
+      <section className="rounded-3xl border border-white/10 bg-white/5">
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <h2 className="text-base font-semibold text-white">Support receipts</h2>
+        </div>
+        <div className="p-1">
+          {loadingDonations ? (
+            <div className="p-6 text-sm text-zinc-400">Loading support…</div>
+          ) : donations.length === 0 ? (
+            <div className="p-6 text-center text-sm text-zinc-500">
+              No support yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-[11px] uppercase tracking-wider text-zinc-500">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-medium">Date</th>
+                    <th className="px-5 py-3 text-left font-medium">Cause</th>
+                    <th className="px-5 py-3 text-left font-medium">Business</th>
+                    <th className="px-5 py-3 text-right font-medium">Amount</th>
+                    <th className="px-5 py-3 text-right font-medium">Receipt</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {donations.map((donation) => (
+                    <tr key={donation.id} className="transition hover:bg-white/[0.03]">
+                      <td className="whitespace-nowrap px-5 py-3 text-xs text-zinc-400">
+                        {formatDate(donation.createdAt)}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="font-medium text-white">
+                          {donation.causeTitle ?? "Support"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-xs text-zinc-400">
+                        {donation.businessName ?? "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-3 text-right text-xs font-medium text-white">
+                        {formatMoney(donation.amountCents)}
+                      </td>
+                      <td className="px-5 py-3 text-right text-xs">
+                        {donation.receiptUrl ? (
+                          <a
+                            href={donation.receiptUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-emerald-200 transition hover:bg-white/10"
+                          >
+                            View
+                          </a>
+                        ) : (
+                          <span className="text-zinc-600">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

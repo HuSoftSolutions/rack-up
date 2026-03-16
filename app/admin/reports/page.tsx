@@ -16,6 +16,7 @@ type BusinessMeta = {
 
 type CauseMeta = { id: string; title: string; active: boolean };
 type DealMeta = { id: string; title: string; businessId: string | null; active: boolean };
+type ScanEventMeta = { id: string; title: string; active: boolean };
 
 type ReportResponse = {
   id?: string;
@@ -31,12 +32,14 @@ type ReportResponse = {
     donations: { count: number; totalCents: number };
     transactions: { count: number; pointsDelta: number };
     rewards: { issued: number; used: number };
+    scanEvents?: { claims: number; pointsAwarded: number; giveawayEntriesAwarded: number };
     users: { count: number; admins: number; business: number };
   };
   datasets: {
     donations: { rows: DonationRow[]; truncated: boolean };
     transactions: { rows: TransactionRow[]; truncated: boolean };
     rewards: { rows: RewardRow[]; truncated: boolean };
+    scanEventClaims?: { rows: ScanEventClaimRow[]; truncated: boolean };
     causes: { rows: CauseRow[]; truncated: boolean };
     deals: { rows: DealRow[]; truncated: boolean };
     businesses: { rows: BusinessRow[]; truncated: boolean };
@@ -96,6 +99,7 @@ type TransactionRow = {
   causeId: string | null;
   stripePaymentIntentId: string | null;
   scanSource: string | null;
+  scanEventId: string | null;
   qrTarget: string | null;
   qrLocationId: string | null;
   giveawayEntries: number | null;
@@ -112,6 +116,19 @@ type RewardRow = {
   userId: string | null;
   redeemLocationId: string | null;
   redeemLocationName: string | null;
+};
+
+type ScanEventClaimRow = {
+  id: string;
+  createdAt: string | null;
+  scanEventId: string | null;
+  userId: string | null;
+  claimCount: number;
+  pointsAwarded: number;
+  giveawayEntriesAwarded: number;
+  giveawayAwardCount: number;
+  giveawayTargetMode: string | null;
+  giveawayIds: string[];
 };
 
 type CauseRow = { id: string; title: string; active: boolean; createdAt: string | null };
@@ -151,16 +168,29 @@ function toInputDate(value: Date) {
 
 const DONATION_STATUS = ["completed", "pending", "failed"] as const;
 const TRANSACTION_STATUS = ["completed", "pending", "failed"] as const;
-const TRANSACTION_TYPES = ["donation", "redemption", "adjustment"] as const;
+const TRANSACTION_TYPES = [
+  "donation",
+  "redemption",
+  "adjustment",
+  "scan_event",
+  "referral_invite",
+  "referral_signup",
+] as const;
 const REWARD_STATUS = ["issued", "used", "expired"] as const;
-const SCAN_SOURCES = ["in_person", "remote"] as const;
+const SCAN_SOURCES = ["in_person", "remote", "scan_event"] as const;
 
 export default function AdminReportsPage() {
   const { user } = useAuth();
-  const [metadata, setMetadata] = useState<{ businesses: BusinessMeta[]; causes: CauseMeta[]; deals: DealMeta[] }>({
+  const [metadata, setMetadata] = useState<{
+    businesses: BusinessMeta[];
+    causes: CauseMeta[];
+    deals: DealMeta[];
+    scanEvents: ScanEventMeta[];
+  }>({
     businesses: [],
     causes: [],
     deals: [],
+    scanEvents: [],
   });
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -184,6 +214,7 @@ export default function AdminReportsPage() {
   const [transactionTypes, setTransactionTypes] = useState<string[]>([]);
   const [rewardStatus, setRewardStatus] = useState<string[]>([]);
   const [scanSources, setScanSources] = useState<string[]>([]);
+  const [scanEventIds, setScanEventIds] = useState<string[]>([]);
   const [limit, setLimit] = useState(1000);
   const [reportName, setReportName] = useState("");
   const [reportTags, setReportTags] = useState("");
@@ -204,11 +235,22 @@ export default function AdminReportsPage() {
       const res = await fetch("/api/admin/report-metadata", {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      const json = (await res.json()) as { businesses?: BusinessMeta[]; causes?: CauseMeta[]; deals?: DealMeta[]; error?: string };
-      if (!res.ok || !json.businesses || !json.causes || !json.deals) {
+      const json = (await res.json()) as {
+        businesses?: BusinessMeta[];
+        causes?: CauseMeta[];
+        deals?: DealMeta[];
+        scanEvents?: ScanEventMeta[];
+        error?: string;
+      };
+      if (!res.ok || !json.businesses || !json.causes || !json.deals || !json.scanEvents) {
         throw new Error(json.error ?? "Failed to load report metadata.");
       }
-      setMetadata({ businesses: json.businesses, causes: json.causes, deals: json.deals });
+      setMetadata({
+        businesses: json.businesses,
+        causes: json.causes,
+        deals: json.deals,
+        scanEvents: json.scanEvents,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load report metadata.");
     } finally {
@@ -264,6 +306,7 @@ export default function AdminReportsPage() {
       if (transactionTypes.length > 0) params.set("transactionTypes", transactionTypes.join(","));
       if (rewardStatus.length > 0) params.set("rewardStatus", rewardStatus.join(","));
       if (scanSources.length > 0) params.set("scanSource", scanSources.join(","));
+      if (scanEventIds.length > 0) params.set("scanEventIds", scanEventIds.join(","));
 
       const res = await fetch(`/api/admin/reports?${params.toString()}`, {
         method: "POST",
@@ -303,19 +346,14 @@ export default function AdminReportsPage() {
     transactionTypes,
     rewardStatus,
     scanSources,
+    scanEventIds,
+    reportName,
+    reportTags,
+    loadHistory,
   ]);
 
   function toggleInList(list: string[], value: string) {
     return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
-  }
-
-  function csvEscape(value: unknown) {
-    if (value === null || value === undefined) return "";
-    const text = String(value);
-    if (text.includes(",") || text.includes("\n") || text.includes("\"")) {
-      return `"${text.replace(/"/g, "\"\"")}"`;
-    }
-    return text;
   }
 
   function applyHeaderStyle(row: ExcelJS.Row) {
@@ -414,6 +452,12 @@ export default function AdminReportsPage() {
 
   async function downloadXlsx() {
     if (!report) return;
+    const scanSummary = report.summary.scanEvents ?? {
+      claims: 0,
+      pointsAwarded: 0,
+      giveawayEntriesAwarded: 0,
+    };
+    const scanClaimsDataset = report.datasets.scanEventClaims ?? { rows: [], truncated: false };
     const wb = new ExcelJS.Workbook();
     wb.creator = "Rack Up Admin";
     wb.created = new Date();
@@ -438,6 +482,9 @@ export default function AdminReportsPage() {
     summarySheet.addRow(["Transactions Points Delta", report.summary.transactions.pointsDelta]);
     summarySheet.addRow(["Rewards Issued", report.summary.rewards.issued]);
     summarySheet.addRow(["Rewards Used", report.summary.rewards.used]);
+    summarySheet.addRow(["Scan Event Claims", scanSummary.claims]);
+    summarySheet.addRow(["Scan Event Points Awarded", scanSummary.pointsAwarded]);
+    summarySheet.addRow(["Scan Event Giveaway Entries", scanSummary.giveawayEntriesAwarded]);
     summarySheet.addRow(["Users Count", report.summary.users.count]);
     summarySheet.addRow(["Users Admins", report.summary.users.admins]);
     summarySheet.addRow(["Users Business", report.summary.users.business]);
@@ -454,6 +501,7 @@ export default function AdminReportsPage() {
         { key: "amountCents", label: "Amount (Cents)", width: 16, type: "number" },
         { key: "points", label: "Points", width: 10, type: "number" },
         { key: "scanSource", label: "Scan Source", width: 12 },
+        { key: "scanEventId", label: "Scan Event ID", width: 20 },
         { key: "qrTarget", label: "QR Target", width: 14 },
         { key: "qrLocationId", label: "QR Location", width: 16 },
         { key: "giveawayEntries", label: "Community Drawing Entries", width: 16, type: "number" },
@@ -522,6 +570,27 @@ export default function AdminReportsPage() {
       [
         ["Rows", report.datasets.rewards.rows.length],
         ["Truncated", report.datasets.rewards.truncated ? "Yes" : "No"],
+      ],
+    );
+
+    buildStyledSheet(
+      wb,
+      "Scan Event Claims",
+      scanClaimsDataset.rows as Record<string, unknown>[],
+      [
+        { key: "id", label: "Claim Event ID", width: 28 },
+        { key: "createdAt", label: "Created At", width: 16, type: "date" },
+        { key: "scanEventId", label: "Scan Event ID", width: 24 },
+        { key: "userId", label: "User ID", width: 22 },
+        { key: "claimCount", label: "Claim Count", width: 12, type: "number" },
+        { key: "pointsAwarded", label: "Points Awarded", width: 14, type: "number" },
+        { key: "giveawayEntriesAwarded", label: "Giveaway Entries", width: 16, type: "number" },
+        { key: "giveawayAwardCount", label: "Giveaways Awarded", width: 16, type: "number" },
+        { key: "giveawayTargetMode", label: "Giveaway Target Mode", width: 18 },
+      ],
+      [
+        ["Rows", scanClaimsDataset.rows.length],
+        ["Truncated", scanClaimsDataset.truncated ? "Yes" : "No"],
       ],
     );
 
@@ -904,7 +973,7 @@ export default function AdminReportsPage() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            <div className="mt-4 grid gap-4 lg:grid-cols-4">
               <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
               Causes
@@ -1091,6 +1160,34 @@ export default function AdminReportsPage() {
               </div>
               <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Scan events
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {metadata.scanEvents.map((event) => {
+                const checked = scanEventIds.includes(event.id);
+                return (
+                  <label
+                    key={event.id}
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs transition ${
+                      checked
+                        ? "border-emerald-300 bg-emerald-300 text-emerald-950 shadow-lg shadow-emerald-400/30"
+                        : "border-white/15 bg-white/5 text-white hover:border-white/25"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={checked}
+                      onChange={() => setScanEventIds(toggleInList(scanEventIds, event.id))}
+                    />
+                    {event.title}
+                  </label>
+                );
+              })}
+            </div>
+              </div>
+              <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
               Reward status
             </label>
             <div className="flex flex-wrap gap-2">
@@ -1135,7 +1232,7 @@ export default function AdminReportsPage() {
       </div>
 
       {report ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <div className="rounded border border-white/10 bg-white/[0.02] px-4 py-3">
             <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Support</div>
             <div className="mt-1 text-2xl font-bold text-white">{report.summary.donations.count}</div>
@@ -1160,6 +1257,13 @@ export default function AdminReportsPage() {
               {report.summary.users.admins} admins · {report.summary.users.business} business
             </div>
           </div>
+          <div className="rounded border border-white/10 bg-white/[0.02] px-4 py-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">Scan Events</div>
+            <div className="mt-1 text-2xl font-bold text-white">{report.summary.scanEvents?.claims ?? 0}</div>
+            <div className="text-xs text-zinc-500">
+              {report.summary.scanEvents?.pointsAwarded ?? 0} pts · {report.summary.scanEvents?.giveawayEntriesAwarded ?? 0} entries
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -1175,6 +1279,7 @@ export default function AdminReportsPage() {
               { key: "amountCents", label: "Amount", render: (row: DonationRow) => formatMoney(row.amountCents) },
               { key: "status", label: "Status" },
               { key: "scanSource", label: "Scan source" },
+              { key: "scanEventId", label: "Scan event" },
               { key: "qrTarget", label: "QR target" },
               { key: "giveawayEntries", label: "Entries" },
               { key: "businessName", label: "Business" },
@@ -1218,6 +1323,28 @@ export default function AdminReportsPage() {
               { key: "dealId", label: "Deal" },
               { key: "redeemLocationName", label: "Location" },
               { key: "userId", label: "User" },
+            ]}
+          />
+
+          <ReportSection
+            title="Scan Event Claims"
+            description="Successful scan claims captured from public QR scans."
+            rows={report.datasets.scanEventClaims?.rows ?? []}
+            truncated={report.datasets.scanEventClaims?.truncated ?? false}
+            columns={[
+              { key: "createdAt", label: "Created", render: (row: ScanEventClaimRow) => formatDate(row.createdAt) },
+              { key: "scanEventId", label: "Scan event" },
+              { key: "userId", label: "User" },
+              { key: "claimCount", label: "Claim #" },
+              { key: "pointsAwarded", label: "Points" },
+              { key: "giveawayEntriesAwarded", label: "Entries" },
+              { key: "giveawayAwardCount", label: "Giveaways" },
+              { key: "giveawayTargetMode", label: "Target mode" },
+              {
+                key: "giveawayIds",
+                label: "Giveaway IDs",
+                render: (row: ScanEventClaimRow) => (row.giveawayIds?.length ? row.giveawayIds.join(", ") : "—"),
+              },
             ]}
           />
 

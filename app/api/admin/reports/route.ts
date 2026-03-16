@@ -131,6 +131,7 @@ export async function POST(request: Request) {
     const transactionTypes = parseList(url.searchParams.get("transactionTypes"));
     const rewardStatus = parseList(url.searchParams.get("rewardStatus"));
     const scanSources = parseList(url.searchParams.get("scanSource"));
+    const scanEventIds = parseList(url.searchParams.get("scanEventIds"));
 
     const warnings: string[] = [];
 
@@ -211,6 +212,7 @@ export async function POST(request: Request) {
             causeId: data.causeId ?? null,
             stripePaymentIntentId: data.stripePaymentIntentId ?? null,
             scanSource: data.scanSource ?? null,
+            scanEventId: data.scanEventId ?? null,
             qrTarget: data.qrTarget ?? null,
             qrLocationId: data.qrLocationId ?? null,
             giveawayEntries: data.giveawayEntries ?? null,
@@ -218,6 +220,7 @@ export async function POST(request: Request) {
         });
         const filtered = rows.filter((row) => {
           if (scanSources.length > 0 && !scanSources.includes(row.scanSource ?? "")) return false;
+          if (scanEventIds.length > 0 && !scanEventIds.includes(row.scanEventId ?? "")) return false;
           if (locationIds.length > 0 && !locationIds.includes(row.locationId ?? "")) return false;
           if (causeIds.length > 0 && !causeIds.includes(row.causeId ?? "")) return false;
           if (userId && row.userId !== userId) return false;
@@ -260,6 +263,40 @@ export async function POST(request: Request) {
           if (userId && row.userId !== userId) return false;
           if (dealIds.length > 0 && !dealIds.includes(row.dealId ?? "")) return false;
           if (rewardStatus.length > 0 && !rewardStatus.includes(row.status ?? "")) return false;
+          return true;
+        });
+        return { rows: filtered, truncated: rows.length >= limit };
+      },
+      warnings,
+      { rows: [], truncated: false },
+    );
+
+    const scanEventClaims = await safe(
+      "scanEventClaims",
+      async () => {
+        let query = adminFirestore
+          .collection("scan_event_claim_events")
+          .where("createdAt", ">=", startTs)
+          .where("createdAt", "<=", endTs);
+        if (userId) query = query.where("userId", "==", userId);
+        const snap = await query.orderBy("createdAt", "desc").limit(limit).get();
+        const rows = snap.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            createdAt: toIso(data.createdAt),
+            scanEventId: data.scanEventId ?? null,
+            userId: data.userId ?? null,
+            claimCount: data.claimCount ?? 0,
+            pointsAwarded: data.pointsAwarded ?? 0,
+            giveawayEntriesAwarded: data.giveawayEntriesAwarded ?? 0,
+            giveawayAwardCount: data.giveawayAwardCount ?? 0,
+            giveawayTargetMode: data.giveawayTargetMode ?? null,
+            giveawayIds: Array.isArray(data.giveawayIds) ? data.giveawayIds : [],
+          };
+        });
+        const filtered = rows.filter((row) => {
+          if (scanEventIds.length > 0 && !scanEventIds.includes(row.scanEventId ?? "")) return false;
           return true;
         });
         return { rows: filtered, truncated: rows.length >= limit };
@@ -449,6 +486,14 @@ export async function POST(request: Request) {
         issued: rewards.rows.filter((row) => row.status === "issued").length,
         used: rewards.rows.filter((row) => row.status === "used").length,
       },
+      scanEvents: {
+        claims: scanEventClaims.rows.length,
+        pointsAwarded: scanEventClaims.rows.reduce((sum, row) => sum + (row.pointsAwarded ?? 0), 0),
+        giveawayEntriesAwarded: scanEventClaims.rows.reduce(
+          (sum, row) => sum + (row.giveawayEntriesAwarded ?? 0),
+          0,
+        ),
+      },
       users: {
         count: users.rows.length,
         admins: users.rows.filter((row) => row.isAdmin).length,
@@ -472,6 +517,7 @@ export async function POST(request: Request) {
         transactionTypes,
         rewardStatus,
         scanSource: scanSources,
+        scanEventIds,
       },
     };
 
@@ -482,6 +528,7 @@ export async function POST(request: Request) {
         donations,
         transactions,
         rewards,
+        scanEventClaims,
         causes,
         deals,
         businesses,

@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React, { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "firebase/auth";
+import confetti from "canvas-confetti";
 import {
   Timestamp,
   collection,
   doc,
-  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -27,6 +27,7 @@ import GiveawayProgressCard from "@/app/_components/GiveawayProgressCard";
 
 export default function ProfilePage() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading } = useRequireAuth("/signin");
   const [signingOut, setSigningOut] = useState(false);
   const { isAdmin, loading: adminLoading } = useAdminStatus();
@@ -87,6 +88,35 @@ export default function ProfilePage() {
       issuedAt?: Date;
     }>
   >([]);
+  const [referralsLoading, setReferralsLoading] = useState(true);
+  const [referralsError, setReferralsError] = useState<string | null>(null);
+  const [referralsConfig, setReferralsConfig] = useState<{
+    enabled: boolean;
+    inviterPoints: number;
+    invitedPoints: number;
+  }>({
+    enabled: false,
+    inviterPoints: 0,
+    invitedPoints: 0,
+  });
+  const [referralInviteLink, setReferralInviteLink] = useState<string | null>(null);
+  const [referralsStats, setReferralsStats] = useState<{ invitedUsers: number; inviterPointsAwarded: number }>({
+    invitedUsers: 0,
+    inviterPointsAwarded: 0,
+  });
+  const [creatingReferralLink, setCreatingReferralLink] = useState(false);
+  const [copiedReferral, setCopiedReferral] = useState(false);
+  const [signupReferralPoints, setSignupReferralPoints] = useState<number | null>(null);
+  const referralConfettiFired = useRef(false);
+  const [notifications, setNotifications] = useState<
+    Array<{
+      id: string;
+      title: string;
+      description: string;
+      color: "amber" | "emerald" | "blue" | "red" | "zinc";
+    }>
+  >([]);
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([]);
 
   async function onSignOut() {
     setSigningOut(true);
@@ -114,41 +144,12 @@ export default function ProfilePage() {
       return undefined;
     };
 
-    async function loadTransactions() {
-      try {
-        const txSnap = await getDocs(
-          query(
-            collection(firestore, "transactions"),
-            where("userId", "==", currentUser.uid),
-            orderBy("createdAt", "desc"),
-            limit(50),
-          ),
-        );
-        if (!canceled) {
-          setTransactions(
-            txSnap.docs.map((doc) => {
-              const d = doc.data();
-              return {
-                id: doc.id,
-                type: d.type,
-                pointsDelta: d.pointsDelta,
-                amountCents: d.amountCents,
-                createdAt: toDate(d.createdAt),
-                causeTitle: d.causeTitle ?? d.causeId,
-                businessName: d.businessName ?? d.businessId,
-                status: d.status,
-              };
-            }),
-          );
-        }
-      } catch (err) {
-        if (!canceled) {
-          setStatsError(err instanceof Error ? err.message : "Failed to load activity.");
-        }
-      } finally {
-        if (!canceled) setTransactionsLoading(false);
-      }
-    }
+    const transactionsQuery = query(
+      collection(firestore, "transactions"),
+      where("userId", "==", currentUser.uid),
+      orderBy("createdAt", "desc"),
+      limit(50),
+    );
 
     const donationQuery = query(
       collection(firestore, "donations"),
@@ -220,15 +221,72 @@ export default function ProfilePage() {
         }
       },
     );
-
-    void loadTransactions();
+    const unsubscribeTransactions = onSnapshot(
+      transactionsQuery,
+      (txSnap) => {
+        if (canceled) return;
+        setTransactions(
+          txSnap.docs.map((doc) => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              type: d.type,
+              pointsDelta: d.pointsDelta,
+              amountCents: d.amountCents,
+              createdAt: toDate(d.createdAt),
+              causeTitle: d.causeTitle ?? d.causeId,
+              businessName: d.businessName ?? d.businessId,
+              status: d.status,
+            };
+          }),
+        );
+        setTransactionsLoading(false);
+      },
+      (err) => {
+        if (!canceled) {
+          setStatsError(err.message);
+          setTransactionsLoading(false);
+        }
+      },
+    );
 
     return () => {
       canceled = true;
+      unsubscribeTransactions();
       unsubscribeDonations();
       unsubscribeRewards();
     };
   }, [user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const signupFlag = params.get("referralSignup");
+    const referralPointsRaw = params.get("referralPoints");
+    const referralPoints = Number(referralPointsRaw);
+    if (signupFlag !== "1" || !Number.isFinite(referralPoints) || referralPoints <= 0) return;
+    if (referralConfettiFired.current) return;
+    referralConfettiFired.current = true;
+    setSignupReferralPoints(Math.floor(referralPoints));
+
+    const colors = ["#34d399", "#10b981", "#6ee7b7", "#a7f3d0"];
+    const shoot = (originX: number) =>
+      confetti({
+        particleCount: 90,
+        spread: 70,
+        startVelocity: 36,
+        gravity: 0.9,
+        decay: 0.92,
+        origin: { x: originX, y: 0.2 },
+        colors,
+      });
+    shoot(0.2);
+    shoot(0.8);
+    window.setTimeout(() => shoot(0.5), 280);
+
+    // Remove one-time celebration params from URL.
+    router.replace(pathname);
+  }, [pathname, router]);
 
   useEffect(() => {
     if (!receiptOpen || !receiptId) return;
@@ -263,6 +321,122 @@ export default function ProfilePage() {
     );
     return () => unsubscribe();
   }, [receiptId, receiptOpen]);
+
+  useEffect(() => {
+    if (!user) return;
+    const currentUser = user;
+    let canceled = false;
+    async function loadReferrals() {
+      setReferralsLoading(true);
+      setReferralsError(null);
+      try {
+        const idToken = await currentUser.getIdToken();
+        const [configRes, meRes] = await Promise.all([
+          fetch("/api/referrals/config"),
+          fetch("/api/referrals/me", {
+            headers: { Authorization: `Bearer ${idToken}` },
+          }),
+        ]);
+        const configJson = (await configRes.json()) as {
+          enabled?: boolean;
+          inviterPoints?: number;
+          invitedPoints?: number;
+          error?: string;
+        };
+        const meJson = (await meRes.json()) as {
+          inviteCode?: string | null;
+          invitedUsers?: number;
+          inviterPointsAwarded?: number;
+          error?: string;
+        };
+        if (!configRes.ok) {
+          throw new Error(configJson.error ?? "Failed to load referral settings.");
+        }
+        if (!meRes.ok) {
+          throw new Error(meJson.error ?? "Failed to load referral stats.");
+        }
+        if (canceled) return;
+        const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin).replace(/\/$/, "");
+        setReferralsConfig({
+          enabled: configJson.enabled === true,
+          inviterPoints: Number(configJson.inviterPoints ?? 0),
+          invitedPoints: Number(configJson.invitedPoints ?? 0),
+        });
+        setReferralInviteLink(
+          meJson.inviteCode ? `${origin}/signup?ref=${encodeURIComponent(meJson.inviteCode)}` : null,
+        );
+        setReferralsStats({
+          invitedUsers: Number(meJson.invitedUsers ?? 0),
+          inviterPointsAwarded: Number(meJson.inviterPointsAwarded ?? 0),
+        });
+      } catch (err) {
+        if (!canceled) {
+          setReferralsError(err instanceof Error ? err.message : "Failed to load referrals.");
+        }
+      } finally {
+        if (!canceled) setReferralsLoading(false);
+      }
+    }
+    void loadReferrals();
+    return () => {
+      canceled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const currentUser = user;
+    let canceled = false;
+    async function loadNotifications() {
+      try {
+        const idToken = await currentUser.getIdToken();
+        const res = await fetch("/api/users/notifications", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const json = (await res.json()) as {
+          notifications?: Array<{
+            id: string;
+            title: string;
+            description: string;
+            color?: "amber" | "emerald" | "blue" | "red" | "zinc";
+          }>;
+        };
+        if (!res.ok || !json.notifications || canceled) return;
+        setNotifications(
+          json.notifications.map((item) => ({
+            ...item,
+            color: item.color ?? "amber",
+          })),
+        );
+      } catch {
+        // Notifications are best effort only.
+      }
+    }
+    void loadNotifications();
+    return () => {
+      canceled = true;
+    };
+  }, [user]);
+
+  async function createReferralLink() {
+    if (!user || creatingReferralLink) return;
+    setCreatingReferralLink(true);
+    setReferralsError(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/referrals/create", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const json = (await res.json()) as { inviteLink?: string; error?: string };
+      if (!res.ok || !json.inviteLink) throw new Error(json.error ?? "Failed to create invite link.");
+      setReferralInviteLink(json.inviteLink);
+    } catch (err) {
+      setReferralsError(err instanceof Error ? err.message : "Failed to create invite link.");
+    } finally {
+      setCreatingReferralLink(false);
+    }
+  }
 
   const lifetimePoints = useMemo(() => {
     return transactions.reduce(
@@ -321,23 +495,82 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PublicShell contentClassName="w-full max-w-5xl space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 space-y-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
-              Profile
-            </span>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Hi <span className="block break-all">{user.email}</span>
-            </h1>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-300">
+      <PublicShell contentClassName="w-full max-w-5xl space-y-8">
+        {notifications
+          .filter((item) => !dismissedNotificationIds.includes(item.id))
+          .map((item) => {
+            const tone =
+              item.color === "emerald"
+                ? {
+                    wrap: "border-emerald-400/30 bg-emerald-500/10 text-emerald-100",
+                    text: "text-emerald-50",
+                    button: "border-emerald-300/30 text-emerald-50",
+                  }
+                : item.color === "blue"
+                  ? {
+                      wrap: "border-blue-400/30 bg-blue-500/10 text-blue-100",
+                      text: "text-blue-50",
+                      button: "border-blue-300/30 text-blue-50",
+                    }
+                  : item.color === "red"
+                    ? {
+                        wrap: "border-red-400/30 bg-red-500/10 text-red-100",
+                        text: "text-red-50",
+                        button: "border-red-300/30 text-red-50",
+                      }
+                    : item.color === "zinc"
+                      ? {
+                          wrap: "border-white/20 bg-white/10 text-zinc-100",
+                          text: "text-zinc-50",
+                          button: "border-white/20 text-zinc-50",
+                        }
+                      : {
+                          wrap: "border-amber-400/30 bg-amber-500/10 text-amber-100",
+                          text: "text-amber-50",
+                          button: "border-amber-300/30 text-amber-50",
+                        };
+            return (
+            <div key={item.id} className={`w-full rounded-2xl border p-4 ${tone.wrap}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">{item.title}</div>
+                  <div className={`mt-1 text-sm ${tone.text}`}>{item.description}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDismissedNotificationIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]))
+                  }
+                  className={`rounded-md border px-2 py-1 text-xs ${tone.button}`}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )})}
+
+        {/* ── Header ── */}
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-400/20 text-lg font-bold text-emerald-300">
+                {(user.email?.[0] ?? "?").toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
+                  Welcome back
+                </h1>
+                <p className="truncate text-sm text-zinc-400">{user.email}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pl-12">
               {!adminLoading && isAdmin ? (
-                <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-xs font-semibold text-white">
+                <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold text-white">
                   Admin
                 </span>
               ) : null}
               {!bizLoading && membership ? (
-                <span className="inline-flex items-center rounded-full border border-emerald-300/40 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200">
+                <span className="inline-flex items-center rounded-full border border-emerald-300/40 bg-emerald-400/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-200">
                   {membership.role} · {membership.businessId}
                 </span>
               ) : null}
@@ -348,37 +581,119 @@ export default function ProfilePage() {
           </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <StatCard label="Lifetime points" value={lifetimePoints} loading={transactionsLoading} />
-          <StatCard label="Current points" value={currentPoints} loading={transactionsLoading} />
-          <StatCard label="Total supported" value={formatMoney(spentCents)} loading={donationsLoading} />
+        {/* ── Stat Cards ── */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <StatCard
+            label="Lifetime points"
+            value={lifetimePoints}
+            loading={transactionsLoading}
+            accent="emerald"
+          />
+          <StatCard
+            label="Current points"
+            value={currentPoints}
+            loading={transactionsLoading}
+            accent="sky"
+          />
+          <StatCard
+            label="Total supported"
+            value={formatMoney(spentCents)}
+            loading={donationsLoading}
+            accent="amber"
+          />
         </div>
+
+        {signupReferralPoints && signupReferralPoints > 0 ? (
+          <div className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
+            You just earned <span className="font-semibold">{signupReferralPoints} points</span> from a referral invite signup.
+          </div>
+        ) : null}
 
         <GiveawayProgressCard />
 
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-zinc-200">
-          {statsError ? (
-            <div className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-100">
-              {statsError}
+        {/* ── Invite Friends ── */}
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white">
+          <h2 className="text-base font-semibold">Invite friends</h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Share your personal link and earn points when friends sign up.
+          </p>
+          {referralsError ? (
+            <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+              {referralsError}
             </div>
           ) : null}
-          <div className="grid gap-2 text-xs text-zinc-400">
-            <div>Transactions loaded: {transactions.length}</div>
-            <div>Support loaded: {donations.length}</div>
-            <div>Rewards issued: {rewardIssues.length}</div>
-          </div>
+          {!referralsLoading && !referralsConfig.enabled ? (
+            <div className="mt-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400">
+              Referral invites are currently disabled.
+            </div>
+          ) : null}
+          {referralsConfig.enabled ? (
+            <>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <MiniStat label="You earn" value={`${referralsConfig.inviterPoints} pts`} sub="per invite" />
+                <MiniStat label="Friend earns" value={`${referralsConfig.invitedPoints} pts`} sub="on signup" />
+                <MiniStat label="Successful invites" value={referralsStats.invitedUsers} />
+                <MiniStat label="Points from invites" value={referralsStats.inviterPointsAwarded} />
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Button
+                  outline
+                  onClick={() => void createReferralLink()}
+                  disabled={creatingReferralLink}
+                >
+                  {creatingReferralLink ? "Generating..." : referralInviteLink ? "Regenerate link" : "Generate invite link"}
+                </Button>
+                {referralInviteLink ? (
+                  <Button
+                    outline
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(referralInviteLink);
+                      setCopiedReferral(true);
+                      window.setTimeout(() => setCopiedReferral(false), 1200);
+                    }}
+                  >
+                    {copiedReferral ? "Copied!" : "Copy link"}
+                  </Button>
+                ) : null}
+              </div>
+              {referralInviteLink ? (
+                <div className="mt-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 font-mono text-xs break-all text-zinc-300">
+                  {referralInviteLink}
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-white">
-          <div className="flex flex-wrap items-center gap-2">
+        {/* ── Activity Summary ── */}
+        {statsError ? (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+            {statsError}
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-400">
+            {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
+          </span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-400">
+            {donations.length} donation{donations.length !== 1 ? "s" : ""}
+          </span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-400">
+            {rewardIssues.length} reward{rewardIssues.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {/* ── Tabbed History ── */}
+        <div className="rounded-3xl border border-white/10 bg-white/5 text-sm text-white">
+          <div className="flex items-center gap-1 border-b border-white/10 px-6 pt-4">
             <button
               type="button"
               onClick={() => setActiveTab("donations")}
               className={[
-                "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wide transition",
+                "rounded-t-lg px-4 py-2.5 text-xs font-semibold uppercase tracking-wide transition",
                 activeTab === "donations"
-                  ? "bg-emerald-400/20 text-emerald-100"
-                  : "bg-white/5 text-zinc-300 hover:bg-white/10",
+                  ? "border-b-2 border-emerald-400 bg-white/5 text-emerald-200"
+                  : "text-zinc-400 hover:text-zinc-200",
               ].join(" ")}
             >
               Support
@@ -387,10 +702,10 @@ export default function ProfilePage() {
               type="button"
               onClick={() => setActiveTab("rewards")}
               className={[
-                "rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wide transition",
+                "rounded-t-lg px-4 py-2.5 text-xs font-semibold uppercase tracking-wide transition",
                 activeTab === "rewards"
-                  ? "bg-emerald-400/20 text-emerald-100"
-                  : "bg-white/5 text-zinc-300 hover:bg-white/10",
+                  ? "border-b-2 border-emerald-400 bg-white/5 text-emerald-200"
+                  : "text-zinc-400 hover:text-zinc-200",
               ].join(" ")}
             >
               Rewards
@@ -398,54 +713,54 @@ export default function ProfilePage() {
           </div>
 
           {activeTab === "donations" ? (
-            <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
+            <div className="p-1">
               {donationsLoading ? (
-                <div className="p-4 text-zinc-400">Loading support…</div>
+                <div className="p-6 text-zinc-400">Loading support…</div>
               ) : donations.length === 0 ? (
-                <div className="p-4 text-zinc-400">No support yet.</div>
+                <div className="p-6 text-center text-zinc-500">No support history yet.</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-[720px] text-left text-xs">
-                    <thead className="bg-black/40 text-xs uppercase tracking-wide text-zinc-400">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-[11px] uppercase tracking-wider text-zinc-500">
                       <tr>
-                        <th className="px-4 py-2">Date</th>
-                        <th className="px-4 py-2">Cause</th>
-                        <th className="px-4 py-2">Business</th>
-                        <th className="px-4 py-2">Amount</th>
-                        <th className="px-4 py-2">Points</th>
-                        <th className="px-4 py-2">Receipt</th>
+                        <th className="px-5 py-3 font-medium">Date</th>
+                        <th className="px-5 py-3 font-medium">Cause</th>
+                        <th className="px-5 py-3 font-medium">Business</th>
+                        <th className="px-5 py-3 font-medium text-right">Amount</th>
+                        <th className="px-5 py-3 font-medium text-right">Points</th>
+                        <th className="px-5 py-3 font-medium">Receipt</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-white/5">
                       {donations.map((donation) => (
-                        <tr key={donation.id} className="border-t border-white/10">
-                          <td className="px-4 py-2 text-zinc-300">
+                        <tr key={donation.id} className="transition hover:bg-white/[0.03]">
+                          <td className="whitespace-nowrap px-5 py-3 text-zinc-400">
                             {donation.createdAt?.toLocaleDateString() ?? "—"}
                           </td>
-                          <td className="px-4 py-2 text-white">
+                          <td className="px-5 py-3 font-medium text-white">
                             {donation.causeTitle ?? "Support"}
                           </td>
-                          <td className="px-4 py-2 text-zinc-300">
+                          <td className="px-5 py-3 text-zinc-300">
                             {donation.businessName ?? "—"}
                           </td>
-                          <td className="px-4 py-2 text-zinc-200">
+                          <td className="whitespace-nowrap px-5 py-3 text-right font-medium text-white">
                             {formatMoney(donation.amountCents)}
                           </td>
-                          <td className="px-4 py-2 text-zinc-200">
-                            {donation.points ?? "—"}
+                          <td className="whitespace-nowrap px-5 py-3 text-right font-medium text-emerald-300">
+                            +{donation.points ?? 0}
                           </td>
-                          <td className="px-4 py-2">
+                          <td className="px-5 py-3">
                             {donation.receiptUrl ? (
                               <a
                                 href={donation.receiptUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-emerald-200 underline"
+                                className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-emerald-200 transition hover:bg-white/10"
                               >
-                                View receipt
+                                View
                               </a>
                             ) : (
-                              <span className="text-zinc-500">—</span>
+                              <span className="text-zinc-600">—</span>
                             )}
                           </td>
                         </tr>
@@ -456,51 +771,60 @@ export default function ProfilePage() {
               )}
             </div>
           ) : (
-            <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
+            <div className="p-1">
               {rewardsLoading ? (
-                <div className="p-4 text-zinc-400">Loading rewards…</div>
+                <div className="p-6 text-zinc-400">Loading rewards…</div>
               ) : rewardIssues.length === 0 ? (
-                <div className="p-4 text-zinc-400">No rewards yet.</div>
+                <div className="p-6 text-center text-zinc-500">No rewards yet.</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-[720px] text-left text-xs">
-                    <thead className="bg-black/40 text-xs uppercase tracking-wide text-zinc-400">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-[11px] uppercase tracking-wider text-zinc-500">
                       <tr>
-                        <th className="px-4 py-2">Reward</th>
-                        <th className="px-4 py-2">Status</th>
-                        <th className="px-4 py-2">Issued</th>
-                        <th className="px-4 py-2">Expiry</th>
-                        <th className="px-4 py-2">Code</th>
-                        <th className="px-4 py-2">Receipt</th>
+                        <th className="px-5 py-3 font-medium">Reward</th>
+                        <th className="px-5 py-3 font-medium">Status</th>
+                        <th className="px-5 py-3 font-medium">Issued</th>
+                        <th className="px-5 py-3 font-medium">Expiry</th>
+                        <th className="px-5 py-3 font-medium">Code</th>
+                        <th className="px-5 py-3 font-medium"></th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-white/5">
                       {rewardIssues.map((reward) => (
-                        <tr key={reward.id} className="border-t border-white/10">
-                          <td className="px-4 py-2 text-white">
+                        <tr key={reward.id} className="transition hover:bg-white/[0.03]">
+                          <td className="px-5 py-3 font-medium text-white">
                             {reward.rewardTitle ?? reward.dealId ?? "Reward"}
                           </td>
-                          <td className="px-4 py-2 text-zinc-300 capitalize">
-                            {reward.status ?? "—"}
+                          <td className="px-5 py-3">
+                            <span className={[
+                              "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize",
+                              reward.status === "issued"
+                                ? "bg-emerald-400/15 text-emerald-300"
+                                : reward.status === "used"
+                                  ? "bg-zinc-400/15 text-zinc-400"
+                                  : "bg-red-400/15 text-red-300",
+                            ].join(" ")}>
+                              {reward.status ?? "—"}
+                            </span>
                           </td>
-                          <td className="px-4 py-2 text-zinc-300">
+                          <td className="whitespace-nowrap px-5 py-3 text-zinc-400">
                             {reward.issuedAt?.toLocaleDateString() ?? "—"}
                           </td>
-                          <td className="px-4 py-2 text-zinc-300">
+                          <td className="whitespace-nowrap px-5 py-3 text-zinc-400">
                             {reward.expiresAt ? reward.expiresAt.toLocaleDateString() : "No expiry"}
                           </td>
-                          <td className="px-4 py-2 text-emerald-200">{reward.code ?? "—"}</td>
-                          <td className="px-4 py-2">
+                          <td className="px-5 py-3 font-mono text-emerald-200">{reward.code ?? "—"}</td>
+                          <td className="px-5 py-3">
                             {reward.id ? (
                               <button
                                 type="button"
                                 onClick={() => openReceipt(reward.id)}
-                                className="text-emerald-200 underline"
+                                className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-emerald-200 transition hover:bg-white/10"
                               >
-                                View status
+                                Details
                               </button>
                             ) : (
-                              <span className="text-zinc-500">—</span>
+                              <span className="text-zinc-600">—</span>
                             )}
                           </td>
                         </tr>
@@ -513,21 +837,27 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-zinc-400">
-          <Link className="underline" href="/">
-            Back to landing
+        {/* ── Footer Links ── */}
+        <div className="flex flex-wrap items-center gap-2 pb-4">
+          <Link
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white"
+            href="/"
+          >
+            Back to home
           </Link>
-          <span className="opacity-50">•</span>
-          <Link className="underline" href="/rewards">
+          <Link
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white"
+            href="/rewards"
+          >
             Browse rewards
           </Link>
           {!adminLoading && isAdmin ? (
-            <>
-              <span className="opacity-50">•</span>
-              <Link className="underline" href="/admin">
-                Admin dashboard
-              </Link>
-            </>
+            <Link
+              className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-xs font-medium text-emerald-200 transition hover:bg-emerald-400/20"
+              href="/admin"
+            >
+              Admin dashboard
+            </Link>
           ) : null}
         </div>
       </PublicShell>
@@ -603,16 +933,48 @@ function StatCard({
   label,
   value,
   loading,
+  accent = "emerald",
 }: {
   label: string;
   value: React.ReactNode;
   loading: boolean;
+  accent?: "emerald" | "sky" | "amber";
+}) {
+  const accentMap = {
+    emerald: "border-emerald-400/20 bg-emerald-400/5",
+    sky: "border-sky-400/20 bg-sky-400/5",
+    amber: "border-amber-400/20 bg-amber-400/5",
+  };
+  const valueColor = {
+    emerald: "text-emerald-300",
+    sky: "text-sky-300",
+    amber: "text-amber-300",
+  };
+  return (
+    <div className={`rounded-2xl border p-5 ${accentMap[accent]}`}>
+      <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">{label}</div>
+      <div className={`mt-2 text-3xl font-bold ${valueColor[accent]}`}>
+        {loading ? <Skeleton className="h-8 w-20" /> : value}
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-      <div className="text-xs uppercase tracking-wide text-zinc-400">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-white">
-        {loading ? <Skeleton className="h-7 w-16" /> : value}
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+      <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">{label}</div>
+      <div className="mt-0.5 text-lg font-semibold text-white">
+        {value}
+        {sub ? <span className="ml-1 text-xs font-normal text-zinc-500">{sub}</span> : null}
       </div>
     </div>
   );

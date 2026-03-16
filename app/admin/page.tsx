@@ -19,6 +19,12 @@ type AdminBusiness = {
   locations: { id: string; name: string }[];
 };
 
+type ReferralConfig = {
+  enabled: boolean;
+  inviterPoints: number;
+  invitedPoints: number;
+};
+
 function formatNumber(value?: number) {
   return typeof value === "number" && Number.isFinite(value)
     ? value.toLocaleString("en-US")
@@ -47,6 +53,15 @@ export default function AdminOverviewPage() {
   const [entitiesError, setEntitiesError] = useState<string | null>(null);
   const [selectedBusinessId, setSelectedBusinessId] = useState("");
   const [selectedLocationId, setSelectedLocationId] = useState("");
+  const [referralsLoading, setReferralsLoading] = useState(true);
+  const [referralsSaving, setReferralsSaving] = useState(false);
+  const [referralsError, setReferralsError] = useState<string | null>(null);
+  const [referralsMessage, setReferralsMessage] = useState<string | null>(null);
+  const [referralsConfig, setReferralsConfig] = useState<ReferralConfig>({
+    enabled: false,
+    inviterPoints: 0,
+    invitedPoints: 0,
+  });
 
   const loadStats = useCallback(
     async (scope: { businessId?: string; locationId?: string }) => {
@@ -127,6 +142,66 @@ export default function AdminOverviewPage() {
       canceled = true;
     };
   }, [authLoading, user]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const currentUser = user;
+    let canceled = false;
+    async function loadReferralConfig() {
+      setReferralsLoading(true);
+      setReferralsError(null);
+      try {
+        const idToken = await currentUser.getIdToken();
+        const res = await fetch("/api/admin/referrals/config", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const json = (await res.json()) as { config?: ReferralConfig; error?: string };
+        if (!res.ok || !json.config) {
+          throw new Error(json.error ?? "Failed to load referral invite config.");
+        }
+        if (!canceled) setReferralsConfig(json.config);
+      } catch (err) {
+        if (!canceled) {
+          setReferralsError(err instanceof Error ? err.message : "Failed to load referral invite config.");
+        }
+      } finally {
+        if (!canceled) setReferralsLoading(false);
+      }
+    }
+    void loadReferralConfig();
+    return () => {
+      canceled = true;
+    };
+  }, [authLoading, user]);
+
+  async function saveReferralConfig() {
+    if (!user || referralsSaving) return;
+    setReferralsSaving(true);
+    setReferralsError(null);
+    setReferralsMessage(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/admin/referrals/config", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          enabled: referralsConfig.enabled,
+          inviterPoints: referralsConfig.inviterPoints,
+          invitedPoints: referralsConfig.invitedPoints,
+        }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Failed to save referral invite config.");
+      setReferralsMessage("Referral invite settings saved.");
+    } catch (err) {
+      setReferralsError(err instanceof Error ? err.message : "Failed to save referral invite config.");
+    } finally {
+      setReferralsSaving(false);
+    }
+  }
 
   const statCards = useMemo(
     () => [
@@ -269,6 +344,73 @@ export default function AdminOverviewPage() {
           <li>Support: completed checkouts + recorded entries</li>
           <li>Scope filters: narrow by business and location for targeted views</li>
         </ul>
+      </div>
+
+      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+        <div className="text-sm font-semibold text-white">Referral Invites</div>
+        <p className="mt-1 text-xs text-zinc-400">
+          Configure public invite-friend rewards for inviter and invited users.
+        </p>
+        {referralsError ? (
+          <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
+            {referralsError}
+          </div>
+        ) : null}
+        {referralsMessage ? (
+          <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs text-emerald-200">
+            {referralsMessage}
+          </div>
+        ) : null}
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <label className="text-sm text-zinc-400">
+            <div className="mb-1 font-medium text-white">Feature status</div>
+            <select
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
+              value={referralsConfig.enabled ? "enabled" : "disabled"}
+              onChange={(event) =>
+                setReferralsConfig((prev) => ({ ...prev, enabled: event.target.value === "enabled" }))
+              }
+              disabled={referralsLoading || referralsSaving}
+            >
+              <option value="disabled">Disabled</option>
+              <option value="enabled">Enabled</option>
+            </select>
+          </label>
+          <label className="text-sm text-zinc-400">
+            <div className="mb-1 font-medium text-white">Points to inviter</div>
+            <input
+              type="number"
+              min={0}
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
+              value={referralsConfig.inviterPoints}
+              onChange={(event) =>
+                setReferralsConfig((prev) => ({ ...prev, inviterPoints: Math.max(0, Number(event.target.value) || 0) }))
+              }
+              disabled={referralsLoading || referralsSaving}
+            />
+          </label>
+          <label className="text-sm text-zinc-400">
+            <div className="mb-1 font-medium text-white">Points to invited user</div>
+            <input
+              type="number"
+              min={0}
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
+              value={referralsConfig.invitedPoints}
+              onChange={(event) =>
+                setReferralsConfig((prev) => ({ ...prev, invitedPoints: Math.max(0, Number(event.target.value) || 0) }))
+              }
+              disabled={referralsLoading || referralsSaving}
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={() => void saveReferralConfig()}
+          disabled={referralsLoading || referralsSaving}
+          className="mt-3 rounded-lg bg-emerald-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-60"
+        >
+          {referralsSaving ? "Saving..." : "Save Referral Settings"}
+        </button>
       </div>
     </div>
   );

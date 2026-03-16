@@ -93,39 +93,39 @@ export default function MyCommunityDrawingsPage() {
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-2">
-          <Badge color="emerald">Community Drawings</Badge>
-          <Heading level={1} className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            My community drawings
-          </Heading>
-          <Text className="max-w-2xl text-zinc-200">
-            See every community drawing you&apos;ve been entered into, plus whether each drawing is still active.
-          </Text>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button href="/rewards" outline>
-            Browse rewards
-          </Button>
-          <Button href="/rewards/history" outline>
-            My rewards
-          </Button>
-          <Button href="/profile" color="emerald">
-            Profile
-          </Button>
-        </div>
-      </header>
-
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-white">Your community drawing history</div>
-          <div className="text-xs text-zinc-400">
-            {authLoading || loading
-              ? "Loading…"
-              : `${drawings.length} total · ${activeCount} active`}
+      {/* ── Header ── */}
+      <header className="rounded-3xl border border-white/10 bg-white/5 p-6 sm:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-6">
+          <div className="space-y-3">
+            <Badge color="emerald">Community Drawings</Badge>
+            <Heading level={1} className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              My community drawings
+            </Heading>
+            <Text className="max-w-2xl text-zinc-300">
+              See every community drawing you&apos;ve been entered into, plus whether each drawing is still active.
+            </Text>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button href="/rewards" outline>
+              Browse rewards
+            </Button>
+            <Button href="/rewards/history" outline>
+              My rewards
+            </Button>
+            <Button href="/profile" color="emerald">
+              Profile
+            </Button>
           </div>
         </div>
-      </div>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-1.5 text-xs font-semibold text-emerald-300">
+            {authLoading || loading ? "Loading…" : `${activeCount} active`}
+          </span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs text-zinc-400">
+            {authLoading || loading ? "Loading…" : `${drawings.length} total drawing${drawings.length !== 1 ? "s" : ""}`}
+          </span>
+        </div>
+      </header>
 
       {error ? (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
@@ -134,57 +134,67 @@ export default function MyCommunityDrawingsPage() {
       ) : null}
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, idx) => (
-            <div key={idx} className="h-36 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
+            <div key={idx} className="h-44 animate-pulse rounded-2xl border border-white/10 bg-white/5" />
           ))}
         </div>
       ) : drawings.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-zinc-300">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-sm text-zinc-500">
           You don&apos;t have any community drawing entries yet.
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {drawings.map((drawing) => (
-            <div key={drawing.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-base font-semibold text-white">
-                    {drawing.prize?.name ?? drawing.title}
+        <div className="grid gap-5 md:grid-cols-2">
+          {drawings.map((drawing) => {
+            const isActive = drawing.status === "active";
+            return (
+              <div
+                key={drawing.id}
+                className={`rounded-2xl border p-5 transition ${
+                  isActive
+                    ? "border-emerald-400/15 bg-emerald-500/[0.04]"
+                    : "border-white/10 bg-white/[0.03]"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-lg font-semibold text-white">
+                      {drawing.prize?.name ?? drawing.title}
+                    </div>
+                    {drawing.prize?.value ? (
+                      <div className="mt-0.5 text-xs text-zinc-500">Est. value: {drawing.prize.value}</div>
+                    ) : null}
                   </div>
-                  {drawing.prize?.value ? (
-                    <div className="text-xs text-zinc-400">Estimated value: {drawing.prize.value}</div>
-                  ) : null}
+                  <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${statusClasses(drawing.status)}`}>
+                    {statusLabel(drawing.status)}
+                  </span>
                 </div>
-                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClasses(drawing.status)}`}>
-                  {statusLabel(drawing.status)}
-                </span>
-              </div>
 
-              {drawing.description ? (
-                <p className="mt-2 text-sm text-zinc-300">{drawing.description}</p>
-              ) : null}
+                {drawing.description ? (
+                  <p className="mt-2 text-sm leading-relaxed text-zinc-400">{drawing.description}</p>
+                ) : null}
 
-              <div className="mt-3 grid gap-2 text-xs text-zinc-300 sm:grid-cols-2">
-                <div>
-                  <span className="text-zinc-500">Total entries:</span>{" "}
-                  <span className="font-semibold text-white">{drawing.totalEntries}</span>
-                </div>
-                <div>
-                  <span className="text-zinc-500">First entry:</span>{" "}
-                  <span>{formatDate(drawing.firstEntryAt)}</span>
-                </div>
-                <div>
-                  <span className="text-zinc-500">Last entry:</span>{" "}
-                  <span>{formatDate(drawing.lastEntryAt)}</span>
-                </div>
-                <div>
-                  <span className="text-zinc-500">Winner drawn:</span>{" "}
-                  <span>{formatDate(drawing.winner?.drawnAt ?? null)}</span>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
+                    <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-600">Your entries</div>
+                    <div className="mt-0.5 text-lg font-bold text-emerald-300">{drawing.totalEntries}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
+                    <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-600">First entry</div>
+                    <div className="mt-0.5 text-xs text-zinc-300">{formatDate(drawing.firstEntryAt)}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
+                    <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-600">Last entry</div>
+                    <div className="mt-0.5 text-xs text-zinc-300">{formatDate(drawing.lastEntryAt)}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2">
+                    <div className="text-[11px] font-medium uppercase tracking-wider text-zinc-600">Winner drawn</div>
+                    <div className="mt-0.5 text-xs text-zinc-300">{formatDate(drawing.winner?.drawnAt ?? null)}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
