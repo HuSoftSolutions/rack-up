@@ -160,9 +160,9 @@ export default function PrintableScanEventPoster({ eventId }: { eventId: string 
         <div className="overflow-hidden rounded-2xl border border-black/10 shadow-sm print:border-none print:shadow-none">
           <div className="grid gap-0 md:grid-cols-2">
             <div className="flex flex-col gap-3 bg-white p-6">
-              <div className="text-xs uppercase tracking-wide text-zinc-600">{associationLabel(event.association.type)}</div>
-              <div className="text-3xl font-semibold leading-tight">{event.title}</div>
-              <p className="text-sm text-zinc-700">
+              <div className="text-xs font-semibold uppercase tracking-wide text-zinc-700">{associationLabel(event.association.type)}</div>
+              <div className="text-3xl font-bold leading-tight text-zinc-900">{event.title}</div>
+              <p className="text-sm leading-relaxed text-zinc-800">
                 {event.description?.trim() || "Scan the QR code to claim this Rack Up event."}
               </p>
               {event.imageUrl ? (
@@ -171,15 +171,15 @@ export default function PrintableScanEventPoster({ eventId }: { eventId: string 
               ) : null}
               <div className="rounded-2xl bg-black/[.03] p-4 text-sm">
                 <div className="font-semibold text-zinc-900">Cadence</div>
-                <div className="text-zinc-700">{formatCadence(event.cadence)}</div>
+                <div className="text-zinc-800">{formatCadence(event.cadence)}</div>
                 <div className="mt-2 font-semibold text-zinc-900">Rewards</div>
-                <div className="text-zinc-700">{rewardsLine}</div>
+                <div className="text-zinc-800">{rewardsLine}</div>
               </div>
             </div>
             <div className="flex flex-col items-center justify-center gap-3 bg-white p-6">
               <div className="w-full rounded-2xl border border-black/10 bg-black/[.03] p-4 text-center">
                 <div className="text-sm font-semibold text-zinc-900">Scan to participate</div>
-                <div className="mt-1 text-xs text-zinc-600">Opens the event claim page instantly.</div>
+                <div className="mt-1 text-xs text-zinc-800">Opens the event claim page instantly.</div>
               </div>
               {qrDataUrl ? (
                 <div className="rounded-2xl border border-black/10 bg-white p-3 shadow-sm">
@@ -191,7 +191,7 @@ export default function PrintableScanEventPoster({ eventId }: { eventId: string 
                   Generating QR...
                 </div>
               )}
-              <div className="max-w-[18rem] text-center text-xs text-zinc-600 break-all">{absoluteUrl}</div>
+              <div className="max-w-[18rem] text-center text-xs font-medium text-zinc-800 break-all">{absoluteUrl}</div>
             </div>
           </div>
         </div>
