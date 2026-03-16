@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -894,6 +895,22 @@ export default function AdminScanEventsPage() {
                     >
                       {copiedEventId === event.id ? "Copied!" : "Copy scan URL"}
                     </button>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <a
+                        href={event.scanPath}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded border border-white/15 px-2 py-1 text-xs text-zinc-200 transition hover:bg-white/5 active:bg-white/10"
+                      >
+                        Open live page
+                      </a>
+                      <Link
+                        href={`/admin/scan-events/print/${event.id}`}
+                        className="rounded border border-white/15 px-2 py-1 text-xs text-zinc-200 transition hover:bg-white/5 active:bg-white/10"
+                      >
+                        Print poster
+                      </Link>
+                    </div>
                   </div>
                 </div>
                 {expandedActivityEventId === event.id ? (

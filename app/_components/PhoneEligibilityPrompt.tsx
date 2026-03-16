@@ -15,6 +15,7 @@ export default function PhoneEligibilityPrompt() {
   const [needsPhone, setNeedsPhone] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checkVersion, setCheckVersion] = useState(0);
 
   const isAuthFlowRoute = useMemo(() => {
     if (!pathname) return false;
@@ -41,6 +42,17 @@ export default function PhoneEligibilityPrompt() {
   useEffect(() => {
     if (!shouldCheck || !user) return;
     let cancelled = false;
+    if (typeof window !== "undefined") {
+      const raw = window.sessionStorage.getItem("profileBootstrapUntil");
+      const bootstrapUntil = Number(raw ?? "0");
+      if (Number.isFinite(bootstrapUntil) && bootstrapUntil > Date.now()) {
+        const msUntilRecheck = Math.min(Math.max(bootstrapUntil - Date.now(), 500), 4000);
+        const timer = window.setTimeout(() => {
+          setCheckVersion((value) => value + 1);
+        }, msUntilRecheck);
+        return () => window.clearTimeout(timer);
+      }
+    }
     setChecking(true);
     (async () => {
       try {
@@ -66,7 +78,7 @@ export default function PhoneEligibilityPrompt() {
     return () => {
       cancelled = true;
     };
-  }, [shouldCheck, user]);
+  }, [checkVersion, shouldCheck, user]);
 
   async function saveProfile() {
     if (!user) return;

@@ -44,6 +44,7 @@ export default function SignUpClient() {
 
   useEffect(() => {
     if (loading) return;
+    if (submitting) return;
     if (!user) return;
     (async () => {
       const target =
@@ -52,7 +53,7 @@ export default function SignUpClient() {
           : (await fetchRedirectTarget()) ?? "/";
       router.replace(target);
     })();
-  }, [loading, redirectParam, router, user]);
+  }, [loading, redirectParam, router, submitting, user]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,6 +74,12 @@ export default function SignUpClient() {
       if (!profileRes.ok) {
         const json = (await profileRes.json()) as { error?: string };
         throw new Error(json.error ?? "Unable to save profile.");
+      }
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(
+          "profileBootstrapUntil",
+          String(Date.now() + 20_000),
+        );
       }
 
       let awardedInvitedPoints = 0;
