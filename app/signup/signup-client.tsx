@@ -76,10 +76,14 @@ export default function SignUpClient() {
         throw new Error(json.error ?? "Unable to save profile.");
       }
       if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(
-          "profileBootstrapUntil",
-          String(Date.now() + 20_000),
-        );
+        try {
+          window.sessionStorage.setItem(
+            "profileBootstrapUntil",
+            String(Date.now() + 20_000),
+          );
+        } catch {
+          // Ignore storage failures on restricted browsers.
+        }
       }
 
       let awardedInvitedPoints = 0;

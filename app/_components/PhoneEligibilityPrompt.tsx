@@ -43,14 +43,18 @@ export default function PhoneEligibilityPrompt() {
     if (!shouldCheck || !user) return;
     let cancelled = false;
     if (typeof window !== "undefined") {
-      const raw = window.sessionStorage.getItem("profileBootstrapUntil");
-      const bootstrapUntil = Number(raw ?? "0");
-      if (Number.isFinite(bootstrapUntil) && bootstrapUntil > Date.now()) {
-        const msUntilRecheck = Math.min(Math.max(bootstrapUntil - Date.now(), 500), 4000);
-        const timer = window.setTimeout(() => {
-          setCheckVersion((value) => value + 1);
-        }, msUntilRecheck);
-        return () => window.clearTimeout(timer);
+      try {
+        const raw = window.sessionStorage.getItem("profileBootstrapUntil");
+        const bootstrapUntil = Number(raw ?? "0");
+        if (Number.isFinite(bootstrapUntil) && bootstrapUntil > Date.now()) {
+          const msUntilRecheck = Math.min(Math.max(bootstrapUntil - Date.now(), 500), 4000);
+          const timer = window.setTimeout(() => {
+            setCheckVersion((value) => value + 1);
+          }, msUntilRecheck);
+          return () => window.clearTimeout(timer);
+        }
+      } catch {
+        // Some mobile/privacy contexts block storage access.
       }
     }
     setChecking(true);
