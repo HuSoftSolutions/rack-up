@@ -53,3 +53,8 @@ select optgroup:disabled {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+@keyframes scan {
+  0% { top: 0; }
+  100% { top: 100%; }
+}

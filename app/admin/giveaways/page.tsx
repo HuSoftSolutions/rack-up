@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import Select, { type StylesConfig } from "react-select";
+import DrawConfirmModal from "./DrawConfirmModal";
+import WinnerRevealModal from "./WinnerRevealModal";
 
 type Giveaway = {
   id: string;
@@ -252,6 +254,11 @@ export default function AdminGiveawaysPage() {
   const [causeOptions, setCauseOptions] = useState<Option[]>([]);
   const [businessOptions, setBusinessOptions] = useState<Option[]>([]);
   const [locationOptions, setLocationOptions] = useState<Option[]>([]);
+  const [drawConfirmOpen, setDrawConfirmOpen] = useState(false);
+  const [drawConfirmGiveaway, setDrawConfirmGiveaway] = useState<Giveaway | null>(null);
+  const [revealModalOpen, setRevealModalOpen] = useState(false);
+  const [revealGiveaway, setRevealGiveaway] = useState<Giveaway | null>(null);
+  const [confirmedWinners, setConfirmedWinners] = useState<Array<{ name: string; index: number }>>([]);
 
   const editing = useMemo(
     () => giveaways.find((g) => g.id === editingId) ?? null,
@@ -550,6 +557,64 @@ export default function AdminGiveawaysPage() {
     }
   }
 
+  const drawWinnerForReveal = useCallback(async (): Promise<{ winners: Array<{ name: string; index: number }>; error?: string }> => {
+    if (!user || !drawConfirmGiveaway) return { winners: [], error: "No giveaway selected." };
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/admin/giveaways/${drawConfirmGiveaway.id}/draw`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "draw" }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        drawnNow?: number;
+        winners?: Array<{ donorName?: string | null; userId?: string; donationId?: string; drawNumber?: number; winnerIndex?: number }>;
+        winner?: { userId?: string; donationId?: string; donorName?: string | null; drawNumber?: number; winnerIndex?: number };
+      };
+      if (!res.ok || json.error) return { winners: [], error: json.error ?? "Failed to draw winner." };
+      await loadGiveaways();
+      const winnersArr = json.winners ?? (json.winner ? [json.winner] : []);
+      const existingCount = giveawayWinnerCount(drawConfirmGiveaway);
+      const newWinners = winnersArr.slice(existingCount);
+      const mapped = (newWinners.length ? newWinners : winnersArr).map((w, i) => ({
+        name: w.donorName ?? w.userId ?? "Winner",
+        index: typeof w.winnerIndex === "number" ? w.winnerIndex : existingCount + i,
+      }));
+      return { winners: mapped };
+    } catch (err) {
+      return { winners: [], error: err instanceof Error ? err.message : "Failed to draw winner." };
+    }
+  }, [user, drawConfirmGiveaway]);
+
+  const repickWinnerForReveal = useCallback(async (winnerIndex: number): Promise<{ winner: { name: string; index: number } | null; error?: string }> => {
+    if (!user || !drawConfirmGiveaway) return { winner: null, error: "No giveaway selected." };
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/admin/giveaways/${drawConfirmGiveaway.id}/draw`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "repick", winnerIndex }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        winner?: { donorName?: string | null; userId?: string; donationId?: string; drawNumber?: number; winnerIndex?: number };
+      };
+      if (!res.ok || json.error) return { winner: null, error: json.error ?? "Failed to repick." };
+      await loadGiveaways();
+      return {
+        winner: {
+          name: json.winner?.donorName ?? json.winner?.userId ?? "Winner",
+          index: typeof json.winner?.winnerIndex === "number" ? json.winner.winnerIndex : winnerIndex,
+        },
+      };
+    } catch (err) {
+      return { winner: null, error: err instanceof Error ? err.message : "Failed to repick." };
+    }
+  }, [user, drawConfirmGiveaway]);
+
   async function resetDrawing(id: string) {
     if (!user) return;
     const confirmed = window.confirm(
@@ -846,7 +911,10 @@ export default function AdminGiveawaysPage() {
                               ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
                               : "border-zinc-700/60 bg-zinc-800/40 text-zinc-500 cursor-not-allowed"
                           }`}
-                          onClick={() => drawWinner(g.id)}
+                          onClick={() => {
+                            setDrawConfirmGiveaway(g);
+                            setDrawConfirmOpen(true);
+                          }}
                           disabled={!(g.status === "active" || g.status === "closed")}
                         >
                           {(() => {
@@ -1558,6 +1626,42 @@ export default function AdminGiveawaysPage() {
             document.body,
           )
         : null}
+
+      {mounted ? (
+        <DrawConfirmModal
+          open={drawConfirmOpen}
+          onClose={() => {
+            setDrawConfirmOpen(false);
+            setDrawConfirmGiveaway(null);
+          }}
+          onDraw={drawWinnerForReveal}
+          onRepick={repickWinnerForReveal}
+          onConfirm={(winners) => {
+            setConfirmedWinners(winners);
+            setRevealGiveaway(drawConfirmGiveaway);
+            setDrawConfirmOpen(false);
+            setDrawConfirmGiveaway(null);
+            setRevealModalOpen(true);
+          }}
+          giveawayTitle={drawConfirmGiveaway?.title ?? ""}
+          winnersToDrawCount={drawConfirmGiveaway ? Math.max(1, giveawayTargetWinnerCount(drawConfirmGiveaway) - giveawayWinnerCount(drawConfirmGiveaway)) : 1}
+        />
+      ) : null}
+
+      {mounted ? (
+        <WinnerRevealModal
+          open={revealModalOpen}
+          onClose={() => {
+            setRevealModalOpen(false);
+            setRevealGiveaway(null);
+            setConfirmedWinners([]);
+          }}
+          winners={confirmedWinners}
+          giveawayTitle={revealGiveaway?.title ?? ""}
+          prizeName={revealGiveaway?.prize?.name ?? undefined}
+          prizeImageUrl={revealGiveaway?.prize?.imageUrl ?? undefined}
+        />
+      ) : null}
     </div>
   );
 }
