@@ -61,6 +61,24 @@ type ReportHistoryItem = {
   warnings?: string[] | null;
 };
 
+type ClientErrorSummaryItem = {
+  message: string;
+  count: number;
+  chunkLikeCount: number;
+  kinds: string[];
+  names: string[];
+  lastSeenAt: string | null;
+  samplePaths: Array<{ path: string; count: number }>;
+};
+
+type ClientErrorSummary = {
+  window: { days: number; since: string };
+  scannedLogs: number;
+  uniqueMessages: number;
+  chunkLikeTotal: number;
+  topMessages: ClientErrorSummaryItem[];
+};
+
 type DonationRow = {
   id: string;
   createdAt: string | null;
@@ -199,6 +217,10 @@ export default function AdminReportsPage() {
   const [history, setHistory] = useState<ReportHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [clientErrorSummary, setClientErrorSummary] = useState<ClientErrorSummary | null>(null);
+  const [clientErrorLoading, setClientErrorLoading] = useState(false);
+  const [clientErrorError, setClientErrorError] = useState<string | null>(null);
+  const [clientErrorDays, setClientErrorDays] = useState(7);
   const [activeTab, setActiveTab] = useState<"generate" | "history">("generate");
 
   const now = useMemo(() => new Date(), []);
@@ -282,6 +304,35 @@ export default function AdminReportsPage() {
       setHistoryLoading(false);
     }
   }, [user]);
+
+  const loadClientErrorSummary = useCallback(async () => {
+    if (!user) return;
+    setClientErrorLoading(true);
+    setClientErrorError(null);
+    try {
+      const idToken = await user.getIdToken();
+      const params = new URLSearchParams();
+      params.set("days", String(clientErrorDays));
+      params.set("scanLimit", "4000");
+      params.set("top", "20");
+      const res = await fetch(`/api/admin/client-errors/summary?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const json = (await res.json()) as ClientErrorSummary & { error?: string };
+      if (!res.ok || !Array.isArray(json.topMessages)) {
+        throw new Error(json.error ?? "Failed to load client error summary.");
+      }
+      setClientErrorSummary(json);
+    } catch (err) {
+      setClientErrorError(err instanceof Error ? err.message : "Failed to load client error summary.");
+    } finally {
+      setClientErrorLoading(false);
+    }
+  }, [clientErrorDays, user]);
+
+  useEffect(() => {
+    void loadClientErrorSummary();
+  }, [loadClientErrorSummary]);
 
   const runReport = useCallback(async () => {
     if (!user) return;
@@ -721,6 +772,101 @@ export default function AdminReportsPage() {
           {report.warnings.join(" ")}
         </div>
       ) : null}
+
+      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-white">Client Runtime Errors</div>
+            <div className="text-xs text-zinc-400">
+              Aggregated from <code>client_error_logs</code> to identify top crash/freeze signatures.
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={clientErrorDays}
+              onChange={(event) => setClientErrorDays(Number(event.target.value))}
+              className="h-9 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-white outline-none focus:border-emerald-400"
+            >
+              <option value={1}>Last 24h</option>
+              <option value={3}>Last 3 days</option>
+              <option value={7}>Last 7 days</option>
+              <option value={14}>Last 14 days</option>
+              <option value={30}>Last 30 days</option>
+            </select>
+            <Button outline onClick={loadClientErrorSummary} disabled={clientErrorLoading}>
+              {clientErrorLoading ? "Refreshing…" : "Refresh"}
+            </Button>
+          </div>
+        </div>
+
+        {clientErrorError ? (
+          <div className="mt-3 rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+            {clientErrorError}
+          </div>
+        ) : null}
+
+        {clientErrorSummary ? (
+          <>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-300">
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                scanned: {clientErrorSummary.scannedLogs}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                unique messages: {clientErrorSummary.uniqueMessages}
+              </span>
+              <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-amber-200">
+                chunk-like logs: {clientErrorSummary.chunkLikeTotal}
+              </span>
+            </div>
+
+            <div className="mt-3 overflow-hidden rounded-lg border border-white/10">
+              <table className="min-w-full text-xs">
+                <thead className="border-b border-white/10 bg-white/5 text-left uppercase tracking-wide text-zinc-400">
+                  <tr>
+                    <th className="px-3 py-2">Count</th>
+                    <th className="px-3 py-2">Last Seen</th>
+                    <th className="px-3 py-2">Kinds</th>
+                    <th className="px-3 py-2">Message</th>
+                    <th className="px-3 py-2">Paths</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientErrorSummary.topMessages.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-3 text-zinc-400" colSpan={5}>
+                        No client errors in selected window.
+                      </td>
+                    </tr>
+                  ) : (
+                    clientErrorSummary.topMessages.map((row) => (
+                      <tr key={`${row.message}:${row.lastSeenAt ?? "none"}`} className="border-t border-white/10">
+                        <td className="px-3 py-2 text-zinc-200">
+                          <div className="font-semibold text-white">{row.count}</div>
+                          {row.chunkLikeCount > 0 ? (
+                            <div className="text-[10px] text-amber-300">chunk-like: {row.chunkLikeCount}</div>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 text-zinc-300">
+                          {row.lastSeenAt ? new Date(row.lastSeenAt).toLocaleString() : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-zinc-400">
+                          {row.kinds.length > 0 ? row.kinds.join(", ") : "—"}
+                        </td>
+                        <td className="max-w-[480px] px-3 py-2 text-zinc-200">
+                          <div className="line-clamp-3 break-words">{row.message}</div>
+                        </td>
+                        <td className="px-3 py-2 text-zinc-400">
+                          {row.samplePaths.length > 0 ? row.samplePaths.map((item) => item.path).join(", ") : "—"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
+      </div>
 
       <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
         <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">

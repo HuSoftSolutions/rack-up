@@ -66,6 +66,11 @@ async function fetchLandingData(): Promise<{
       .orderBy("createdAt", "desc")
       .limit(20)
       .get();
+    const donationLifetimeSnapPromise = adminFirestore
+      .collection("donations")
+      .where("status", "==", "completed")
+      .select("amountCents")
+      .get();
 
     const causeSnapPromise = adminFirestore
       .collection("causes")
@@ -78,8 +83,9 @@ async function fetchLandingData(): Promise<{
       .where("active", "==", true)
       .get();
 
-    const [donationSnap, causeSnap, businessesSnap, locationsSnap, giveawaysSnap] = await Promise.all([
+    const [donationSnap, donationLifetimeSnap, causeSnap, businessesSnap, locationsSnap, giveawaysSnap] = await Promise.all([
       donationSnapPromise,
+      donationLifetimeSnapPromise,
       causeSnapPromise,
       businessesSnapPromise,
       adminFirestore.collectionGroup("locations").get(),
@@ -101,8 +107,8 @@ async function fetchLandingData(): Promise<{
       } satisfies LandingDonation;
     });
 
-    const totalDonationCents = donations.reduce(
-      (sum, d) => sum + (typeof d.amountCents === "number" ? d.amountCents : 0),
+    const totalDonationCents = donationLifetimeSnap.docs.reduce(
+      (sum, doc) => sum + (typeof doc.data().amountCents === "number" ? doc.data().amountCents : 0),
       0,
     );
 
