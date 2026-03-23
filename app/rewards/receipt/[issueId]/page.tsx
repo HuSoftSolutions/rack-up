@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import { Timestamp, doc, onSnapshot } from "firebase/firestore";
 import { firestore } from "@/lib/firebase/client";
 import { useRequireAuth } from "@/lib/auth/routeGuards";
+import { normalizeFirestoreListenerError } from "@/lib/client/firestore-error";
 
 type Issue = {
   id: string;
@@ -84,7 +85,8 @@ export default function RewardReceiptPage() {
         });
       },
       (err) => {
-        setError(err.message);
+        const normalized = normalizeFirestoreListenerError(err, "Failed to load reward.");
+        setError(normalized.userMessage);
       },
     );
     return () => unsubscribe();

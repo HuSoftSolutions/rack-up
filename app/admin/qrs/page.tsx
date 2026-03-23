@@ -216,7 +216,10 @@ export default function AdminQrPage() {
     [businessFilter, entities],
   );
 
-  const locationOptions = selectedBusiness?.locations ?? [];
+  const locationOptions = useMemo(
+    () => selectedBusiness?.locations ?? [],
+    [selectedBusiness],
+  );
 
   useEffect(() => {
     if (businessFilter === "__all__") {

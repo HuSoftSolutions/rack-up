@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import QRCode from "qrcode";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import { useLocationScope } from "../location-scope";
 
 type LocationRow = {
@@ -24,14 +26,11 @@ type ApiResponse = {
   error?: string;
 };
 
-export default function BusinessQrBuilderPage({
-  params,
-}: {
-  params: Promise<{ businessId: string }>;
-}) {
+export default function BusinessQrBuilderPage() {
   const { user } = useAuth();
+  const params = useParams<{ businessId: string }>();
   const { locationId: scopedLocationId, role } = useLocationScope();
-  const [businessId, setBusinessId] = useState<string | null>(null);
+  const businessId = params.businessId ?? null;
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [causes, setCauses] = useState<CauseRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,10 +40,6 @@ export default function BusinessQrBuilderPage({
   const [selectedLocationId, setSelectedLocationId] = useState<string | "">("");
   const [selectedCauseId, setSelectedCauseId] = useState<string | "">("");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    params.then((p) => setBusinessId(p.businessId));
-  }, [params]);
 
   useEffect(() => {
     if (!user || !businessId) return;
@@ -78,7 +73,7 @@ export default function BusinessQrBuilderPage({
           }
         }
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load QR data.");
+        if (!canceled) setError(normalizeClientRequestError(err, "Failed to load QR data."));
       } finally {
         if (!canceled) setLoading(false);
       }
@@ -87,7 +82,7 @@ export default function BusinessQrBuilderPage({
     return () => {
       canceled = true;
     };
-  }, [businessId, role, scopedLocationId, user]);
+  }, [businessId, role, scopedLocationId, selectedCauseId, selectedLocationId, user]);
 
   const selectedLocation = useMemo(
     () => locations.find((loc) => loc.id === selectedLocationId) ?? null,

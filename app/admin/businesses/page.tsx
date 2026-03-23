@@ -5,6 +5,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { collection, doc, getDocs, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { firestore } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeFirestoreListenerError } from "@/lib/client/firestore-error";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import { slugify } from "@/lib/utils/slugify";
 import type { BusinessDoc, LocationDoc } from "@/lib/types/business";
 
@@ -143,7 +145,7 @@ export default function AdminBusinessesPage() {
         if (!res.ok) throw new Error(json.error ?? "Failed to load causes.");
         setCauseAssignments((prev) => ({ ...prev, [businessId]: json.causes ?? [] }));
       } catch (err) {
-        setCauseMessage(err instanceof Error ? err.message : "Failed to load causes.");
+        setCauseMessage(normalizeClientRequestError(err, "Failed to load causes."));
       } finally {
         setCauseLoadingId(null);
       }
@@ -176,7 +178,8 @@ export default function AdminBusinessesPage() {
       setBusinesses(next);
       await Promise.all(next.map((biz) => fetchCauseLinks(biz.id)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load businesses.");
+      const normalized = normalizeFirestoreListenerError(err, "Failed to load businesses.");
+      setError(normalized.userMessage);
     } finally {
       setLoading(false);
     }
@@ -203,7 +206,8 @@ export default function AdminBusinessesPage() {
       setShowNewForm(false);
       void load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create business.");
+      const normalized = normalizeFirestoreListenerError(err, "Failed to create business.");
+      setError(normalized.userMessage);
     } finally {
       setBizSubmitting(false);
     }
@@ -232,7 +236,8 @@ export default function AdminBusinessesPage() {
       setLocSlug("");
       void load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create location.");
+      const normalized = normalizeFirestoreListenerError(err, "Failed to create location.");
+      setError(normalized.userMessage);
     } finally {
       setLocSubmitting(false);
     }
@@ -277,7 +282,8 @@ export default function AdminBusinessesPage() {
       setLogoMessage("Logo uploaded.");
       void load();
     } catch (err) {
-      setLogoMessage(err instanceof Error ? err.message : "Failed to upload logo.");
+      const normalized = normalizeFirestoreListenerError(err, "Failed to upload logo.");
+      setLogoMessage(normalized.userMessage);
     } finally {
       setLogoUploading(false);
     }
@@ -330,7 +336,8 @@ export default function AdminBusinessesPage() {
       setLocationLogoMessage("Logo uploaded.");
       void load();
     } catch (err) {
-      setLocationLogoMessage(err instanceof Error ? err.message : "Failed to upload logo.");
+      const normalized = normalizeFirestoreListenerError(err, "Failed to upload logo.");
+      setLocationLogoMessage(normalized.userMessage);
     } finally {
       setLocationLogoUploading(false);
     }
@@ -359,7 +366,7 @@ export default function AdminBusinessesPage() {
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Failed to save link.");
       setCauseMessage("Saved cause placements.");
     } catch (err) {
-      setCauseMessage(err instanceof Error ? err.message : "Failed to save link.");
+      setCauseMessage(normalizeClientRequestError(err, "Failed to save link."));
     } finally {
       setCauseSavingId(null);
     }
@@ -427,7 +434,7 @@ export default function AdminBusinessesPage() {
       });
       setCauseMessage("Removed from business.");
     } catch (err) {
-      setCauseMessage(err instanceof Error ? err.message : "Failed to remove link.");
+      setCauseMessage(normalizeClientRequestError(err, "Failed to remove link."));
     } finally {
       setCauseSavingId(null);
     }

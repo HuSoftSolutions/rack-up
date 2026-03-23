@@ -6,6 +6,7 @@ import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
 import { Text } from "@/ui-kit/text";
 import { useRequireAuth } from "@/lib/auth/routeGuards";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 
 type Drawing = {
   id: string;
@@ -74,7 +75,9 @@ export default function MyCommunityDrawingsPage() {
         }
         if (!canceled) setDrawings(json.drawings);
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load community drawings.");
+        if (!canceled) {
+          setError(normalizeClientRequestError(err, "Failed to load community drawings."));
+        }
       } finally {
         if (!canceled) setLoading(false);
       }

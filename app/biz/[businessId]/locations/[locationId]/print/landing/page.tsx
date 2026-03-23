@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import QRCode from "qrcode";
 import { useReactToPrint } from "react-to-print";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import { useLocationScope } from "../../../../location-scope";
 
 type CauseRow = {
@@ -69,15 +71,12 @@ function toPointsSummary(cause: CauseRow): string {
   return "Points vary by selected amount.";
 }
 
-export default function LocationPrintLandingPage({
-  params,
-}: {
-  params: Promise<{ businessId: string; locationId: string }>;
-}) {
+export default function LocationPrintLandingPage() {
   const { user } = useAuth();
+  const params = useParams<{ businessId: string; locationId: string }>();
   const { locationId: scopedLocationId, role } = useLocationScope();
-  const [businessId, setBusinessId] = useState<string | null>(null);
-  const [locationId, setLocationId] = useState<string | null>(null);
+  const businessId = params.businessId ?? null;
+  const locationId = params.locationId ?? null;
   const [business, setBusiness] = useState<BusinessRow | null>(null);
   const [location, setLocation] = useState<LocationRow | null>(null);
   const [causes, setCauses] = useState<LocationCause[]>([]);
@@ -85,13 +84,6 @@ export default function LocationPrintLandingPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const printableRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    params.then((p) => {
-      setBusinessId(p.businessId);
-      setLocationId(p.locationId);
-    });
-  }, [params]);
 
   useEffect(() => {
     if (!user || !businessId || !locationId) return;
@@ -147,7 +139,7 @@ export default function LocationPrintLandingPage({
           setCauses(locationCauses);
         }
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load location.");
+        if (!canceled) setError(normalizeClientRequestError(err, "Failed to load location."));
       } finally {
         if (!canceled) setLoading(false);
       }
@@ -156,7 +148,7 @@ export default function LocationPrintLandingPage({
     return () => {
       canceled = true;
     };
-  }, [businessId, locationId, user]);
+  }, [businessId, locationId, role, scopedLocationId, user]);
 
   const publicUrl = useMemo(() => {
     if (!business || !location) return null;

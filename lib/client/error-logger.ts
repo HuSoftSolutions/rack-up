@@ -15,6 +15,11 @@ type ClientErrorPayload = {
 
 const RECENT = new Map<string, number>();
 const DEDUPE_WINDOW_MS = 10_000;
+const IGNORED_MESSAGE_PATTERNS = [
+  "window.webkit.messagehandlers",
+  "indexed database server lost",
+  "indexeddb server lost",
+] as const;
 
 function now() {
   return Date.now();
@@ -48,16 +53,51 @@ export function normalizeReason(reason: unknown): {
     return { message: reason, extra: null };
   }
   if (reason && typeof reason === "object") {
+    const messageValue =
+      "message" in reason && typeof (reason as { message?: unknown }).message === "string"
+        ? (reason as { message: string }).message.trim()
+        : "";
+    const nameValue =
+      "name" in reason && typeof (reason as { name?: unknown }).name === "string"
+        ? (reason as { name: string }).name.trim()
+        : "";
+    const stackValue =
+      "stack" in reason && typeof (reason as { stack?: unknown }).stack === "string"
+        ? (reason as { stack: string }).stack
+        : null;
     try {
       return {
-        message: "Unhandled rejection (non-Error object)",
+        message: messageValue || "Unhandled rejection (non-Error object)",
+        name: nameValue || undefined,
+        stack: stackValue,
         extra: JSON.parse(JSON.stringify(reason)) as Record<string, unknown>,
       };
     } catch {
-      return { message: "Unhandled rejection (non-serializable object)", extra: null };
+      return {
+        message: messageValue || "Unhandled rejection (non-serializable object)",
+        name: nameValue || undefined,
+        stack: stackValue,
+        extra: null,
+      };
     }
   }
   return { message: "Unknown client error", extra: null };
+}
+
+export function shouldIgnoreClientRuntimeError(input: {
+  message?: string | null;
+  stack?: string | null;
+  name?: string | null;
+}) {
+  const message = (input.message ?? "").toLowerCase();
+  const stack = (input.stack ?? "").toLowerCase();
+  const name = (input.name ?? "").toLowerCase();
+
+  if (!message && !stack && !name) return false;
+  if (IGNORED_MESSAGE_PATTERNS.some((pattern) => message.includes(pattern))) return true;
+  if (message.includes("undefined is not an object") && message.includes("messagehandlers")) return true;
+
+  return false;
 }
 
 function shouldSkip(payload: ClientErrorPayload) {

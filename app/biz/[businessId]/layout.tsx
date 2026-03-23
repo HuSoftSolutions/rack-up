@@ -1,7 +1,7 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import React from "react";
 import { signOut } from "firebase/auth";
 import Image from "next/image";
 import { Badge } from "@/ui-kit/badge";
@@ -253,23 +253,16 @@ function LocationScopeBanner() {
 
 export default function BusinessLayout({
   children,
-  params,
 }: {
   children: React.ReactNode;
-  params: Promise<{ businessId: string }>;
 }) {
   const { user } = useAuth();
   const router = useRouter();
+  const params = useParams<{ businessId: string }>();
   const pathname = usePathname();
-  const [resolvedParams, setResolvedParams] = useState<{ businessId: string } | null>(null);
-  const { membership, loading } = useBusinessAccess(resolvedParams?.businessId);
+  const businessId = params.businessId ?? null;
+  const { membership, loading } = useBusinessAccess(businessId ?? undefined);
   const { isAdmin, loading: adminLoading } = useAdminStatus();
-
-  useEffect(() => {
-    params.then((p) => setResolvedParams(p));
-  }, [params]);
-
-  const businessId = resolvedParams?.businessId;
 
   if (loading || adminLoading || !businessId) {
     return (

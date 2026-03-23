@@ -1,24 +1,26 @@
 "use client";
 
 import React, { Suspense, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   browserSessionPersistence,
   setPersistence,
   signInWithCustomToken,
   signOut,
 } from "firebase/auth";
-import { firebaseAuth } from "@/lib/firebase/client";
+import { getAssumeAuth, setAssumeMode } from "@/lib/firebase/client";
 import { Button } from "@/ui-kit/button";
 
 function AssumeClient() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
   const token = useMemo(() => searchParams.get("token"), [searchParams]);
-  const redirectTo = useMemo(() => searchParams.get("redirect") ?? "/", [searchParams]);
+  const redirectTo = useMemo(() => {
+    const value = searchParams.get("redirect") ?? "/";
+    return value.startsWith("/") ? value : "/";
+  }, [searchParams]);
 
   useEffect(() => {
     let canceled = false;
@@ -32,12 +34,15 @@ function AssumeClient() {
       setStatus("loading");
       setError(null);
       try {
-        await setPersistence(firebaseAuth, browserSessionPersistence);
-        await signInWithCustomToken(firebaseAuth, token);
+        setAssumeMode(true);
+        const assumeAuth = getAssumeAuth();
+        await setPersistence(assumeAuth, browserSessionPersistence);
+        await signInWithCustomToken(assumeAuth, token);
         if (!canceled) {
-          router.replace(redirectTo);
+          window.location.assign(redirectTo);
         }
       } catch (err) {
+        setAssumeMode(false);
         if (!canceled) {
           setError(err instanceof Error ? err.message : "Failed to assume user.");
           setStatus("error");
@@ -49,7 +54,7 @@ function AssumeClient() {
     return () => {
       canceled = true;
     };
-  }, [redirectTo, router, token]);
+  }, [redirectTo, token]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-black via-zinc-950 to-[#0b0b0f] px-6 text-white">
@@ -71,19 +76,15 @@ function AssumeClient() {
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Button
             outline
-            onClick={() => {
-              try {
-                sessionStorage.removeItem("rackup:assume");
-              } catch {
-                // ignore
-              }
-              void signOut(firebaseAuth);
-              router.replace("/admin");
+            onClick={async () => {
+              setAssumeMode(false);
+              await signOut(getAssumeAuth());
+              window.location.assign("/admin");
             }}
           >
             Exit assume mode
           </Button>
-          <Button color="emerald" onClick={() => router.replace(redirectTo)}>
+          <Button color="emerald" onClick={() => window.location.assign(redirectTo)}>
             Continue
           </Button>
         </div>

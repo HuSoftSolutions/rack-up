@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useLocationScope } from "../location-scope";
 import { firestore } from "@/lib/firebase/client";
+import { normalizeFirestoreListenerError } from "@/lib/client/firestore-error";
 
 type DonationRow = {
   id: string;
@@ -46,13 +48,10 @@ function toIso(value: unknown): string | null {
   return null;
 }
 
-export default function BusinessDonationsPage({
-  params,
-}: {
-  params: Promise<{ businessId: string }>;
-}) {
+export default function BusinessDonationsPage() {
   const { user } = useAuth();
-  const [businessId, setBusinessId] = useState<string | null>(null);
+  const params = useParams<{ businessId: string }>();
+  const businessId = params.businessId ?? null;
   const { locationId, role } = useLocationScope();
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,15 +59,9 @@ export default function BusinessDonationsPage({
   const [indexWarning, setIndexWarning] = useState(false);
 
   useEffect(() => {
-    params.then((p) => setBusinessId(p.businessId));
-  }, [params]);
-
-  useEffect(() => {
     if (!user || !businessId) return;
     if (role === "staff" && !locationId) return;
     let canceled = false;
-    setLoading(true);
-    setError(null);
     const donationsQuery = query(
       collection(firestore, "donations"),
       where("businessId", "==", businessId),
@@ -80,6 +73,7 @@ export default function BusinessDonationsPage({
       donationsQuery,
       (snap) => {
         if (canceled) return;
+        setError(null);
         const next = snap.docs.map((doc) => {
           const data = doc.data() as Record<string, unknown>;
           return {
@@ -100,10 +94,9 @@ export default function BusinessDonationsPage({
       },
       (err) => {
         if (canceled) return;
-        const message = err instanceof Error ? err.message : "Failed to load support.";
-        const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
-        if (missingIndex) setIndexWarning(true);
-        setError(missingIndex ? null : message);
+        const normalized = normalizeFirestoreListenerError(err, "Failed to load support.");
+        if (normalized.isMissingIndex) setIndexWarning(true);
+        setError(normalized.isMissingIndex ? null : normalized.userMessage);
         setLoading(false);
       },
     );

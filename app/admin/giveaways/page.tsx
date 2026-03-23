@@ -325,7 +325,7 @@ export default function AdminGiveawaysPage() {
     setPrizeDescription(giveaway?.prize?.description ?? "");
   }
 
-  async function loadGiveaways() {
+  const loadGiveaways = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     setError(null);
@@ -393,13 +393,11 @@ export default function AdminGiveawaysPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [prizeDescription, prizeImageUrl, prizeName, prizeValue, user]);
 
   useEffect(() => {
     void loadGiveaways();
-    // loadGiveaways intentionally depends only on auth state for initial/admin refresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [loadGiveaways]);
 
   useEffect(() => {
     resetForm(editing);
@@ -586,7 +584,7 @@ export default function AdminGiveawaysPage() {
     } catch (err) {
       return { winners: [], error: err instanceof Error ? err.message : "Failed to draw winner." };
     }
-  }, [user, drawConfirmGiveaway]);
+  }, [user, drawConfirmGiveaway, loadGiveaways]);
 
   const repickWinnerForReveal = useCallback(async (winnerIndex: number): Promise<{ winner: { name: string; index: number } | null; error?: string }> => {
     if (!user || !drawConfirmGiveaway) return { winner: null, error: "No giveaway selected." };
@@ -613,7 +611,7 @@ export default function AdminGiveawaysPage() {
     } catch (err) {
       return { winner: null, error: err instanceof Error ? err.message : "Failed to repick." };
     }
-  }, [user, drawConfirmGiveaway]);
+  }, [user, drawConfirmGiveaway, loadGiveaways]);
 
   async function resetDrawing(id: string) {
     if (!user) return;
@@ -1629,6 +1627,7 @@ export default function AdminGiveawaysPage() {
 
       {mounted ? (
         <DrawConfirmModal
+          key={`${drawConfirmGiveaway?.id ?? "none"}:${drawConfirmOpen ? "open" : "closed"}`}
           open={drawConfirmOpen}
           onClose={() => {
             setDrawConfirmOpen(false);

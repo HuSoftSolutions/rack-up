@@ -2,7 +2,7 @@
 
 import { User, onAuthStateChanged } from "firebase/auth";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { firebaseAuth } from "@/lib/firebase/client";
+import { ensureDefaultAuthPersistence, firebaseAuth } from "@/lib/firebase/client";
 
 type AuthContextValue = {
   user: User | null;
@@ -16,6 +16,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    void ensureDefaultAuthPersistence();
     const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
       setUser(nextUser);
       setLoading(false);
@@ -33,4 +34,3 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
   return ctx;
 }
-

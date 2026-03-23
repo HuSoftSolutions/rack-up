@@ -3,6 +3,7 @@
 import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeFirestoreListenerError } from "@/lib/client/firestore-error";
 import { firestore } from "@/lib/firebase/client";
 
 type AdminStatus = {
@@ -32,6 +33,10 @@ export function useAdminStatus(): AdminStatus {
       try {
         const snapshot = await getDoc(doc(firestore, "admins", user.uid));
         if (!canceled) setIsAdmin(snapshot.exists());
+      } catch (err) {
+        const normalized = normalizeFirestoreListenerError(err, "Failed to verify admin access.");
+        console.warn("useAdminStatus lookup failed:", normalized.rawMessage);
+        if (!canceled) setIsAdmin(false);
       } finally {
         if (!canceled) setLoading(false);
       }
@@ -45,4 +50,3 @@ export function useAdminStatus(): AdminStatus {
 
   return { isAdmin, loading: authLoading || loading };
 }
-

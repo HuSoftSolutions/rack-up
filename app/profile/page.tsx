@@ -20,6 +20,8 @@ import { firebaseAuth } from "@/lib/firebase/client";
 import { useAdminStatus } from "@/lib/auth/admin";
 import { firestore } from "@/lib/firebase/client";
 import { useBusinessAccess } from "@/lib/auth/business";
+import { normalizeFirestoreListenerError } from "@/lib/client/firestore-error";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import { Button } from "@/ui-kit/button";
 import { Dialog, DialogBody, DialogTitle } from "@/ui-kit/dialog";
 import PublicShell from "@/app/_components/PublicNav";
@@ -187,7 +189,8 @@ export default function ProfilePage() {
       },
       (err) => {
         if (!canceled) {
-          setStatsError(err.message);
+          const normalized = normalizeFirestoreListenerError(err, "Failed to load support.");
+          setStatsError(normalized.userMessage);
           setDonationsLoading(false);
         }
       },
@@ -216,7 +219,8 @@ export default function ProfilePage() {
       },
       (err) => {
         if (!canceled) {
-          setStatsError(err.message);
+          const normalized = normalizeFirestoreListenerError(err, "Failed to load rewards.");
+          setStatsError(normalized.userMessage);
           setRewardsLoading(false);
         }
       },
@@ -244,7 +248,8 @@ export default function ProfilePage() {
       },
       (err) => {
         if (!canceled) {
-          setStatsError(err.message);
+          const normalized = normalizeFirestoreListenerError(err, "Failed to load transactions.");
+          setStatsError(normalized.userMessage);
           setTransactionsLoading(false);
         }
       },
@@ -316,7 +321,8 @@ export default function ProfilePage() {
         });
       },
       (err) => {
-        setReceiptError(err.message);
+        const normalized = normalizeFirestoreListenerError(err, "Failed to load reward receipt.");
+        setReceiptError(normalized.userMessage);
       },
     );
     return () => unsubscribe();
@@ -371,7 +377,7 @@ export default function ProfilePage() {
         });
       } catch (err) {
         if (!canceled) {
-          setReferralsError(err instanceof Error ? err.message : "Failed to load referrals.");
+          setReferralsError(normalizeClientRequestError(err, "Failed to load referrals."));
         }
       } finally {
         if (!canceled) setReferralsLoading(false);
@@ -432,7 +438,7 @@ export default function ProfilePage() {
       if (!res.ok || !json.inviteLink) throw new Error(json.error ?? "Failed to create invite link.");
       setReferralInviteLink(json.inviteLink);
     } catch (err) {
-      setReferralsError(err instanceof Error ? err.message : "Failed to create invite link.");
+      setReferralsError(normalizeClientRequestError(err, "Failed to create invite link."));
     } finally {
       setCreatingReferralLink(false);
     }

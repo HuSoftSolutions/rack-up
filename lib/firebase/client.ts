@@ -1,5 +1,12 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from "firebase/app";
-import { Auth, getAuth } from "firebase/auth";
+import {
+  Auth,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  getAuth,
+  inMemoryPersistence,
+  setPersistence,
+} from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
 import { FirebaseStorage, getStorage } from "firebase/storage";
 
@@ -34,20 +41,28 @@ if (missingEnv.length > 0) {
   throw new Error(`Missing required env var: ${missingEnv[0][0]}`);
 }
 
-function resolveAssumeMode(): boolean {
+const ASSUME_MODE_KEY = "rackup:assume";
+const ASSUME_APP_NAME = "rackup-assume";
+
+function isAssumeModeEnabled(): boolean {
   if (typeof window === "undefined") return false;
-  const isAssumePath = window.location.pathname.startsWith("/assume");
-  if (isAssumePath) {
-    try {
-      sessionStorage.setItem("rackup:assume", "1");
-    } catch {
-      // Ignore storage errors in restricted environments.
-    }
-  }
   try {
-    return sessionStorage.getItem("rackup:assume") === "1";
+    return window.sessionStorage.getItem(ASSUME_MODE_KEY) === "1";
   } catch {
-    return isAssumePath;
+    return false;
+  }
+}
+
+export function setAssumeMode(enabled: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    if (enabled) {
+      window.sessionStorage.setItem(ASSUME_MODE_KEY, "1");
+    } else {
+      window.sessionStorage.removeItem(ASSUME_MODE_KEY);
+    }
+  } catch {
+    // Ignore storage failures in restricted environments.
   }
 }
 
@@ -59,8 +74,44 @@ function initFirebaseApp(name?: string): FirebaseApp {
   return getApps().length ? getApp() : initializeApp(firebaseConfig);
 }
 
-const assumeMode = resolveAssumeMode();
-export const firebaseApp = initFirebaseApp(assumeMode ? "rackup-assume" : undefined);
+export function getAssumeAuth(): Auth {
+  return getAuth(initFirebaseApp(ASSUME_APP_NAME));
+}
+
+const assumeMode = isAssumeModeEnabled();
+export const firebaseApp = initFirebaseApp(assumeMode ? ASSUME_APP_NAME : undefined);
 export const firebaseAuth: Auth = getAuth(firebaseApp);
 export const firestore: Firestore = getFirestore(firebaseApp);
 export const firebaseStorage: FirebaseStorage = getStorage(firebaseApp);
+
+let defaultPersistenceInit: Promise<void> | null = null;
+
+export function ensureDefaultAuthPersistence() {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (isAssumeModeEnabled()) return Promise.resolve();
+  if (defaultPersistenceInit) return defaultPersistenceInit;
+
+  defaultPersistenceInit = (async () => {
+    try {
+      await setPersistence(firebaseAuth, browserLocalPersistence);
+      return;
+    } catch {
+      // Fall through to weaker persistence modes.
+    }
+
+    try {
+      await setPersistence(firebaseAuth, browserSessionPersistence);
+      return;
+    } catch {
+      // Fall through to in-memory as last resort.
+    }
+
+    try {
+      await setPersistence(firebaseAuth, inMemoryPersistence);
+    } catch {
+      // Ignore; auth can still work with Firebase defaults.
+    }
+  })();
+
+  return defaultPersistenceInit;
+}

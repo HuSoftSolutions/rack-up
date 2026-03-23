@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 
 type Deal = {
   id: string;
@@ -60,7 +61,7 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
         }
       } catch (err) {
         if (!canceled) {
-          setPointsError(err instanceof Error ? err.message : "Failed to load points.");
+          setPointsError(normalizeClientRequestError(err, "Failed to load points."));
         }
       }
     }
@@ -112,7 +113,7 @@ export default function DealRedeemCard({ deal }: { deal: Deal }) {
         setPoints(json.pointsRemaining);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(normalizeClientRequestError(err, "Something went wrong."));
     } finally {
       setRedeeming(false);
     }

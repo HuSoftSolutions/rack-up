@@ -17,6 +17,7 @@ import { Heading } from "@/ui-kit/heading";
 import { Text } from "@/ui-kit/text";
 import { useRequireAuth } from "@/lib/auth/routeGuards";
 import { firestore } from "@/lib/firebase/client";
+import { normalizeFirestoreListenerError } from "@/lib/client/firestore-error";
 
 type RewardIssue = {
   id: string;
@@ -30,11 +31,6 @@ type RewardIssue = {
   title: string | null;
   businessName: string | null;
   redeemLocationName?: string | null;
-};
-
-type RewardResponse = {
-  issues?: RewardIssue[];
-  error?: string;
 };
 
 type DonationRow = {
@@ -135,10 +131,9 @@ export default function RewardHistoryPage() {
       },
       (err) => {
         if (canceled) return;
-        const message = err instanceof Error ? err.message : "Failed to load rewards.";
-        const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
-        if (missingIndex) setIndexWarning(true);
-        setError(missingIndex ? null : message);
+        const normalized = normalizeFirestoreListenerError(err, "Failed to load rewards.");
+        if (normalized.isMissingIndex) setIndexWarning(true);
+        setError(normalized.isMissingIndex ? null : normalized.userMessage);
         setLoadingIssues(false);
       },
     );
@@ -193,7 +188,10 @@ export default function RewardHistoryPage() {
           );
         }
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load support.");
+        if (!canceled) {
+          const normalized = normalizeFirestoreListenerError(err, "Failed to load support.");
+          setError(normalized.userMessage);
+        }
       } finally {
         if (!canceled) setLoadingDonations(false);
       }

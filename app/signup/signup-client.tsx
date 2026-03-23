@@ -13,6 +13,7 @@ import { Text, TextLink } from "@/ui-kit/text";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { fetchRedirectTarget } from "@/lib/auth/redirectTarget";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import PublicShell from "@/app/_components/PublicNav";
 
 export default function SignUpClient() {
@@ -122,7 +123,7 @@ export default function SignUpClient() {
           : target;
       router.replace(targetWithReferral);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign up failed.");
+      setError(normalizeClientRequestError(err, "Sign up failed."));
       setSubmitting(false);
     }
   }

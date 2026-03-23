@@ -2,7 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import { useLocationScope } from "../location-scope";
 
 type CauseRow = {
@@ -11,22 +13,15 @@ type CauseRow = {
   selectedLocationIds?: string[];
 };
 
-export default function BusinessLocationsPage({
-  params,
-}: {
-  params: Promise<{ businessId: string }>;
-}) {
+export default function BusinessLocationsPage() {
   const { user } = useAuth();
   const { locationId, role } = useLocationScope();
-  const [businessId, setBusinessId] = useState<string | null>(null);
+  const params = useParams<{ businessId: string }>();
+  const businessId = params.businessId ?? null;
   const [locations, setLocations] = useState<{ id: string; name?: string }[]>([]);
   const [causes, setCauses] = useState<CauseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    params.then((p) => setBusinessId(p.businessId));
-  }, [params]);
 
   useEffect(() => {
     if (!user || !businessId) return;
@@ -62,7 +57,7 @@ export default function BusinessLocationsPage({
           setCauses(json.causes);
         }
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load locations.");
+        if (!canceled) setError(normalizeClientRequestError(err, "Failed to load locations."));
       } finally {
         if (!canceled) setLoading(false);
       }

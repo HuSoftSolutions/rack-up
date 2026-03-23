@@ -3,6 +3,7 @@
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 
 export default function PointsBanner() {
   const { user, loading } = useAuth();
@@ -31,7 +32,7 @@ export default function PointsBanner() {
         }
       } catch (err) {
         if (!canceled) {
-          setError(err instanceof Error ? err.message : "Failed to load points.");
+          setError(normalizeClientRequestError(err, "Failed to load points."));
         }
       }
     }

@@ -13,6 +13,7 @@ import { Text, TextLink } from "@/ui-kit/text";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { fetchRedirectTarget } from "@/lib/auth/redirectTarget";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import PublicShell from "@/app/_components/PublicNav";
 
 export default function SignInClient() {
@@ -54,7 +55,7 @@ export default function SignInClient() {
           : (await fetchRedirectTarget()) ?? "/";
       router.replace(target);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed.");
+      setError(normalizeClientRequestError(err, "Sign in failed."));
       setSubmitting(false);
     }
   }

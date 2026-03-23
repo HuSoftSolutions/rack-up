@@ -2,7 +2,11 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { logClientError, normalizeReason } from "@/lib/client/error-logger";
+import {
+  logClientError,
+  normalizeReason,
+  shouldIgnoreClientRuntimeError,
+} from "@/lib/client/error-logger";
 import { useToast } from "@/app/_components/ToastProvider";
 
 const TOAST_DEDUPE_WINDOW_MS = 15_000;
@@ -60,6 +64,15 @@ export default function ClientErrorHandlers() {
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
       const normalized = normalizeReason(event.error ?? event.message ?? "Window error");
+      if (
+        shouldIgnoreClientRuntimeError({
+          message: normalized.message,
+          name: normalized.name ?? event.error?.name ?? null,
+          stack: normalized.stack ?? (event.error instanceof Error ? event.error.stack ?? null : null),
+        })
+      ) {
+        return;
+      }
       void logClientError({
         kind: "window_error",
         message: normalized.message,
@@ -86,6 +99,15 @@ export default function ClientErrorHandlers() {
 
     const onRejection = (event: PromiseRejectionEvent) => {
       const normalized = normalizeReason(event.reason);
+      if (
+        shouldIgnoreClientRuntimeError({
+          message: normalized.message,
+          name: normalized.name ?? null,
+          stack: normalized.stack ?? null,
+        })
+      ) {
+        return;
+      }
       void logClientError({
         kind: "unhandled_rejection",
         message: normalized.message,

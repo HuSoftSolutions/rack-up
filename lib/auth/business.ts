@@ -3,6 +3,7 @@
 import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeFirestoreListenerError } from "@/lib/client/firestore-error";
 import { firestore } from "@/lib/firebase/client";
 import type { BusinessAdminMembership } from "@/lib/types/rackup";
 
@@ -38,6 +39,10 @@ export function useBusinessAccess(expectedBusinessId?: string): BusinessAccess {
         }
         const data = snap.data() as BusinessAdminMembership;
         if (!canceled) setMembership(data);
+      } catch (err) {
+        const normalized = normalizeFirestoreListenerError(err, "Failed to verify business access.");
+        console.warn("useBusinessAccess lookup failed:", normalized.rawMessage);
+        if (!canceled) setMembership(null);
       } finally {
         if (!canceled) setLoading(false);
       }

@@ -1,3 +1,5 @@
+"use client";
+
 import { firebaseAuth } from "@/lib/firebase/client";
 
 export async function fetchRedirectTarget(): Promise<string | null> {

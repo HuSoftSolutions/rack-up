@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 
 type DrawnWinner = {
@@ -34,15 +34,6 @@ export default function DrawConfirmModal({
   const [allWinners, setAllWinners] = useState<DrawnWinner[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
   const [repickingIndex, setRepickingIndex] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setPhase("idle");
-      setAllWinners([]);
-      setErrorMsg("");
-      setRepickingIndex(null);
-    }
-  }, [open]);
 
   const startDraw = useCallback(async () => {
     setPhase("drawing");

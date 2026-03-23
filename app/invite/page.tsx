@@ -10,6 +10,7 @@ import {
 } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { fetchRedirectTarget } from "@/lib/auth/redirectTarget";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import { Button } from "@/ui-kit/button";
 import { Input } from "@/ui-kit/input";
 
@@ -46,7 +47,7 @@ function InviteClient() {
         }
       } catch (err) {
         if (!canceled) {
-          setError(err instanceof Error ? err.message : "Invite link is invalid or expired.");
+          setError(normalizeClientRequestError(err, "Invite link is invalid or expired."));
           setStatus("error");
         }
       }
@@ -84,7 +85,7 @@ function InviteClient() {
       const redirectTo = (await fetchRedirectTarget()) ?? "/profile";
       router.replace(redirectTo);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to complete signup.");
+      setError(normalizeClientRequestError(err, "Failed to complete signup."));
       setStatus("ready");
     }
   }

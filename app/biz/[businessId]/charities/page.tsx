@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import { useLocationScope } from "../location-scope";
 
 type CauseRow = {
@@ -29,24 +31,17 @@ function formatMoney(cents?: number | null) {
   });
 }
 
-export default function BusinessCharitiesPage({
-  params,
-}: {
-  params: Promise<{ businessId: string }>;
-}) {
+export default function BusinessCharitiesPage() {
   const { user } = useAuth();
   const { locationId, role } = useLocationScope();
-  const [businessId, setBusinessId] = useState<string | null>(null);
+  const params = useParams<{ businessId: string }>();
+  const businessId = params.businessId ?? null;
   const [causes, setCauses] = useState<CauseRow[]>([]);
   const [locations, setLocations] = useState<{ id: string; name?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    params.then((p) => setBusinessId(p.businessId));
-  }, [params]);
 
   useEffect(() => {
     if (!user || !businessId) return;
@@ -82,7 +77,7 @@ export default function BusinessCharitiesPage({
           );
         }
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load charities.");
+        if (!canceled) setError(normalizeClientRequestError(err, "Failed to load charities."));
       } finally {
         if (!canceled) setLoading(false);
       }
@@ -242,7 +237,7 @@ export default function BusinessCharitiesPage({
                               );
                               setMessage("Saved location visibility.");
                             } catch (err) {
-                              setMessage(err instanceof Error ? err.message : "Failed to save.");
+                              setMessage(normalizeClientRequestError(err, "Failed to save."));
                             } finally {
                               setSavingId(null);
                             }

@@ -17,11 +17,6 @@ type CauseRow = (CauseDoc & { id: string }) & {
   updatedAt?: string | null;
 };
 
-function formatMoney(cents?: number | null) {
-  if (typeof cents !== "number" || !Number.isFinite(cents)) return "—";
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
 export default function AdminCausesPage() {
   const { user } = useAuth();
   const [causes, setCauses] = useState<CauseRow[]>([]);

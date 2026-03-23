@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useLocationScope } from "../location-scope";
 import { firestore } from "@/lib/firebase/client";
+import { normalizeFirestoreListenerError } from "@/lib/client/firestore-error";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 
 type RewardRow = {
   id: string;
@@ -51,13 +54,10 @@ function StatusChip({ status }: { status: RewardRow["status"] }) {
   );
 }
 
-export default function BusinessRedeemPage({
-  params,
-}: {
-  params: Promise<{ businessId: string }>;
-}) {
+export default function BusinessRedeemPage() {
   const { user } = useAuth();
-  const [businessId, setBusinessId] = useState<string | null>(null);
+  const params = useParams<{ businessId: string }>();
+  const businessId = params.businessId ?? null;
   const { locationId, role } = useLocationScope();
   const [rewards, setRewards] = useState<RewardRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,10 +71,6 @@ export default function BusinessRedeemPage({
   const [redeemLoading, setRedeemLoading] = useState(false);
   const [redeemResult, setRedeemResult] = useState<{ ok: boolean; message: string } | null>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    params.then((p) => setBusinessId(p.businessId));
-  }, [params]);
 
   useEffect(() => {
     if (!user || !businessId) return;
@@ -143,10 +139,9 @@ export default function BusinessRedeemPage({
       },
       (err) => {
         if (canceled) return;
-        const message = err instanceof Error ? err.message : "Failed to load rewards.";
-        const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
-        if (missingIndex) setIndexWarning(true);
-        setError(missingIndex ? null : message);
+        const normalized = normalizeFirestoreListenerError(err, "Failed to load rewards.");
+        if (normalized.isMissingIndex) setIndexWarning(true);
+        setError(normalized.isMissingIndex ? null : normalized.userMessage);
         setLoading(false);
       },
     );
@@ -190,7 +185,7 @@ export default function BusinessRedeemPage({
         );
       }
     } catch (err) {
-      setRedeemResult({ ok: false, message: err instanceof Error ? err.message : "Failed to redeem code." });
+      setRedeemResult({ ok: false, message: normalizeClientRequestError(err, "Failed to redeem code.") });
     } finally {
       setRedeemLoading(false);
       codeInputRef.current?.focus();
@@ -219,7 +214,7 @@ export default function BusinessRedeemPage({
         ),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to mark used.");
+      setError(normalizeClientRequestError(err, "Failed to mark used."));
     } finally {
       setMarking(null);
     }

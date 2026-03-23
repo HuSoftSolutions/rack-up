@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import { useLocationScope } from "../location-scope";
 
 type Deal = {
@@ -32,14 +34,11 @@ const typeLabels: Record<string, string> = {
   free_item: "Free item",
 };
 
-export default function BusinessOffersPage({
-  params,
-}: {
-  params: Promise<{ businessId: string }>;
-}) {
+export default function BusinessOffersPage() {
   const { user } = useAuth();
   const { locationId, role } = useLocationScope();
-  const [businessId, setBusinessId] = useState<string | null>(null);
+  const params = useParams<{ businessId: string }>();
+  const businessId = params.businessId ?? null;
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,10 +47,6 @@ export default function BusinessOffersPage({
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    params.then((p) => setBusinessId(p.businessId));
-  }, [params]);
 
   useEffect(() => {
     if (!user || !businessId) return;
@@ -94,7 +89,7 @@ export default function BusinessOffersPage({
           );
         }
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load offers.");
+        if (!canceled) setError(normalizeClientRequestError(err, "Failed to load offers."));
       } finally {
         if (!canceled) setLoading(false);
       }
@@ -142,7 +137,7 @@ export default function BusinessOffersPage({
       setForm(defaultForm);
       setShowForm(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create offer.");
+      setError(normalizeClientRequestError(err, "Failed to create offer."));
     } finally {
       setSaving(false);
     }
@@ -166,7 +161,7 @@ export default function BusinessOffersPage({
       }
       setDeals((prev) => prev.filter((item) => item.id !== deal.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete offer.");
+      setError(normalizeClientRequestError(err, "Failed to delete offer."));
     } finally {
       setDeletingId(null);
     }

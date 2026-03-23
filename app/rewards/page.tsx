@@ -7,6 +7,7 @@ import { Button } from "@/ui-kit/button";
 import { Heading } from "@/ui-kit/heading";
 import { Text } from "@/ui-kit/text";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 
 type Deal = {
   id: string;
@@ -42,7 +43,7 @@ export default function RewardsPage() {
         if (!res.ok || !json.deals) throw new Error(json.error ?? "Failed to load rewards.");
         if (!canceled) setDeals(json.deals.filter((d) => d.title));
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load rewards.");
+        if (!canceled) setError(normalizeClientRequestError(err, "Failed to load rewards."));
       } finally {
         if (!canceled) setLoading(false);
       }
@@ -76,7 +77,7 @@ export default function RewardsPage() {
         }
       } catch (err) {
         if (!canceled) {
-          setPointsError(err instanceof Error ? err.message : "Failed to load points.");
+          setPointsError(normalizeClientRequestError(err, "Failed to load points."));
         }
       } finally {
         if (!canceled) setPointsLoading(false);

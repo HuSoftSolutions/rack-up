@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 import { useLocationScope } from "../../../location-scope";
 
 type CauseRow = {
@@ -28,27 +30,17 @@ type LocationCause = {
   title: string;
 };
 
-export default function LocationPrintChooserPage({
-  params,
-}: {
-  params: Promise<{ businessId: string; locationId: string }>;
-}) {
+export default function LocationPrintChooserPage() {
   const { user } = useAuth();
+  const params = useParams<{ businessId: string; locationId: string }>();
   const { locationId: scopedLocationId, role } = useLocationScope();
-  const [businessId, setBusinessId] = useState<string | null>(null);
-  const [locationId, setLocationId] = useState<string | null>(null);
+  const businessId = params.businessId ?? null;
+  const locationId = params.locationId ?? null;
   const [business, setBusiness] = useState<BusinessRow | null>(null);
   const [location, setLocation] = useState<LocationRow | null>(null);
   const [causes, setCauses] = useState<LocationCause[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    params.then((p) => {
-      setBusinessId(p.businessId);
-      setLocationId(p.locationId);
-    });
-  }, [params]);
 
   useEffect(() => {
     if (!user || !businessId || !locationId) return;
@@ -102,7 +94,7 @@ export default function LocationPrintChooserPage({
           setCauses(locationCauses);
         }
       } catch (err) {
-        if (!canceled) setError(err instanceof Error ? err.message : "Failed to load location.");
+        if (!canceled) setError(normalizeClientRequestError(err, "Failed to load location."));
       } finally {
         if (!canceled) setLoading(false);
       }
@@ -111,7 +103,7 @@ export default function LocationPrintChooserPage({
     return () => {
       canceled = true;
     };
-  }, [businessId, locationId, user]);
+  }, [businessId, locationId, role, scopedLocationId, user]);
 
   if (loading) {
     return <div className="p-6 text-sm text-zinc-400">Loading print options...</div>;

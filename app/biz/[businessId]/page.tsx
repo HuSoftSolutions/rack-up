@@ -8,6 +8,8 @@ import { useLocationScope } from "./location-scope";
 import { useBusinessAccess } from "@/lib/auth/business";
 import { Timestamp, collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { firestore } from "@/lib/firebase/client";
+import { normalizeFirestoreListenerError } from "@/lib/client/firestore-error";
+import { normalizeClientRequestError } from "@/lib/client/request-error";
 
 type RewardRow = {
   id: string;
@@ -64,7 +66,7 @@ export default function BusinessDashboardPage() {
   const pathname = usePathname();
   const businessId = pathname.split("/")[2];
   const { locationId, role } = useLocationScope();
-  const { membership } = useBusinessAccess(businessId);
+  useBusinessAccess(businessId);
 
   const [donations, setDonations] = useState<DonationRow[]>([]);
   const [rewards, setRewards] = useState<RewardRow[]>([]);
@@ -115,16 +117,15 @@ export default function BusinessDashboardPage() {
       },
       (err) => {
         if (canceled) return;
-        const message = err instanceof Error ? err.message : "Failed to load support.";
-        const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
-        if (missingIndex) {
+        const normalized = normalizeFirestoreListenerError(err, "Failed to load support.");
+        if (normalized.isMissingIndex) {
           setIndexWarnings((prev) =>
             prev.includes("donations")
               ? prev
               : [...prev, "donations"],
           );
         }
-        setError(missingIndex ? null : message);
+        setError(normalized.isMissingIndex ? null : normalized.userMessage);
         setLoadingDonations(false);
       },
     );
@@ -174,16 +175,15 @@ export default function BusinessDashboardPage() {
       },
       (err) => {
         if (canceled) return;
-        const message = err instanceof Error ? err.message : "Failed to load rewards.";
-        const missingIndex = message.includes("FAILED_PRECONDITION") || message.includes("requires an index");
-        if (missingIndex) {
+        const normalized = normalizeFirestoreListenerError(err, "Failed to load rewards.");
+        if (normalized.isMissingIndex) {
           setIndexWarnings((prev) =>
             prev.includes("rewards")
               ? prev
               : [...prev, "rewards"],
           );
         }
-        setError(missingIndex ? null : message);
+        setError(normalized.isMissingIndex ? null : normalized.userMessage);
         setLoadingRewards(false);
       },
     );
@@ -228,7 +228,7 @@ export default function BusinessDashboardPage() {
         );
       }
     } catch (err) {
-      setRedeemResult({ ok: false, message: err instanceof Error ? err.message : "Failed to redeem code." });
+      setRedeemResult({ ok: false, message: normalizeClientRequestError(err, "Failed to redeem code.") });
     } finally {
       setRedeemLoading(false);
       codeInputRef.current?.focus();
@@ -257,7 +257,7 @@ export default function BusinessDashboardPage() {
         ),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to mark used.");
+      setError(normalizeClientRequestError(err, "Failed to mark used."));
     } finally {
       setMarking(null);
     }
