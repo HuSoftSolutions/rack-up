@@ -14,6 +14,8 @@ let lastToastAt = 0;
 let lastToastKey = "";
 const CHUNK_RELOAD_KEY = "rackup:chunk-reload-at";
 const CHUNK_RELOAD_WINDOW_MS = 60_000;
+const INDEXEDDB_RECOVER_KEY = "rackup:indexeddb-recover-at";
+const INDEXEDDB_RECOVER_WINDOW_MS = 120_000;
 
 function looksLikeChunkError(message: string) {
   const value = message.toLowerCase();
@@ -57,6 +59,37 @@ function recoverChunkMismatch() {
   }, 120);
 }
 
+function looksLikeIndexedDbDisconnect(message: string) {
+  const value = message.toLowerCase();
+  return (
+    value.includes("connection to indexed database server lost") ||
+    value.includes("indexed database server lost") ||
+    value.includes("indexeddb server lost")
+  );
+}
+
+function shouldReloadForIndexedDbDisconnect() {
+  if (typeof window === "undefined") return false;
+  try {
+    const lastRaw = window.sessionStorage.getItem(INDEXEDDB_RECOVER_KEY);
+    const last = Number(lastRaw ?? "0");
+    const now = Date.now();
+    if (Number.isFinite(last) && now - last < INDEXEDDB_RECOVER_WINDOW_MS) return false;
+    window.sessionStorage.setItem(INDEXEDDB_RECOVER_KEY, String(now));
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+function recoverIndexedDbDisconnect() {
+  if (!shouldReloadForIndexedDbDisconnect()) return;
+  if (typeof window === "undefined") return;
+  window.setTimeout(() => {
+    window.location.reload();
+  }, 140);
+}
+
 export default function ClientErrorHandlers() {
   const pathname = usePathname();
   const { pushToast } = useToast();
@@ -64,6 +97,10 @@ export default function ClientErrorHandlers() {
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
       const normalized = normalizeReason(event.error ?? event.message ?? "Window error");
+      if (looksLikeIndexedDbDisconnect(normalized.message)) {
+        recoverIndexedDbDisconnect();
+        return;
+      }
       if (
         shouldIgnoreClientRuntimeError({
           message: normalized.message,
@@ -99,6 +136,10 @@ export default function ClientErrorHandlers() {
 
     const onRejection = (event: PromiseRejectionEvent) => {
       const normalized = normalizeReason(event.reason);
+      if (looksLikeIndexedDbDisconnect(normalized.message)) {
+        recoverIndexedDbDisconnect();
+        return;
+      }
       if (
         shouldIgnoreClientRuntimeError({
           message: normalized.message,

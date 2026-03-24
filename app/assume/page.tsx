@@ -2,12 +2,7 @@
 
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  browserSessionPersistence,
-  setPersistence,
-  signInWithCustomToken,
-  signOut,
-} from "firebase/auth";
+import { signInWithCustomToken, signOut } from "firebase/auth";
 import { getAssumeAuth, setAssumeMode } from "@/lib/firebase/client";
 import { Button } from "@/ui-kit/button";
 
@@ -36,7 +31,6 @@ function AssumeClient() {
       try {
         setAssumeMode(true);
         const assumeAuth = getAssumeAuth();
-        await setPersistence(assumeAuth, browserSessionPersistence);
         await signInWithCustomToken(assumeAuth, token);
         if (!canceled) {
           window.location.assign(redirectTo);

@@ -5,7 +5,8 @@ import {
   browserSessionPersistence,
   getAuth,
   inMemoryPersistence,
-  setPersistence,
+  initializeAuth,
+  Persistence,
 } from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
 import { FirebaseStorage, getStorage } from "firebase/storage";
@@ -74,44 +75,31 @@ function initFirebaseApp(name?: string): FirebaseApp {
   return getApps().length ? getApp() : initializeApp(firebaseConfig);
 }
 
+function initFirebaseAuth(app: FirebaseApp, persistence: Persistence[]): Auth {
+  if (typeof window === "undefined") {
+    return getAuth(app);
+  }
+
+  try {
+    return initializeAuth(app, { persistence });
+  } catch {
+    // HMR/duplicate init path: use existing auth instance.
+    return getAuth(app);
+  }
+}
+
 export function getAssumeAuth(): Auth {
-  return getAuth(initFirebaseApp(ASSUME_APP_NAME));
+  const app = initFirebaseApp(ASSUME_APP_NAME);
+  return initFirebaseAuth(app, [browserSessionPersistence, inMemoryPersistence]);
 }
 
 const assumeMode = isAssumeModeEnabled();
 export const firebaseApp = initFirebaseApp(assumeMode ? ASSUME_APP_NAME : undefined);
-export const firebaseAuth: Auth = getAuth(firebaseApp);
+export const firebaseAuth: Auth = initFirebaseAuth(
+  firebaseApp,
+  assumeMode
+    ? [browserSessionPersistence, inMemoryPersistence]
+    : [browserLocalPersistence, browserSessionPersistence, inMemoryPersistence],
+);
 export const firestore: Firestore = getFirestore(firebaseApp);
 export const firebaseStorage: FirebaseStorage = getStorage(firebaseApp);
-
-let defaultPersistenceInit: Promise<void> | null = null;
-
-export function ensureDefaultAuthPersistence() {
-  if (typeof window === "undefined") return Promise.resolve();
-  if (isAssumeModeEnabled()) return Promise.resolve();
-  if (defaultPersistenceInit) return defaultPersistenceInit;
-
-  defaultPersistenceInit = (async () => {
-    try {
-      await setPersistence(firebaseAuth, browserLocalPersistence);
-      return;
-    } catch {
-      // Fall through to weaker persistence modes.
-    }
-
-    try {
-      await setPersistence(firebaseAuth, browserSessionPersistence);
-      return;
-    } catch {
-      // Fall through to in-memory as last resort.
-    }
-
-    try {
-      await setPersistence(firebaseAuth, inMemoryPersistence);
-    } catch {
-      // Ignore; auth can still work with Firebase defaults.
-    }
-  })();
-
-  return defaultPersistenceInit;
-}

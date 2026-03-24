@@ -2,7 +2,7 @@
 
 import { User, onAuthStateChanged } from "firebase/auth";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { ensureDefaultAuthPersistence, firebaseAuth } from "@/lib/firebase/client";
+import { firebaseAuth } from "@/lib/firebase/client";
 
 type AuthContextValue = {
   user: User | null;
@@ -16,7 +16,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void ensureDefaultAuthPersistence();
     const unsubscribe = onAuthStateChanged(firebaseAuth, (nextUser) => {
       setUser(nextUser);
       setLoading(false);
