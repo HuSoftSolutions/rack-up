@@ -301,6 +301,10 @@ export default function AdminGiveawaysPage() {
   const [prizeImageUploading, setPrizeImageUploading] = useState(false);
   const [prizeImageMessage, setPrizeImageMessage] = useState<string | null>(null);
   const [prizeDescription, setPrizeDescription] = useState("");
+  const hasPrizeDetailsWithoutName = useMemo(
+    () => (prizeValue.trim() || prizeImageUrl.trim() || prizeDescription.trim()) && !prizeName.trim(),
+    [prizeDescription, prizeImageUrl, prizeName, prizeValue],
+  );
 
   function resetForm(giveaway?: Giveaway | null) {
     setTitle(giveaway?.title ?? "");
@@ -330,9 +334,6 @@ export default function AdminGiveawaysPage() {
     setLoading(true);
     setError(null);
     try {
-      if ((prizeValue.trim() || prizeImageUrl.trim() || prizeDescription.trim()) && !prizeName.trim()) {
-        throw new Error("Community drawing item name is required when item details are provided.");
-      }
       const idToken = await user.getIdToken();
       const [giveawaysRes, causesRes, entitiesRes] = await Promise.all([
         fetch("/api/admin/giveaways", {
@@ -393,7 +394,7 @@ export default function AdminGiveawaysPage() {
     } finally {
       setLoading(false);
     }
-  }, [prizeDescription, prizeImageUrl, prizeName, prizeValue, user]);
+  }, [user]);
 
   useEffect(() => {
     void loadGiveaways();
@@ -454,6 +455,10 @@ export default function AdminGiveawaysPage() {
     }
     if (prizeImageFile) {
       setActionMessage("Upload the selected image before saving.");
+      return;
+    }
+    if (hasPrizeDetailsWithoutName) {
+      setActionMessage("Community drawing item name is required when item details are provided.");
       return;
     }
     setSaving(true);

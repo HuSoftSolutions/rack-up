@@ -44,6 +44,20 @@ function normalizePrize(value: unknown): {
   return prize;
 }
 
+function validatePrizeForWrite(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  const hasDetails =
+    (typeof record.value === "string" && record.value.trim().length > 0) ||
+    (typeof record.imageUrl === "string" && record.imageUrl.trim().length > 0) ||
+    (typeof record.description === "string" && record.description.trim().length > 0);
+  if (hasDetails && !name) {
+    return "Community drawing item name is required when item details are provided.";
+  }
+  return null;
+}
+
 function normalizeWinnerCount(value: unknown): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 1;
@@ -119,6 +133,10 @@ export async function POST(request: Request) {
     if (!body.title?.trim()) {
       return NextResponse.json({ error: "title required" }, { status: 400 });
     }
+    const prizeValidationError = validatePrizeForWrite(body.prize);
+    if (prizeValidationError) {
+      return NextResponse.json({ error: prizeValidationError }, { status: 400 });
+    }
     const now = Timestamp.now();
     const ref = adminFirestore.collection("giveaways").doc();
     await ref.set({
@@ -179,6 +197,12 @@ export async function PATCH(request: Request) {
     };
     const id = body.id?.trim();
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+    if (body.prize !== undefined) {
+      const prizeValidationError = validatePrizeForWrite(body.prize);
+      if (prizeValidationError) {
+        return NextResponse.json({ error: prizeValidationError }, { status: 400 });
+      }
+    }
     const ref = adminFirestore.collection("giveaways").doc(id);
     const snap = await ref.get();
     if (!snap.exists) return NextResponse.json({ error: "Community drawing not found." }, { status: 404 });
