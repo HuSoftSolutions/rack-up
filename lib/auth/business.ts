@@ -17,28 +17,6 @@ export function useBusinessAccess(expectedBusinessId?: string): BusinessAccess {
   const { user, loading: authLoading } = useAuth();
   const [membership, setMembership] = useState<BusinessAdminMembership | null>(null);
   const [loading, setLoading] = useState(true);
-  const [resumeKey, setResumeKey] = useState(0);
-
-  useEffect(() => {
-    const onResumeSignal = () => {
-      setResumeKey((value) => value + 1);
-    };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") onResumeSignal();
-    };
-
-    window.addEventListener("focus", onResumeSignal);
-    window.addEventListener("online", onResumeSignal);
-    window.addEventListener("pageshow", onResumeSignal);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
-    return () => {
-      window.removeEventListener("focus", onResumeSignal);
-      window.removeEventListener("online", onResumeSignal);
-      window.removeEventListener("pageshow", onResumeSignal);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, []);
 
   useEffect(() => {
     let canceled = false;
@@ -74,7 +52,7 @@ export function useBusinessAccess(expectedBusinessId?: string): BusinessAccess {
     return () => {
       canceled = true;
     };
-  }, [authLoading, resumeKey, user]);
+  }, [authLoading, user]);
 
   const hasAccess =
     !!membership &&

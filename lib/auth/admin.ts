@@ -15,28 +15,6 @@ export function useAdminStatus(): AdminStatus {
   const { user, loading: authLoading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [resumeKey, setResumeKey] = useState(0);
-
-  useEffect(() => {
-    const onResumeSignal = () => {
-      setResumeKey((value) => value + 1);
-    };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") onResumeSignal();
-    };
-
-    window.addEventListener("focus", onResumeSignal);
-    window.addEventListener("online", onResumeSignal);
-    window.addEventListener("pageshow", onResumeSignal);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
-    return () => {
-      window.removeEventListener("focus", onResumeSignal);
-      window.removeEventListener("online", onResumeSignal);
-      window.removeEventListener("pageshow", onResumeSignal);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, []);
 
   useEffect(() => {
     let canceled = false;
@@ -68,7 +46,7 @@ export function useAdminStatus(): AdminStatus {
     return () => {
       canceled = true;
     };
-  }, [authLoading, resumeKey, user]);
+  }, [authLoading, user]);
 
   return { isAdmin, loading: authLoading || loading };
 }

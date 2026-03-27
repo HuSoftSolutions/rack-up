@@ -42,13 +42,6 @@ class BoundaryImpl extends React.Component<
               >
                 Try again
               </button>
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="rounded-lg bg-white/15 px-3 py-2 text-sm"
-              >
-                Reload page
-              </button>
             </div>
           </div>
         </div>

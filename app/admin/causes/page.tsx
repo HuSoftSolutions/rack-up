@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { CauseDoc } from "@/lib/types/business";
@@ -53,6 +53,7 @@ export default function AdminCausesPage() {
   const [active, setActive] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const imagePreviewObjectUrlRef = useRef<string | null>(null);
   const [modalTab, setModalTab] = useState<"basic" | "inperson" | "remote">("basic");
 
   const stats = useMemo(() => {
@@ -67,7 +68,34 @@ export default function AdminCausesPage() {
     return { total, activeCauses, inactive, linkedLocations };
   }, [causes]);
 
-  function resetForm(cause?: CauseRow | null) {
+  const clearImagePreviewObjectUrl = useCallback(() => {
+    if (imagePreviewObjectUrlRef.current) {
+      URL.revokeObjectURL(imagePreviewObjectUrlRef.current);
+      imagePreviewObjectUrlRef.current = null;
+    }
+  }, []);
+
+  const setImagePreviewFromFile = useCallback(
+    (file: File | null, fallback: string | null = null) => {
+      clearImagePreviewObjectUrl();
+      setImageFile(file);
+      if (file) {
+        try {
+          const nextUrl = URL.createObjectURL(file);
+          imagePreviewObjectUrlRef.current = nextUrl;
+          setImagePreview(nextUrl);
+        } catch {
+          setImageFile(null);
+          setImagePreview(fallback);
+        }
+        return;
+      }
+      setImagePreview(fallback);
+    },
+    [clearImagePreviewObjectUrl],
+  );
+
+  const resetForm = useCallback((cause?: CauseRow | null) => {
     setTitle(cause?.title ?? "");
     setDescription(cause?.description ?? "");
     setMode((cause?.mode as "custom" | "predefined") ?? "custom");
@@ -97,9 +125,10 @@ export default function AdminCausesPage() {
       remoteConfig?.predefinedOptions ?? cause?.predefinedOptions ?? [],
     );
     setActive(cause?.active ?? true);
+    clearImagePreviewObjectUrl();
     setImageFile(null);
     setImagePreview(cause?.imageUrl ?? null);
-  }
+  }, [clearImagePreviewObjectUrl]);
 
   const loadCauses = useCallback(async () => {
     if (!user) return;
@@ -126,11 +155,17 @@ export default function AdminCausesPage() {
 
   useEffect(() => {
     resetForm(editing);
-  }, [editing]);
+  }, [editing, resetForm]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      clearImagePreviewObjectUrl();
+    };
+  }, [clearImagePreviewObjectUrl]);
 
   async function saveCause() {
     if (!user) return;
@@ -597,14 +632,14 @@ export default function AdminCausesPage() {
                                     className="hidden"
                                     onChange={(e) => {
                                       const file = e.target.files?.[0] ?? null;
-                                      setImageFile(file);
-                                      setImagePreview(file ? URL.createObjectURL(file) : editing?.imageUrl ?? null);
+                                      setImagePreviewFromFile(file, editing?.imageUrl ?? null);
                                     }}
                                   />
                                 </label>
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    clearImagePreviewObjectUrl();
                                     setImageFile(null);
                                     setImagePreview(null);
                                   }}
@@ -632,8 +667,7 @@ export default function AdminCausesPage() {
                                 className="hidden"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0] ?? null;
-                                  setImageFile(file);
-                                  setImagePreview(file ? URL.createObjectURL(file) : null);
+                                  setImagePreviewFromFile(file, null);
                                 }}
                               />
                             </label>
