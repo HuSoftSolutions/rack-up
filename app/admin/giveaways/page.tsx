@@ -449,6 +449,10 @@ export default function AdminGiveawaysPage() {
 
   async function saveGiveaway() {
     if (!user) return;
+    if (!title.trim()) {
+      setActionMessage("Community drawing title is required.");
+      return;
+    }
     if (prizeImageUploading) {
       setActionMessage("Please wait for image upload to finish.");
       return;
@@ -1396,13 +1400,26 @@ export default function AdminGiveawaysPage() {
 
                     {/* Sticky footer */}
                     <div className="sticky bottom-0 flex items-center justify-between border-t border-white/[0.06] bg-[#0d1117]/95 px-6 py-4 backdrop-blur-sm">
-                      <button
-                        type="button"
-                        className="text-sm text-zinc-400 transition hover:text-white"
-                        onClick={() => { setModalOpen(false); setActionMessage(null); }}
-                      >
-                        Cancel
-                      </button>
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <button
+                          type="button"
+                          className="text-sm text-zinc-400 transition hover:text-white"
+                          onClick={() => { setModalOpen(false); setActionMessage(null); }}
+                        >
+                          Cancel
+                        </button>
+                        {actionMessage ? (
+                          <div
+                            className={`truncate text-xs ${
+                              actionMessage.toLowerCase().includes("saved")
+                                ? "text-emerald-300"
+                                : "text-red-300"
+                            }`}
+                          >
+                            {actionMessage}
+                          </div>
+                        ) : null}
+                      </div>
                       <button
                         type="button"
                         className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-500 px-6 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:opacity-60 disabled:shadow-none"
