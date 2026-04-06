@@ -129,6 +129,7 @@ export async function POST(request: Request) {
       entryConfig?: unknown;
       prize?: unknown;
       winnerCount?: unknown;
+      prizeLabels?: string[];
     };
     if (!body.title?.trim()) {
       return NextResponse.json({ error: "title required" }, { status: 400 });
@@ -149,6 +150,7 @@ export async function POST(request: Request) {
       entryConfig: normalizeGiveawayEntryConfig(body.entryConfig),
       prize: normalizePrize(body.prize),
       winnerCount: normalizeWinnerCount(body.winnerCount),
+      prizeLabels: Array.isArray(body.prizeLabels) ? body.prizeLabels.map(String) : [],
       scope: "global",
       createdAt: now,
       updatedAt: now,
@@ -194,6 +196,7 @@ export async function PATCH(request: Request) {
       entryConfig?: unknown;
       prize?: unknown;
       winnerCount?: unknown;
+      prizeLabels?: string[];
     };
     const id = body.id?.trim();
     if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -226,6 +229,9 @@ export async function PATCH(request: Request) {
         ...(body.prize !== undefined ? { prize: normalizePrize(body.prize) } : {}),
         ...(body.winnerCount !== undefined
           ? { winnerCount: normalizeWinnerCount(body.winnerCount) }
+          : {}),
+        ...(body.prizeLabels !== undefined
+          ? { prizeLabels: Array.isArray(body.prizeLabels) ? body.prizeLabels.map(String) : [] }
           : {}),
         updatedAt: Timestamp.now(),
       },

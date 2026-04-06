@@ -58,6 +58,7 @@ type Giveaway = {
     description?: string;
   } | null;
   drawingVideoUrl?: string | null;
+  prizeLabels?: string[] | null;
 };
 
 type GiveawayEntry = {
@@ -295,6 +296,7 @@ export default function AdminGiveawaysPage() {
   const [inPersonEntryMultiplier, setInPersonEntryMultiplier] = useState("1");
   const [remoteEntryMultiplier, setRemoteEntryMultiplier] = useState("1");
   const [winnerCount, setWinnerCount] = useState("1");
+  const [prizeLabels, setPrizeLabels] = useState<string[]>([]);
   const [prizeName, setPrizeName] = useState("");
   const [prizeValue, setPrizeValue] = useState("");
   const [prizeImageUrl, setPrizeImageUrl] = useState("");
@@ -321,6 +323,7 @@ export default function AdminGiveawaysPage() {
     setInPersonEntryMultiplier(String(giveaway?.entryConfig?.entryMultiplier?.inPerson ?? 1));
     setRemoteEntryMultiplier(String(giveaway?.entryConfig?.entryMultiplier?.remote ?? 1));
     setWinnerCount(String(normalizeWinnerCount(giveaway?.winnerCount)));
+    setPrizeLabels(giveaway?.prizeLabels ?? []);
     setPrizeName(giveaway?.prize?.name ?? "");
     setPrizeValue(giveaway?.prize?.value ?? "");
     setPrizeImageUrl(giveaway?.prize?.imageUrl ?? "");
@@ -496,6 +499,7 @@ export default function AdminGiveawaysPage() {
           },
         },
         winnerCount: normalizedWinnerCount,
+        prizeLabels: prizeLabels.filter((l) => l.trim()),
         prize: {
           name: prizeName.trim(),
           value: prizeValue.trim(),
@@ -1011,6 +1015,9 @@ export default function AdminGiveawaysPage() {
                             <div className="font-semibold text-white">
                               #{winnerIndex + 1}: {winner?.donorName ?? winner?.userId ?? "—"}
                             </div>
+                            {g.prizeLabels?.[winnerIndex] && (
+                              <div className="text-amber-300/80">{g.prizeLabels[winnerIndex]}</div>
+                            )}
                             {winner?.donorEmail ? <div>{winner.donorEmail}</div> : null}
                             {winner?.phoneNumber ? <div>{winner.phoneNumber}</div> : null}
                             {winner?.userId ? <div className="text-zinc-400">User: {winner.userId}</div> : null}
@@ -1408,6 +1415,38 @@ export default function AdminGiveawaysPage() {
                         <p className="text-xs text-zinc-500">
                           Entries are calculated per community drawing from carryover points, then multiplied by source.
                         </p>
+
+                        {/* Prize labels for multi-winner giveaways */}
+                        {Number(winnerCount) > 1 && (
+                          <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                            <div className="mb-3 flex items-center justify-between">
+                              <span className="text-sm font-medium text-zinc-300">Prize labels <span className="text-xs text-zinc-500">(optional)</span></span>
+                            </div>
+                            <p className="mb-3 text-xs text-zinc-500">
+                              Assign a label to each winner position (e.g. &quot;1st Place&quot;, &quot;Grand Prize&quot;). Shown during the drawing reveal.
+                            </p>
+                            <div className="flex flex-col gap-2">
+                              {Array.from({ length: Number(winnerCount) || 0 }, (_, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                  <span className="w-6 text-right text-xs font-medium text-zinc-500">#{i + 1}</span>
+                                  <input
+                                    type="text"
+                                    className="h-9 flex-1 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-emerald-400/50 focus:ring-1 focus:ring-emerald-400/20"
+                                    value={prizeLabels[i] ?? ""}
+                                    onChange={(e) => {
+                                      setPrizeLabels((prev) => {
+                                        const next = [...prev];
+                                        next[i] = e.target.value;
+                                        return next;
+                                      });
+                                    }}
+                                    placeholder={`Prize for winner #${i + 1}`}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </fieldset>
                     </div>
 
@@ -1696,6 +1735,7 @@ export default function AdminGiveawaysPage() {
           prizeImageUrl={revealGiveaway?.prize?.imageUrl ?? undefined}
           giveawayId={revealGiveaway?.id}
           getIdToken={user ? () => user.getIdToken() : undefined}
+          prizeLabels={revealGiveaway?.prizeLabels ?? undefined}
         />
       ) : null}
     </div>

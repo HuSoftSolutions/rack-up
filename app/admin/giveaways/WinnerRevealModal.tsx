@@ -19,6 +19,7 @@ type WinnerRevealModalProps = {
   giveawayTitle: string;
   giveawayId?: string;
   getIdToken?: () => Promise<string>;
+  prizeLabels?: string[];
 };
 
 const FIRST_NAMES = [
@@ -93,6 +94,7 @@ export default function WinnerRevealModal({
   giveawayTitle,
   giveawayId,
   getIdToken,
+  prizeLabels,
 }: WinnerRevealModalProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [displayName, setDisplayName] = useState("");
@@ -450,6 +452,11 @@ export default function WinnerRevealModal({
                     <div className="text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-emerald-400 drop-shadow-lg sm:text-5xl">
                       {winners[currentRevealIndex]?.name}
                     </div>
+                    {prizeLabels?.[currentRevealIndex] && (
+                      <div className="mt-2 text-sm font-semibold text-amber-300/90">
+                        {prizeLabels[currentRevealIndex]}
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </div>
@@ -477,7 +484,7 @@ export default function WinnerRevealModal({
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                       >
-                        #{i + 1} {name}
+                        #{i + 1} {name}{prizeLabels?.[i] ? ` — ${prizeLabels[i]}` : ""}
                       </motion.div>
                     );
                   })}
