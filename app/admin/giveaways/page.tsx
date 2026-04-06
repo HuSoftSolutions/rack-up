@@ -57,6 +57,7 @@ type Giveaway = {
     imageUrl?: string;
     description?: string;
   } | null;
+  drawingVideoUrl?: string | null;
 };
 
 type GiveawayEntry = {
@@ -1075,6 +1076,18 @@ export default function AdminGiveawaysPage() {
                         >
                           History
                         </button>
+                        {g.drawingVideoUrl && (
+                          <a
+                            href={g.drawingVideoUrl}
+                            download={`drawing-${g.id}.mp4`}
+                            className="inline-flex h-8 min-w-[7.5rem] items-center justify-center gap-1.5 rounded-md border border-amber-400/30 bg-amber-500/10 px-3 text-xs font-semibold whitespace-nowrap text-amber-200 transition hover:bg-amber-500/20"
+                          >
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                            </svg>
+                            Download video
+                          </a>
+                        )}
                         <button
                           type="button"
                           className="inline-flex h-8 min-w-[7.5rem] items-center justify-center rounded-md border border-rose-400/30 bg-rose-500/10 px-3 text-xs font-semibold whitespace-nowrap text-rose-200 transition hover:bg-rose-500/20"
@@ -1681,6 +1694,8 @@ export default function AdminGiveawaysPage() {
           giveawayTitle={revealGiveaway?.title ?? ""}
           prizeName={revealGiveaway?.prize?.name ?? undefined}
           prizeImageUrl={revealGiveaway?.prize?.imageUrl ?? undefined}
+          giveawayId={revealGiveaway?.id}
+          getIdToken={user ? () => user.getIdToken() : undefined}
         />
       ) : null}
     </div>

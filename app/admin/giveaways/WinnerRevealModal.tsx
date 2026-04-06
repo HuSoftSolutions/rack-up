@@ -17,6 +17,8 @@ type WinnerRevealModalProps = {
   prizeName?: string;
   prizeImageUrl?: string;
   giveawayTitle: string;
+  giveawayId?: string;
+  getIdToken?: () => Promise<string>;
 };
 
 const FIRST_NAMES = [
@@ -89,6 +91,8 @@ export default function WinnerRevealModal({
   prizeName,
   prizeImageUrl,
   giveawayTitle,
+  giveawayId,
+  getIdToken,
 }: WinnerRevealModalProps) {
   const [phase, setPhase] = useState<Phase>("ready");
   const [displayName, setDisplayName] = useState("");
@@ -97,6 +101,112 @@ export default function WinnerRevealModal({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelledRef = useRef(false);
+  const giveawayIdRef = useRef(giveawayId);
+  giveawayIdRef.current = giveawayId;
+  const getIdTokenRef = useRef(getIdToken);
+  getIdTokenRef.current = getIdToken;
+
+  // ── Screen recording state ──
+  const [isRecording, setIsRecording] = useState(false);
+  const [videoStatus, setVideoStatus] = useState<"idle" | "converting" | "done" | "error">("idle");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const stopRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setIsRecording(false);
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "browser" } as MediaTrackConstraints,
+        audio: false,
+        // @ts-expect-error -- preferCurrentTab is supported in Chromium browsers
+        preferCurrentTab: true,
+      });
+      streamRef.current = stream;
+
+      // If the user cancels the share prompt or stops sharing
+      stream.getVideoTracks()[0].addEventListener("ended", () => {
+        stopRecording();
+      });
+
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      recordedChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        if (recordedChunksRef.current.length === 0) return;
+        const webmBlob = new Blob(recordedChunksRef.current, { type: mimeType });
+        recordedChunksRef.current = [];
+        if (webmBlob.size === 0) return;
+
+        setVideoStatus("converting");
+
+        // Upload to server for MP4 conversion in the background
+        const formData = new FormData();
+        formData.append("video", webmBlob, "recording.webm");
+        if (giveawayIdRef.current) formData.append("giveawayId", giveawayIdRef.current);
+
+        const tokenFn = getIdTokenRef.current;
+        (tokenFn ? tokenFn().catch(() => null) : Promise.resolve(null))
+          .then((token) => fetch("/api/admin/convert-video", {
+            method: "POST",
+            body: formData,
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }))
+          .then(async (res) => {
+            if (!res.ok) throw new Error("Conversion failed");
+            const mp4Blob = await res.blob();
+            const url = URL.createObjectURL(mp4Blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `giveaway-drawing-${Date.now()}.mp4`;
+            a.click();
+            URL.revokeObjectURL(url);
+            setVideoStatus("done");
+          })
+          .catch(() => {
+            // Fallback: download original WebM if conversion fails
+            const url = URL.createObjectURL(webmBlob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `giveaway-drawing-${Date.now()}.webm`;
+            a.click();
+            URL.revokeObjectURL(url);
+            setVideoStatus("done");
+          });
+      };
+
+      // Delay recording start so the tab-share UI glitch isn't captured
+      await new Promise((r) => setTimeout(r, 1000));
+
+      // Use timeslice to collect data periodically instead of only on stop
+      recorder.start(1000);
+      setIsRecording(true);
+
+    } catch {
+      // User cancelled the share prompt
+      setIsRecording(false);
+    }
+  }, [stopRecording]);
 
   const cleanup = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -112,14 +222,16 @@ export default function WinnerRevealModal({
       setDisplayName("");
       setRevealedWinners([]);
       setCurrentRevealIndex(0);
+      setVideoStatus("idle");
       cancelledRef.current = false;
       cleanup();
     } else {
       cancelledRef.current = true;
       cleanup();
+      stopRecording();
     }
     return cleanup;
-  }, [open, cleanup]);
+  }, [open, cleanup, stopRecording]);
 
   /** Spin + slow-down animation for a single winner name. */
   const revealOneWinner = useCallback((winnerName: string, onDone: () => void) => {
@@ -177,15 +289,68 @@ export default function WinnerRevealModal({
     });
   }, [currentRevealIndex, winners, revealOneWinner]);
 
+  // Auto-stop recording when drawing completes
+  const allRevealed = phase === "all-done" || (phase === "winner-shown" && currentRevealIndex + 1 >= winners.length);
+  useEffect(() => {
+    if (allRevealed && isRecording) {
+      // Small delay so the final confetti is captured
+      const t = setTimeout(() => stopRecording(), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [allRevealed, isRecording, stopRecording]);
+
+  // Auto-dismiss "done" status after 4 seconds
+  useEffect(() => {
+    if (videoStatus === "done") {
+      const t = setTimeout(() => setVideoStatus("idle"), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [videoStatus]);
+
   const isMulti = winners.length > 1;
   const isSpinning = phase === "spinning" || phase === "slowing";
   const hasMoreWinners = phase === "winner-shown" && currentRevealIndex + 1 < winners.length;
 
-  if (!open || !winners.length) return null;
+  const showModal = open && winners.length > 0;
+  const showToast = videoStatus === "converting" || videoStatus === "done";
+
+  if (!showModal && !showToast) return null;
 
   return createPortal(
+    <>
+    {/* Video processing toast — visible even after modal closes */}
     <AnimatePresence>
-      {open && (
+      {showToast && (
+        <motion.div
+          className="fixed bottom-6 right-6 z-[110] flex items-center gap-3 rounded-xl border border-white/10 bg-[#0f1520] px-5 py-3 shadow-2xl"
+          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.95 }}
+          transition={{ type: "spring", damping: 20, stiffness: 300 }}
+        >
+          {videoStatus === "converting" && (
+            <>
+              <svg className="h-4 w-4 animate-spin text-amber-400" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-sm font-medium text-white/80">Converting video to MP4…</span>
+            </>
+          )}
+          {videoStatus === "done" && (
+            <>
+              <svg className="h-4 w-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              <span className="text-sm font-medium text-white/80">Video downloaded!</span>
+            </>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    <AnimatePresence>
+      {showModal && (
         <motion.div
           className="fixed inset-0 z-[100] flex items-center justify-center"
           initial={{ opacity: 0 }}
@@ -334,18 +499,47 @@ export default function WinnerRevealModal({
               </div>
             )}
 
+            {/* Recording indicator — only shown in ready phase so it doesn't appear in the recorded video */}
+            {isRecording && phase === "ready" && (
+              <div className="absolute top-4 right-4 flex items-center gap-2 rounded-full border border-red-400/30 bg-red-500/10 px-3 py-1.5">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                <span className="text-xs font-semibold text-red-300">REC</span>
+              </div>
+            )}
+
             {/* Actions */}
-            <div className="relative flex gap-3">
+            <div className="relative flex flex-col items-center gap-3">
               {phase === "ready" && (
-                <motion.button
-                  type="button"
-                  className="rounded-xl border border-emerald-400/40 bg-gradient-to-r from-emerald-600 to-emerald-500 px-8 py-3 text-sm font-bold tracking-wide text-white shadow-lg shadow-emerald-500/25 transition hover:shadow-emerald-500/40 hover:brightness-110"
-                  onClick={startReveal}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  {isMulti ? `REVEAL ${winners.length} WINNERS` : "REVEAL WINNER"}
-                </motion.button>
+                <div className="flex flex-col items-center gap-3">
+                  {!isRecording && (
+                    <motion.button
+                      type="button"
+                      className="rounded-xl border border-red-400/30 bg-red-500/10 px-6 py-2.5 text-xs font-semibold tracking-wide text-red-300 transition hover:bg-red-500/20"
+                      onClick={startRecording}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                          <circle cx="12" cy="12" r="8" />
+                        </svg>
+                        RECORD DRAWING
+                      </span>
+                    </motion.button>
+                  )}
+                  {isRecording && (
+                    <div className="text-xs text-red-300/70">Recording — press reveal when ready!</div>
+                  )}
+                  <motion.button
+                    type="button"
+                    className="rounded-xl border border-emerald-400/40 bg-gradient-to-r from-emerald-600 to-emerald-500 px-8 py-3 text-sm font-bold tracking-wide text-white shadow-lg shadow-emerald-500/25 transition hover:shadow-emerald-500/40 hover:brightness-110"
+                    onClick={startReveal}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    {isMulti ? `REVEAL ${winners.length} WINNERS` : "REVEAL WINNER"}
+                  </motion.button>
+                </div>
               )}
 
               {isSpinning && (
@@ -390,7 +584,8 @@ export default function WinnerRevealModal({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>,
+    </AnimatePresence>
+    </>,
     document.body,
   );
 }
