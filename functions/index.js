@@ -4,39 +4,32 @@ const { initializeApp } = require("firebase-admin/app");
 const { getStorage } = require("firebase-admin/storage");
 const { getFirestore } = require("firebase-admin/firestore");
 const { execFile } = require("child_process");
-const { unlink, mkdtemp } = require("fs/promises");
+const { unlink, mkdtemp, stat } = require("fs/promises");
+const { randomUUID } = require("crypto");
 const { join } = require("path");
 const { tmpdir } = require("os");
 
 initializeApp();
 setGlobalOptions({ maxInstances: 10 });
 
-/**
- * Triggered when a WebM file is uploaded to giveaway-videos/.
- * Converts it to MP4 using FFmpeg (pre-installed on Cloud Functions)
- * and updates the Firestore giveaway document with the MP4 URL.
- */
 exports.convertDrawingVideo = onObjectFinalized(
   {
-    memory: "2GiB",
-    timeoutSeconds: 300,
-    cpu: 2,
+    memory: "8GiB",
+    timeoutSeconds: 540,
+    cpu: 4,
   },
   async (event) => {
     const filePath = event.data.name;
     const contentType = event.data.contentType;
+    const fileSize = event.data.size;
 
-    // Only process WebM files in giveaway-videos/
     if (!filePath.startsWith("giveaway-videos/") || !contentType.startsWith("video/webm")) {
       return;
     }
-
-    // Don't process files in the converted/ subfolder (avoid loops)
     if (filePath.includes("/converted/")) {
       return;
     }
 
-    // Extract giveawayId from path: giveaway-videos/{giveawayId}/{timestamp}-drawing.webm
     const parts = filePath.split("/");
     const giveawayId = parts[1];
     if (!giveawayId || giveawayId === "unknown") {
@@ -44,34 +37,52 @@ exports.convertDrawingVideo = onObjectFinalized(
       return;
     }
 
+    console.log(`Starting conversion: ${filePath} (${(fileSize / 1024 / 1024).toFixed(1)} MB) for giveaway ${giveawayId}`);
+
     const bucket = getStorage().bucket(event.data.bucket);
     const dir = await mkdtemp(join(tmpdir(), "convert-"));
     const inputPath = join(dir, "input.webm");
     const outputPath = join(dir, "output.mp4");
 
     try {
-      // Download the WebM file
+      // Step 1: Download
+      console.log("Downloading WebM...");
       await bucket.file(filePath).download({ destination: inputPath });
+      const inputStat = await stat(inputPath);
+      console.log(`Downloaded: ${(inputStat.size / 1024 / 1024).toFixed(1)} MB`);
 
-      // Convert to MP4 using FFmpeg (pre-installed on Cloud Functions)
+      // Step 2: Convert
+      console.log("Starting FFmpeg conversion...");
       await new Promise((resolve, reject) => {
-        execFile(
+        const proc = execFile(
           "ffmpeg",
           [
             "-i", inputPath,
             "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "23",
+            "-preset", "ultrafast",
+            "-crf", "28",
+            "-vf", "scale='min(1280,iw)':-2",
+            "-threads", "2",
             "-movflags", "+faststart",
             "-y",
             outputPath,
           ],
-          { timeout: 240_000 },
+          { timeout: 480_000, maxBuffer: 10 * 1024 * 1024 },
           (err) => (err ? reject(err) : resolve()),
         );
+        proc.stderr.on("data", (data) => {
+          const line = data.toString().trim();
+          if (line.includes("frame=") || line.includes("time=")) {
+            console.log(`FFmpeg: ${line.substring(0, 200)}`);
+          }
+        });
       });
 
-      // Upload the MP4
+      const outputStat = await stat(outputPath);
+      console.log(`Conversion done: ${(outputStat.size / 1024 / 1024).toFixed(1)} MB`);
+
+      // Step 3: Upload MP4
+      console.log("Uploading MP4...");
       const mp4Path = `giveaway-videos/${giveawayId}/converted/${parts[2].replace(".webm", ".mp4")}`;
       await bucket.upload(outputPath, {
         destination: mp4Path,
@@ -80,21 +91,25 @@ exports.convertDrawingVideo = onObjectFinalized(
           cacheControl: "public,max-age=31536000",
         },
       });
+      console.log("Upload complete");
 
-      // Make the file publicly readable and use the public URL
-      await bucket.file(mp4Path).makePublic();
-      const publicUrl = `https://storage.googleapis.com/${event.data.bucket}/${mp4Path}`;
+      // Step 4: Generate download URL
+      const token = randomUUID();
+      const mp4File = bucket.file(mp4Path);
+      await mp4File.setMetadata({ metadata: { firebaseStorageDownloadTokens: token } });
+      const encodedPath = encodeURIComponent(mp4Path);
+      const publicUrl = `https://firebasestorage.googleapis.com/v0/b/${event.data.bucket}/o/${encodedPath}?alt=media&token=${token}`;
 
-      // Update the giveaway document with the MP4 URL
+      // Step 5: Update Firestore
       await getFirestore().collection("giveaways").doc(giveawayId).update({
         drawingVideoUrl: publicUrl,
       });
 
-      console.log(`Converted ${filePath} -> ${mp4Path} for giveaway ${giveawayId}`);
+      console.log(`Done: ${filePath} -> ${mp4Path} for giveaway ${giveawayId}`);
     } catch (err) {
-      console.error("Video conversion failed:", err);
+      console.error(`Conversion failed at ${filePath}:`, err?.message || err);
+      if (err?.stderr) console.error("FFmpeg stderr:", err.stderr.substring(0, 500));
     } finally {
-      // Clean up temp files
       await unlink(inputPath).catch(() => {});
       await unlink(outputPath).catch(() => {});
     }
