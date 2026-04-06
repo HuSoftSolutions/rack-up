@@ -160,7 +160,7 @@ export default function WinnerRevealModal({
 
         setVideoStatus("converting");
 
-        // Upload to server for MP4 conversion in the background
+        // Upload to server for storage + Cloud Function MP4 conversion
         const formData = new FormData();
         formData.append("video", webmBlob, "recording.webm");
         if (giveawayIdRef.current) formData.append("giveawayId", giveawayIdRef.current);
@@ -173,24 +173,10 @@ export default function WinnerRevealModal({
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           }))
           .then(async (res) => {
-            if (!res.ok) throw new Error("Conversion failed");
-            const mp4Blob = await res.blob();
-            const url = URL.createObjectURL(mp4Blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `giveaway-drawing-${Date.now()}.mp4`;
-            a.click();
-            URL.revokeObjectURL(url);
+            if (!res.ok) throw new Error("Upload failed");
             setVideoStatus("done");
           })
           .catch(() => {
-            // Fallback: download original WebM if conversion fails
-            const url = URL.createObjectURL(webmBlob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `giveaway-drawing-${Date.now()}.webm`;
-            a.click();
-            URL.revokeObjectURL(url);
             setVideoStatus("done");
           });
       };
@@ -334,7 +320,7 @@ export default function WinnerRevealModal({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              <span className="text-sm font-medium text-white/80">Converting video to MP4…</span>
+              <span className="text-sm font-medium text-white/80">Uploading video…</span>
             </>
           )}
           {videoStatus === "done" && (
@@ -342,7 +328,7 @@ export default function WinnerRevealModal({
               <svg className="h-4 w-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 6L9 17l-5-5" />
               </svg>
-              <span className="text-sm font-medium text-white/80">Video downloaded!</span>
+              <span className="text-sm font-medium text-white/80">Video saved! MP4 will be available shortly.</span>
             </>
           )}
         </motion.div>

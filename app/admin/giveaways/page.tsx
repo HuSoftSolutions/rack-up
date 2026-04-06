@@ -1076,7 +1076,7 @@ export default function AdminGiveawaysPage() {
                         >
                           History
                         </button>
-                        {g.drawingVideoUrl && (
+                        {g.drawingVideoUrl && !g.drawingVideoUrl.endsWith(".webm") && (
                           <a
                             href={g.drawingVideoUrl}
                             download={`drawing-${g.id}.mp4`}
