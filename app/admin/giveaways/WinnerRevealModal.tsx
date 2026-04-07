@@ -111,6 +111,7 @@ export default function WinnerRevealModal({
   // ── Screen recording state ──
   const [isRecording, setIsRecording] = useState(false);
   const [videoStatus, setVideoStatus] = useState<"idle" | "converting" | "done" | "error">("idle");
+  const [videoError, setVideoError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -160,7 +161,10 @@ export default function WinnerRevealModal({
         recordedChunksRef.current = [];
         if (webmBlob.size === 0) return;
 
+        const blobSizeMB = (webmBlob.size / 1024 / 1024).toFixed(1);
+        console.log(`[Recording] WebM size: ${blobSizeMB} MB`);
         setVideoStatus("converting");
+        setVideoError(null);
 
         // Upload to server for storage + Cloud Function MP4 conversion
         const formData = new FormData();
@@ -175,11 +179,18 @@ export default function WinnerRevealModal({
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           }))
           .then(async (res) => {
-            if (!res.ok) throw new Error("Upload failed");
+            if (!res.ok) {
+              const text = await res.text().catch(() => "");
+              throw new Error(`Upload failed (${res.status}): ${text}`);
+            }
+            console.log("[Recording] Upload successful, Cloud Function will convert to MP4");
             setVideoStatus("done");
           })
-          .catch(() => {
-            setVideoStatus("done");
+          .catch((err) => {
+            const msg = err instanceof Error ? err.message : "Upload failed";
+            console.error("[Recording] Error:", msg);
+            setVideoError(msg);
+            setVideoStatus("error");
           });
       };
 
@@ -287,10 +298,14 @@ export default function WinnerRevealModal({
     }
   }, [allRevealed, isRecording, stopRecording]);
 
-  // Auto-dismiss "done" status after 4 seconds
+  // Auto-dismiss status toasts
   useEffect(() => {
     if (videoStatus === "done") {
       const t = setTimeout(() => setVideoStatus("idle"), 4000);
+      return () => clearTimeout(t);
+    }
+    if (videoStatus === "error") {
+      const t = setTimeout(() => setVideoStatus("idle"), 8000);
       return () => clearTimeout(t);
     }
   }, [videoStatus]);
@@ -300,7 +315,7 @@ export default function WinnerRevealModal({
   const hasMoreWinners = phase === "winner-shown" && currentRevealIndex + 1 < winners.length;
 
   const showModal = open && winners.length > 0;
-  const showToast = videoStatus === "converting" || videoStatus === "done";
+  const showToast = videoStatus === "converting" || videoStatus === "done" || videoStatus === "error";
 
   if (!showModal && !showToast) return null;
 
@@ -331,6 +346,16 @@ export default function WinnerRevealModal({
                 <path d="M20 6L9 17l-5-5" />
               </svg>
               <span className="text-sm font-medium text-white/80">Video saved! MP4 will be available shortly.</span>
+            </>
+          )}
+          {videoStatus === "error" && (
+            <>
+              <svg className="h-4 w-4 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+              <span className="text-sm font-medium text-red-300">{videoError || "Upload failed"}</span>
             </>
           )}
         </motion.div>
