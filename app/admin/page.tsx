@@ -25,6 +25,12 @@ type ReferralConfig = {
   invitedPoints: number;
 };
 
+type SameDayBonusConfig = {
+  enabled: boolean;
+  bonusPoints: number;
+  timezone: string;
+};
+
 function formatNumber(value?: number) {
   return typeof value === "number" && Number.isFinite(value)
     ? value.toLocaleString("en-US")
@@ -61,6 +67,15 @@ export default function AdminOverviewPage() {
     enabled: false,
     inviterPoints: 0,
     invitedPoints: 0,
+  });
+  const [bonusLoading, setBonusLoading] = useState(true);
+  const [bonusSaving, setBonusSaving] = useState(false);
+  const [bonusError, setBonusError] = useState<string | null>(null);
+  const [bonusMessage, setBonusMessage] = useState<string | null>(null);
+  const [bonusConfig, setBonusConfig] = useState<SameDayBonusConfig>({
+    enabled: false,
+    bonusPoints: 20,
+    timezone: "America/New_York",
   });
 
   const loadStats = useCallback(
@@ -173,6 +188,62 @@ export default function AdminOverviewPage() {
       canceled = true;
     };
   }, [authLoading, user]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const currentUser = user;
+    let canceled = false;
+    async function loadBonusConfig() {
+      setBonusLoading(true);
+      setBonusError(null);
+      try {
+        const idToken = await currentUser.getIdToken();
+        const res = await fetch("/api/admin/same-day-bonus/config", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        const json = (await res.json()) as { config?: SameDayBonusConfig; error?: string };
+        if (!res.ok || !json.config) {
+          throw new Error(json.error ?? "Failed to load same-day bonus config.");
+        }
+        if (!canceled) setBonusConfig(json.config);
+      } catch (err) {
+        if (!canceled) {
+          setBonusError(err instanceof Error ? err.message : "Failed to load same-day bonus config.");
+        }
+      } finally {
+        if (!canceled) setBonusLoading(false);
+      }
+    }
+    void loadBonusConfig();
+    return () => {
+      canceled = true;
+    };
+  }, [authLoading, user]);
+
+  async function saveBonusConfig() {
+    if (!user || bonusSaving) return;
+    setBonusSaving(true);
+    setBonusError(null);
+    setBonusMessage(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/admin/same-day-bonus/config", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bonusConfig),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Failed to save same-day bonus config.");
+      setBonusMessage("Same-day bonus settings saved.");
+    } catch (err) {
+      setBonusError(err instanceof Error ? err.message : "Failed to save same-day bonus config.");
+    } finally {
+      setBonusSaving(false);
+    }
+  }
 
   async function saveReferralConfig() {
     if (!user || referralsSaving) return;
@@ -410,6 +481,77 @@ export default function AdminOverviewPage() {
           className="mt-3 rounded-lg bg-emerald-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-60"
         >
           {referralsSaving ? "Saving..." : "Save Referral Settings"}
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+        <div className="text-sm font-semibold text-white">Same-Day Bonus</div>
+        <p className="mt-1 text-xs text-zinc-400">
+          Award bonus points when a user scans at both a gym and a partner location on the same day.
+          Only one bonus per user per day.
+        </p>
+        {bonusError ? (
+          <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
+            {bonusError}
+          </div>
+        ) : null}
+        {bonusMessage ? (
+          <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs text-emerald-200">
+            {bonusMessage}
+          </div>
+        ) : null}
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <label className="text-sm text-zinc-400">
+            <div className="mb-1 font-medium text-white">Feature status</div>
+            <select
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
+              value={bonusConfig.enabled ? "enabled" : "disabled"}
+              onChange={(event) =>
+                setBonusConfig((prev) => ({ ...prev, enabled: event.target.value === "enabled" }))
+              }
+              disabled={bonusLoading || bonusSaving}
+            >
+              <option value="disabled">Disabled</option>
+              <option value="enabled">Enabled</option>
+            </select>
+          </label>
+          <label className="text-sm text-zinc-400">
+            <div className="mb-1 font-medium text-white">Bonus points</div>
+            <input
+              type="number"
+              min={0}
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
+              value={bonusConfig.bonusPoints}
+              onChange={(event) =>
+                setBonusConfig((prev) => ({
+                  ...prev,
+                  bonusPoints: Math.max(0, Number(event.target.value) || 0),
+                }))
+              }
+              disabled={bonusLoading || bonusSaving}
+            />
+          </label>
+          <label className="text-sm text-zinc-400">
+            <div className="mb-1 font-medium text-white">Day boundary timezone</div>
+            <input
+              type="text"
+              placeholder="America/New_York"
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-emerald-400"
+              value={bonusConfig.timezone}
+              onChange={(event) =>
+                setBonusConfig((prev) => ({ ...prev, timezone: event.target.value }))
+              }
+              disabled={bonusLoading || bonusSaving}
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={() => void saveBonusConfig()}
+          disabled={bonusLoading || bonusSaving}
+          className="mt-3 rounded-lg bg-emerald-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-60"
+        >
+          {bonusSaving ? "Saving..." : "Save Bonus Settings"}
         </button>
       </div>
     </div>

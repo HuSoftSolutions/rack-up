@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import { normalizeFirestoreListenerError } from "@/lib/client/firestore-error";
 import { normalizeClientRequestError } from "@/lib/client/request-error";
 import { slugify } from "@/lib/utils/slugify";
-import type { BusinessDoc, LocationDoc } from "@/lib/types/business";
+import type { BusinessDoc, BusinessType, LocationDoc } from "@/lib/types/business";
 
 type BusinessNode = {
   id: string;
@@ -59,7 +59,9 @@ export default function AdminBusinessesPage() {
   const [bizName, setBizName] = useState("");
   const [bizDescription, setBizDescription] = useState("");
   const [bizSlug, setBizSlug] = useState("");
+  const [bizType, setBizType] = useState<BusinessType>("partner");
   const [bizSubmitting, setBizSubmitting] = useState(false);
+  const [typeSavingId, setTypeSavingId] = useState<string | null>(null);
 
   // Location form
   const [locName, setLocName] = useState("");
@@ -196,6 +198,7 @@ export default function AdminBusinessesPage() {
         name: bizName,
         description: bizDescription,
         slug,
+        type: bizType,
         active: true,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -203,6 +206,7 @@ export default function AdminBusinessesPage() {
       setBizName("");
       setBizDescription("");
       setBizSlug("");
+      setBizType("partner");
       setShowNewForm(false);
       void load();
     } catch (err) {
@@ -210,6 +214,23 @@ export default function AdminBusinessesPage() {
       setError(normalized.userMessage);
     } finally {
       setBizSubmitting(false);
+    }
+  }
+
+  async function setBusinessType(businessId: string, nextType: BusinessType) {
+    setTypeSavingId(businessId);
+    setError(null);
+    try {
+      await updateDoc(doc(firestore, "businesses", businessId), {
+        type: nextType,
+        updatedAt: serverTimestamp(),
+      } satisfies Partial<BusinessDoc>);
+      void load();
+    } catch (err) {
+      const normalized = normalizeFirestoreListenerError(err, "Failed to update business type.");
+      setError(normalized.userMessage);
+    } finally {
+      setTypeSavingId(null);
     }
   }
 
@@ -551,7 +572,7 @@ export default function AdminBusinessesPage() {
           className="rounded-xl border border-emerald-400/30 bg-emerald-500/5 p-5"
         >
           <h3 className="mb-3 text-sm font-semibold text-emerald-300">Create New Business</h3>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <input
               className={INPUT_CLS}
               placeholder="Business name"
@@ -564,6 +585,14 @@ export default function AdminBusinessesPage() {
               value={bizDescription}
               onChange={(e) => setBizDescription(e.target.value)}
             />
+            <select
+              className={INPUT_CLS}
+              value={bizType}
+              onChange={(e) => setBizType(e.target.value as BusinessType)}
+            >
+              <option value="partner">Rewards Partner</option>
+              <option value="gym">Gym</option>
+            </select>
             <div className="flex gap-2">
               <input
                 className={`${INPUT_CLS} flex-1 font-mono`}
@@ -635,6 +664,15 @@ export default function AdminBusinessesPage() {
                         }`}
                       >
                         {biz.data.active ? "Active" : "Inactive"}
+                      </span>
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          biz.data.type === "gym"
+                            ? "bg-sky-400/15 text-sky-300"
+                            : "bg-amber-400/15 text-amber-300"
+                        }`}
+                      >
+                        {biz.data.type === "gym" ? "Gym" : "Partner"}
                       </span>
                     </div>
                     <div className="mt-0.5 font-mono text-xs text-zinc-500">/{biz.data.slug}</div>
@@ -776,6 +814,33 @@ export default function AdminBusinessesPage() {
 
                         {/* Quick Actions Card */}
                         <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                          <div className="mb-3 flex items-center justify-between gap-2">
+                            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                              Type
+                            </h4>
+                            <div className="inline-flex overflow-hidden rounded-md border border-white/10 text-xs">
+                              {(["partner", "gym"] as BusinessType[]).map((opt) => {
+                                const isActive = (biz.data.type ?? "partner") === opt;
+                                return (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    disabled={typeSavingId === biz.id || isActive}
+                                    onClick={() => setBusinessType(biz.id, opt)}
+                                    className={`px-3 py-1 transition ${
+                                      isActive
+                                        ? opt === "gym"
+                                          ? "bg-sky-400/20 text-sky-200"
+                                          : "bg-amber-400/20 text-amber-200"
+                                        : "text-zinc-400 hover:bg-white/5 hover:text-white"
+                                    }`}
+                                  >
+                                    {opt === "gym" ? "Gym" : "Partner"}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                           <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
                             Quick Actions
                           </h4>

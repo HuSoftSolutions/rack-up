@@ -3,6 +3,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireUser } from "@/lib/server/auth";
 import { cadenceToMs, inspectScanEventToken } from "@/lib/server/scan-events";
+import { maybeAwardSameDayBonus } from "@/lib/server/same-day-bonus";
 import type { ScanEventDoc } from "@/lib/types/scan-event";
 
 export const runtime = "nodejs";
@@ -62,12 +63,14 @@ export async function POST(request: Request) {
     let claimCount = 0;
     let nextEligibleAt: Timestamp | null = null;
     let blockedByCadence = false;
+    let scannedBusinessId: string | null = null;
 
     await adminFirestore.runTransaction(async (tx) => {
       const [eventSnap, claimSnap] = await Promise.all([tx.get(eventRef), tx.get(claimRef)]);
       if (!eventSnap.exists) throw new Error("Scan event not found.");
       const event = eventSnap.data() as ScanEventDoc;
       if (event.active === false) throw new Error("This scan event is inactive.");
+      scannedBusinessId = event.association?.businessId ?? null;
 
       const claimState = (claimSnap.data() as ClaimState | undefined) ?? undefined;
       const currentNextEligibleAt = claimState?.nextEligibleAt;
@@ -230,6 +233,21 @@ export async function POST(request: Request) {
       { merge: true },
     );
 
+    let bonusPointsAwarded = 0;
+    let bonusAwarded = false;
+    try {
+      const bonusResult = await maybeAwardSameDayBonus({
+        userId: uid,
+        scanEventId: inspected.eventId,
+        scannedBusinessId,
+        now,
+      });
+      bonusAwarded = bonusResult.awarded;
+      bonusPointsAwarded = bonusResult.pointsAwarded;
+    } catch {
+      // Bonus is non-critical; never block the primary claim response.
+    }
+
     return NextResponse.json({
       ok: true,
       blockedByCadence: false,
@@ -238,6 +256,10 @@ export async function POST(request: Request) {
       giveawayEntriesAwarded: awardedEntries,
       giveawayAwardCount,
       nextEligibleAt: toIso(nextEligibleAt),
+      sameDayBonus: {
+        awarded: bonusAwarded,
+        pointsAwarded: bonusPointsAwarded,
+      },
     });
   } catch (err) {
     if (err instanceof AuthError) {

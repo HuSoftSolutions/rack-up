@@ -1,7 +1,10 @@
+export type BusinessType = "gym" | "partner";
+
 export type BusinessDoc = {
   name: string;
   description?: string;
   slug: string;
+  type?: BusinessType;
   logoPath?: string;
   logoUrl?: string;
   active: boolean;
