@@ -130,6 +130,14 @@ export default function AdminScanEventsPage() {
   const [globalActivityError, setGlobalActivityError] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const [globalEventFilter, setGlobalEventFilter] = useState("");
+  const [expandedBackfillEventId, setExpandedBackfillEventId] = useState<string | null>(null);
+  const [backfillTargetMode, setBackfillTargetMode] = useState<"selected" | "all_active">("selected");
+  const [backfillGiveawayIds, setBackfillGiveawayIds] = useState<string[]>([]);
+  const [backfillEntriesPerClaim, setBackfillEntriesPerClaim] = useState<string>("1");
+  const [backfillUpdateEvent, setBackfillUpdateEvent] = useState(true);
+  const [backfillSubmitting, setBackfillSubmitting] = useState(false);
+  const [backfillResultByEventId, setBackfillResultByEventId] = useState<Record<string, string>>({});
+  const [backfillErrorByEventId, setBackfillErrorByEventId] = useState<Record<string, string | null>>({});
 
   async function load() {
     if (!user) return;
@@ -344,6 +352,69 @@ export default function AdminScanEventsPage() {
       setError(err instanceof Error ? err.message : "Failed to upload image.");
     } finally {
       setUploading(false);
+    }
+  }
+
+  function openBackfill(event: AdminScanEvent) {
+    const next = expandedBackfillEventId === event.id ? null : event.id;
+    setExpandedBackfillEventId(next);
+    if (next) {
+      setBackfillTargetMode(event.rewards.giveaway.targetMode ?? "selected");
+      setBackfillGiveawayIds(
+        Array.isArray(event.rewards.giveaway.giveawayIds) ? event.rewards.giveaway.giveawayIds : [],
+      );
+      setBackfillEntriesPerClaim(String(event.rewards.giveaway.entries || 1));
+      setBackfillUpdateEvent(true);
+      setBackfillErrorByEventId((prev) => ({ ...prev, [event.id]: null }));
+    }
+  }
+
+  async function runBackfill(eventId: string) {
+    if (!user || backfillSubmitting) return;
+    setBackfillSubmitting(true);
+    setBackfillErrorByEventId((prev) => ({ ...prev, [eventId]: null }));
+    setBackfillResultByEventId((prev) => {
+      const next = { ...prev };
+      delete next[eventId];
+      return next;
+    });
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/admin/scan-events/${eventId}/backfill-entries`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          targetMode: backfillTargetMode,
+          giveawayIds: backfillGiveawayIds,
+          entriesPerClaim: Number(backfillEntriesPerClaim || 1),
+          updateScanEvent: backfillUpdateEvent,
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        claimsScanned?: number;
+        giveawayCount?: number;
+        entriesCreated?: number;
+        entriesSkippedAsExisting?: number;
+        updatedEvent?: boolean;
+      };
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "Backfill failed.");
+      setBackfillResultByEventId((prev) => ({
+        ...prev,
+        [eventId]: `${json.claimsScanned ?? 0} claims → ${json.entriesCreated ?? 0} entries created across ${json.giveawayCount ?? 0} giveaway(s) (${json.entriesSkippedAsExisting ?? 0} already existed)${json.updatedEvent ? ". Scan event updated." : "."}`,
+      }));
+      await load();
+    } catch (err) {
+      setBackfillErrorByEventId((prev) => ({
+        ...prev,
+        [eventId]: err instanceof Error ? err.message : "Backfill failed.",
+      }));
+    } finally {
+      setBackfillSubmitting(false);
     }
   }
 
@@ -854,6 +925,17 @@ export default function AdminScanEventsPage() {
                     >
                       {expandedActivityEventId === event.id ? "Hide activity" : "View activity"}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => openBackfill(event)}
+                      className={`rounded-lg border px-3 py-1 text-xs transition active:scale-[0.98] ${
+                        expandedBackfillEventId === event.id
+                          ? "border-amber-300/70 bg-amber-400/15 text-amber-100"
+                          : "border-white/15 text-zinc-200 hover:bg-white/5 active:bg-white/10"
+                      }`}
+                    >
+                      {expandedBackfillEventId === event.id ? "Cancel backfill" : "Backfill to giveaway"}
+                    </button>
                   </div>
                 </div>
                 <p className="mt-2 line-clamp-2 text-sm text-zinc-300">{event.description || "No description."}</p>
@@ -913,6 +995,98 @@ export default function AdminScanEventsPage() {
                     </div>
                   </div>
                 </div>
+                {expandedBackfillEventId === event.id ? (
+                  <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/[0.05] p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-200">
+                      Backfill scan claims to giveaway entries
+                    </p>
+                    <p className="mb-3 text-xs text-zinc-400">
+                      Creates one giveaway entry per existing scan claim for this event. Safe to re-run; existing entries are skipped.
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="text-xs text-zinc-300">
+                        <div className="mb-1 font-medium text-zinc-100">Target giveaways</div>
+                        <select
+                          className="h-9 w-full rounded border border-white/10 bg-black/40 px-2 text-xs text-white outline-none focus:border-amber-300"
+                          value={backfillTargetMode}
+                          onChange={(e) =>
+                            setBackfillTargetMode(e.target.value === "all_active" ? "all_active" : "selected")
+                          }
+                        >
+                          <option value="selected">Selected giveaway(s)</option>
+                          <option value="all_active">All active giveaways</option>
+                        </select>
+                      </label>
+                      <label className="text-xs text-zinc-300">
+                        <div className="mb-1 font-medium text-zinc-100">Entries per claim</div>
+                        <input
+                          type="number"
+                          min={1}
+                          className="h-9 w-full rounded border border-white/10 bg-black/40 px-2 text-xs text-white outline-none focus:border-amber-300"
+                          value={backfillEntriesPerClaim}
+                          onChange={(e) => setBackfillEntriesPerClaim(e.target.value)}
+                        />
+                      </label>
+                    </div>
+                    {backfillTargetMode === "selected" ? (
+                      <div className="mt-3">
+                        <div className="mb-1 text-xs font-medium text-zinc-100">Pick giveaways</div>
+                        <div className="max-h-40 space-y-1 overflow-y-auto rounded border border-white/5 bg-black/30 p-2">
+                          {giveaways.length === 0 ? (
+                            <div className="text-xs text-zinc-500">No active or draft giveaways available.</div>
+                          ) : (
+                            giveaways.map((g) => {
+                              const checked = backfillGiveawayIds.includes(g.id);
+                              return (
+                                <label key={g.id} className="flex cursor-pointer items-center gap-2 text-xs text-zinc-200">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() =>
+                                      setBackfillGiveawayIds((prev) =>
+                                        checked ? prev.filter((id) => id !== g.id) : [...prev, g.id],
+                                      )
+                                    }
+                                  />
+                                  <span>{g.title}</span>
+                                  <span className="text-zinc-500">({g.status})</span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                    <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-zinc-200">
+                      <input
+                        type="checkbox"
+                        checked={backfillUpdateEvent}
+                        onChange={(e) => setBackfillUpdateEvent(e.target.checked)}
+                      />
+                      Also update this scan event so future scans flow into the same giveaway(s)
+                    </label>
+                    {backfillErrorByEventId[event.id] ? (
+                      <div className="mt-3 rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
+                        {backfillErrorByEventId[event.id]}
+                      </div>
+                    ) : null}
+                    {backfillResultByEventId[event.id] ? (
+                      <div className="mt-3 rounded border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs text-emerald-200">
+                        {backfillResultByEventId[event.id]}
+                      </div>
+                    ) : null}
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => void runBackfill(event.id)}
+                        disabled={backfillSubmitting}
+                        className="rounded bg-amber-400 px-3 py-1.5 text-xs font-semibold text-black transition hover:bg-amber-300 disabled:opacity-60"
+                      >
+                        {backfillSubmitting ? "Backfilling…" : "Run backfill"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 {expandedActivityEventId === event.id ? (
                   <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
