@@ -89,6 +89,7 @@ export async function POST(
     const now = Timestamp.now();
     let created = 0;
     let skipped = 0;
+    let claimsUpdated = 0;
     let writeBatch = adminFirestore.batch();
     let writesInBatch = 0;
     const flush = async () => {
@@ -102,11 +103,39 @@ export async function POST(
       const claim = claimDoc.data() as {
         userId?: string;
         claimCount?: number;
+        giveawayEntriesAwarded?: number;
+        giveawayAwardCount?: number;
+        giveawayIds?: string[];
         association?: { businessId?: string | null; locationId?: string | null; causeId?: string | null };
       };
       const userId = claim.userId;
       if (!userId) continue;
       const claimCount = Math.max(1, Math.floor(claim.claimCount ?? 1));
+      const existingEntriesAwarded =
+        typeof claim.giveawayEntriesAwarded === "number" ? Math.max(0, Math.floor(claim.giveawayEntriesAwarded)) : 0;
+      const existingGiveawayAwardCount =
+        typeof claim.giveawayAwardCount === "number" ? Math.max(0, Math.floor(claim.giveawayAwardCount)) : 0;
+      const existingGiveawayIds = Array.isArray(claim.giveawayIds)
+        ? claim.giveawayIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+        : [];
+      const mergedGiveawayIds = Array.from(new Set([...existingGiveawayIds, ...resolvedGiveawayIds]));
+      const backfilledGiveawayAwardCount = resolvedGiveawayIds.length;
+      const backfilledEntriesAwarded = entriesPerClaim * backfilledGiveawayAwardCount;
+
+      writeBatch.set(
+        claimDoc.ref,
+        {
+          giveawayEntriesAwarded: Math.max(existingEntriesAwarded, backfilledEntriesAwarded),
+          giveawayAwardCount: Math.max(existingGiveawayAwardCount, backfilledGiveawayAwardCount),
+          giveawayTargetMode: targetMode,
+          giveawayIds: mergedGiveawayIds,
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+      writesInBatch += 1;
+      claimsUpdated += 1;
+      if (writesInBatch >= 450) await flush();
 
       for (const giveawayId of resolvedGiveawayIds) {
         const entryRef = adminFirestore
@@ -168,6 +197,7 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       claimsScanned: claimsSnap.size,
+      claimsUpdated,
       giveawayCount: resolvedGiveawayIds.length,
       resolvedGiveawayIds,
       entriesCreated: created,

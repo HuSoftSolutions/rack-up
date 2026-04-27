@@ -397,6 +397,7 @@ export default function AdminScanEventsPage() {
         ok?: boolean;
         error?: string;
         claimsScanned?: number;
+        claimsUpdated?: number;
         giveawayCount?: number;
         entriesCreated?: number;
         entriesSkippedAsExisting?: number;
@@ -405,9 +406,17 @@ export default function AdminScanEventsPage() {
       if (!res.ok || !json.ok) throw new Error(json.error ?? "Backfill failed.");
       setBackfillResultByEventId((prev) => ({
         ...prev,
-        [eventId]: `${json.claimsScanned ?? 0} claims → ${json.entriesCreated ?? 0} entries created across ${json.giveawayCount ?? 0} giveaway(s) (${json.entriesSkippedAsExisting ?? 0} already existed)${json.updatedEvent ? ". Scan event updated." : "."}`,
+        [eventId]: `${json.claimsScanned ?? 0} claims (${json.claimsUpdated ?? 0} activity rows updated) → ${json.entriesCreated ?? 0} entries created across ${json.giveawayCount ?? 0} giveaway(s) (${json.entriesSkippedAsExisting ?? 0} already existed)${json.updatedEvent ? ". Scan event updated." : "."}`,
       }));
       await load();
+      setActivityByEventId((prev) => {
+        const next = { ...prev };
+        delete next[eventId];
+        return next;
+      });
+      if (expandedActivityEventId === eventId) {
+        await loadActivity(eventId);
+      }
     } catch (err) {
       setBackfillErrorByEventId((prev) => ({
         ...prev,
