@@ -106,15 +106,21 @@ async function buildWinnerRecord(entry: Entry, drawnAt: Timestamp): Promise<Winn
 
   const winnerUserSnap = await adminFirestore.collection("users").doc(entry.userId).get();
   const winnerUserData = winnerUserSnap.exists
-    ? (winnerUserSnap.data() as { phoneNumber?: string | null })
+    ? (winnerUserSnap.data() as {
+        fullName?: string | null;
+        displayName?: string | null;
+        email?: string | null;
+        phoneNumber?: string | null;
+      })
     : null;
+  const userFullName = winnerUserData?.fullName ?? winnerUserData?.displayName ?? null;
 
   return {
     userId: entry.userId,
     entryId: entry.id,
     donationId: entry.donationId ?? null,
-    donorName: winnerDonation?.donorName ?? null,
-    donorEmail: winnerDonation?.donorEmail ?? null,
+    donorName: winnerDonation?.donorName ?? userFullName,
+    donorEmail: winnerDonation?.donorEmail ?? winnerUserData?.email ?? null,
     phoneNumber: winnerUserData?.phoneNumber ?? null,
     amountCents: winnerDonation?.amountCents ?? null,
     causeTitle: winnerDonation?.causeTitle ?? null,
