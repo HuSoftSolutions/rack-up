@@ -166,22 +166,38 @@ export default function WinnerRevealModal({
         setVideoStatus("converting");
         setVideoError(null);
 
-        // Upload to server for storage + Cloud Function MP4 conversion
-        const formData = new FormData();
-        formData.append("video", webmBlob, "recording.webm");
-        if (giveawayIdRef.current) formData.append("giveawayId", giveawayIdRef.current);
+        const giveawayId = giveawayIdRef.current;
+        if (!giveawayId) {
+          setVideoError("Missing giveaway id; cannot upload.");
+          setVideoStatus("error");
+          return;
+        }
 
         const tokenFn = getIdTokenRef.current;
         (tokenFn ? tokenFn().catch(() => null) : Promise.resolve(null))
-          .then((token) => fetch("/api/admin/convert-video", {
-            method: "POST",
-            body: formData,
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }))
-          .then(async (res) => {
-            if (!res.ok) {
-              const text = await res.text().catch(() => "");
-              throw new Error(`Upload failed (${res.status}): ${text}`);
+          .then(async (token) => {
+            const initRes = await fetch("/api/admin/convert-video", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({ giveawayId, contentType: "video/webm" }),
+            });
+            if (!initRes.ok) {
+              const text = await initRes.text().catch(() => "");
+              throw new Error(`Upload init failed (${initRes.status}): ${text}`);
+            }
+            const { uploadUrl } = (await initRes.json()) as { uploadUrl: string };
+
+            const putRes = await fetch(uploadUrl, {
+              method: "PUT",
+              headers: { "Content-Type": "video/webm" },
+              body: webmBlob,
+            });
+            if (!putRes.ok) {
+              const text = await putRes.text().catch(() => "");
+              throw new Error(`Upload failed (${putRes.status}): ${text}`);
             }
             console.log("[Recording] Upload successful, Cloud Function will convert to MP4");
             setVideoStatus("done");

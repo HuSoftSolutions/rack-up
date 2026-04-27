@@ -1,59 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStorage } from "firebase-admin/storage";
 import { requireAdmin, AuthError } from "@/lib/server/auth";
-import { firebaseAdminApp, adminFirestore } from "@/lib/firebase/admin";
+import { firebaseAdminApp } from "@/lib/firebase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+
+type InitBody = {
+  giveawayId?: string;
+  contentType?: string;
+};
 
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin(req);
 
-    const formData = await req.formData();
-    const file = formData.get("video") as File | null;
-    const giveawayId = (formData.get("giveawayId") as string | null)?.trim() || null;
-
-    if (!file) {
-      return NextResponse.json({ error: "No video file provided" }, { status: 400 });
+    let body: InitBody;
+    try {
+      body = (await req.json()) as InitBody;
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
+
+    const giveawayId = body.giveawayId?.trim();
+    if (!giveawayId) {
+      return NextResponse.json({ error: "giveawayId is required" }, { status: 400 });
+    }
+    const contentType =
+      typeof body.contentType === "string" && body.contentType.startsWith("video/webm")
+        ? body.contentType
+        : "video/webm";
 
     const bucketName = process.env.FIREBASE_STORAGE_BUCKET || firebaseAdminApp.options.storageBucket;
     if (!bucketName) {
       return NextResponse.json({ error: "Storage bucket not configured" }, { status: 500 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const storagePath = `giveaway-videos/${giveawayId || "unknown"}/${Date.now()}-drawing.webm`;
+    const storagePath = `giveaway-videos/${giveawayId}/${Date.now()}-drawing.webm`;
     const bucket = getStorage(firebaseAdminApp).bucket(bucketName);
     const ref = bucket.file(storagePath);
 
-    await ref.save(buffer, {
-      contentType: "video/webm",
-      resumable: false,
-      metadata: { cacheControl: "public,max-age=31536000" },
+    const [uploadUrl] = await ref.getSignedUrl({
+      version: "v4",
+      action: "write",
+      expires: Date.now() + 1000 * 60 * 15,
+      contentType,
     });
 
-    const [signedUrl] = await ref.getSignedUrl({
-      action: "read",
-      expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 5,
-    });
-
-    // Save the raw WebM URL — Cloud Function will set drawingVideoUrl once MP4 is ready
-    if (giveawayId) {
-      await adminFirestore.collection("giveaways").doc(giveawayId).update({
-        drawingVideoRawUrl: signedUrl,
-      });
-    }
-
-    return NextResponse.json({ ok: true, url: signedUrl });
+    return NextResponse.json({ ok: true, uploadUrl, storagePath, contentType });
   } catch (err) {
     if (err instanceof AuthError) {
       const status = err.message.includes("Admin") ? 403 : 401;
       return NextResponse.json({ error: err.message }, { status });
     }
-    console.error("Video upload failed:", err);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    console.error("Video upload init failed:", err);
+    return NextResponse.json({ error: "Upload init failed" }, { status: 500 });
   }
 }
