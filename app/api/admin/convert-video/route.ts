@@ -5,6 +5,7 @@ import { firebaseAdminApp } from "@/lib/firebase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type InitBody = {
   giveawayId?: string;
@@ -14,6 +15,13 @@ type InitBody = {
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin(req);
+
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || firebaseAdminApp.options.storageBucket;
+    if (!bucketName) {
+      return NextResponse.json({ error: "Storage bucket not configured" }, { status: 500 });
+    }
+
+    const bucket = getStorage(firebaseAdminApp).bucket(bucketName);
 
     let body: InitBody;
     try {
@@ -31,13 +39,7 @@ export async function POST(req: NextRequest) {
         ? body.contentType
         : "video/webm";
 
-    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || firebaseAdminApp.options.storageBucket;
-    if (!bucketName) {
-      return NextResponse.json({ error: "Storage bucket not configured" }, { status: 500 });
-    }
-
     const storagePath = `giveaway-videos/${giveawayId}/${Date.now()}-drawing.webm`;
-    const bucket = getStorage(firebaseAdminApp).bucket(bucketName);
     const ref = bucket.file(storagePath);
 
     const [uploadUrl] = await ref.getSignedUrl({

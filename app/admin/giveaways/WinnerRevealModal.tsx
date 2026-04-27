@@ -190,14 +190,24 @@ export default function WinnerRevealModal({
             }
             const { uploadUrl } = (await initRes.json()) as { uploadUrl: string };
 
-            const putRes = await fetch(uploadUrl, {
-              method: "PUT",
-              headers: { "Content-Type": "video/webm" },
-              body: webmBlob,
-            });
-            if (!putRes.ok) {
-              const text = await putRes.text().catch(() => "");
-              throw new Error(`Upload failed (${putRes.status}): ${text}`);
+            try {
+              const putRes = await fetch(uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": "video/webm" },
+                body: webmBlob,
+              });
+              if (!putRes.ok) {
+                const text = await putRes.text().catch(() => "");
+                throw new Error(`Upload failed (${putRes.status}): ${text}`);
+              }
+            } catch (uploadErr) {
+              if (uploadErr instanceof TypeError) {
+                const origin = typeof window !== "undefined" ? window.location.origin : "this origin";
+                throw new Error(
+                  `Signed upload blocked (likely bucket CORS for ${origin}). Configure CORS on Firebase Storage and retry.`,
+                );
+              }
+              throw uploadErr;
             }
             console.log("[Recording] Upload successful, Cloud Function will convert to MP4");
             setVideoStatus("done");
