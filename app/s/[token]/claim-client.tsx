@@ -114,7 +114,11 @@ export default function ScanClaimClient({
       };
       if (!res.ok) {
         if (json.blockedByCadence) {
-          const when = json.nextEligibleAt ? new Date(json.nextEligibleAt).toLocaleString() : "later";
+          const when = json.nextEligibleAt
+            ? event.cadence.unit === "days"
+              ? new Date(json.nextEligibleAt).toLocaleDateString("en-US", { timeZone: "America/New_York" })
+              : new Date(json.nextEligibleAt).toLocaleString()
+            : "later";
           setResult({ tone: "warn", text: `Already claimed in this window. Next eligible: ${when}.` });
         } else {
           throw new Error(json.error ?? "Claim failed.");

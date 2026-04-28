@@ -20,6 +20,25 @@ type ClaimState = {
   nextEligibleAt?: Timestamp;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const EST_OFFSET_MS = -5 * 60 * 60 * 1000;
+
+function estDayStartMs(input: Date): number {
+  const shifted = input.getTime() + EST_OFFSET_MS;
+  const shiftedDayStart = Math.floor(shifted / DAY_MS) * DAY_MS;
+  return shiftedDayStart - EST_OFFSET_MS;
+}
+
+function estCalendarDayDiff(a: Date, b: Date): number {
+  return Math.floor((estDayStartMs(a) - estDayStartMs(b)) / DAY_MS);
+}
+
+function nextEligibleForDayCadence(now: Timestamp, intervalDays: number): Timestamp {
+  const safeIntervalDays = Math.max(1, Math.floor(intervalDays));
+  const start = estDayStartMs(now.toDate());
+  return Timestamp.fromMillis(start + safeIntervalDays * DAY_MS);
+}
+
 function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
@@ -73,20 +92,35 @@ export async function POST(request: Request) {
       scannedBusinessId = event.association?.businessId ?? null;
 
       const claimState = (claimSnap.data() as ClaimState | undefined) ?? undefined;
-      const currentNextEligibleAt = claimState?.nextEligibleAt;
-      if (
-        currentNextEligibleAt &&
-        typeof currentNextEligibleAt.toMillis === "function" &&
-        currentNextEligibleAt.toMillis() > now.toMillis()
-      ) {
-        blockedByCadence = true;
-        nextEligibleAt = currentNextEligibleAt;
-        claimCount = Math.max(0, Math.floor(claimState?.claimCount ?? 0));
-        return;
+      if (event.cadence.unit === "days") {
+        const intervalDays = Math.max(1, Math.floor(event.cadence.interval));
+        const lastClaimAt = claimState?.lastClaimAt;
+        if (lastClaimAt) {
+          const elapsedCalendarDays = estCalendarDayDiff(now.toDate(), lastClaimAt.toDate());
+          if (elapsedCalendarDays < intervalDays) {
+            blockedByCadence = true;
+            nextEligibleAt = nextEligibleForDayCadence(lastClaimAt, intervalDays);
+            claimCount = Math.max(0, Math.floor(claimState?.claimCount ?? 0));
+            return;
+          }
+        }
+        nextEligibleAt = nextEligibleForDayCadence(now, intervalDays);
+      } else {
+        const currentNextEligibleAt = claimState?.nextEligibleAt;
+        if (
+          currentNextEligibleAt &&
+          typeof currentNextEligibleAt.toMillis === "function" &&
+          currentNextEligibleAt.toMillis() > now.toMillis()
+        ) {
+          blockedByCadence = true;
+          nextEligibleAt = currentNextEligibleAt;
+          claimCount = Math.max(0, Math.floor(claimState?.claimCount ?? 0));
+          return;
+        }
+        const cadenceMs = cadenceToMs(event.cadence);
+        nextEligibleAt = Timestamp.fromMillis(now.toMillis() + cadenceMs);
       }
 
-      const cadenceMs = cadenceToMs(event.cadence);
-      nextEligibleAt = Timestamp.fromMillis(now.toMillis() + cadenceMs);
       claimCount = Math.max(0, Math.floor(claimState?.claimCount ?? 0)) + 1;
 
       awardedPoints =
