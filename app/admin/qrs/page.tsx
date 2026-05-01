@@ -50,6 +50,11 @@ export default function AdminQrPage() {
   const [locationFilter, setLocationFilter] = useState<string>("__all__");
   const [remoteLandingUrl, setRemoteLandingUrl] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [customTargetInput, setCustomTargetInput] = useState("/signup");
+  const [customTargetUrl, setCustomTargetUrl] = useState<string | null>(null);
+  const [customQrDataUrl, setCustomQrDataUrl] = useState<string | null>(null);
+  const [customError, setCustomError] = useState<string | null>(null);
+  const [customCopied, setCustomCopied] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -199,6 +204,47 @@ export default function AdminQrPage() {
     };
   }, [allItems.locationItems, allItems.remoteItems, tab, businessFilter, causeFilter, locationFilter]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = customTargetInput.trim();
+    if (!raw) {
+      setCustomError("Enter a page path or URL.");
+      setCustomTargetUrl(null);
+      setCustomQrDataUrl(null);
+      return;
+    }
+    const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin).replace(/\/$/, "");
+    let normalized: string;
+    try {
+      if (/^https?:\/\//i.test(raw)) {
+        normalized = new URL(raw).toString();
+      } else {
+        const path = raw.startsWith("/") ? raw : `/${raw}`;
+        normalized = new URL(path, origin).toString();
+      }
+    } catch {
+      setCustomError("Invalid page path or URL.");
+      setCustomTargetUrl(null);
+      setCustomQrDataUrl(null);
+      return;
+    }
+    setCustomError(null);
+    setCustomTargetUrl(normalized);
+    let canceled = false;
+    async function generateCustomQr() {
+      try {
+        const data = await QRCode.toDataURL(normalized, { margin: 1, width: 220 });
+        if (!canceled) setCustomQrDataUrl(data);
+      } catch {
+        if (!canceled) setCustomQrDataUrl(null);
+      }
+    }
+    void generateCustomQr();
+    return () => {
+      canceled = true;
+    };
+  }, [customTargetInput]);
+
   const counts = {
     all: allItems.locationItems.length + allItems.remoteItems.length,
     location: allItems.locationItems.length,
@@ -258,6 +304,71 @@ export default function AdminQrPage() {
             {item.label} <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs">{item.count}</span>
           </button>
         ))}
+      </div>
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="text-sm font-semibold text-white">Custom page QR</div>
+        <p className="mt-1 text-xs text-zinc-400">
+          Generate a QR for any app page, like <span className="font-mono text-zinc-300">/signup</span>.
+        </p>
+        <div className="mt-3 flex flex-col gap-3">
+          <input
+            value={customTargetInput}
+            onChange={(e) => setCustomTargetInput(e.target.value)}
+            placeholder="/signup or https://your-domain.com/signup"
+            className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-zinc-500"
+          />
+          {customError ? <div className="text-xs text-red-300">{customError}</div> : null}
+          <div className="flex justify-center">
+            {customQrDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={customQrDataUrl}
+                alt="Custom QR code"
+                className="h-44 w-44 rounded-lg border border-white/10 bg-white p-2"
+              />
+            ) : (
+              <div className="flex h-44 w-44 items-center justify-center rounded-lg border border-dashed border-white/20 text-xs text-zinc-400">
+                Preview unavailable
+              </div>
+            )}
+          </div>
+          {customTargetUrl ? (
+            <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300 break-words">
+              {customTargetUrl}
+            </div>
+          ) : null}
+          {customQrDataUrl ? (
+            <a
+              href={customQrDataUrl}
+              download="custom-page-qr.png"
+              className="inline-flex w-full items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5"
+            >
+              Download PNG
+            </a>
+          ) : null}
+          <button
+            type="button"
+            disabled={!customTargetUrl}
+            className="inline-flex w-full items-center justify-center rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-50"
+            onClick={async () => {
+              if (!customTargetUrl) return;
+              try {
+                await navigator.clipboard.writeText(customTargetUrl);
+              } catch {
+                const input = document.createElement("input");
+                input.value = customTargetUrl;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand("copy");
+                document.body.removeChild(input);
+              }
+              setCustomCopied(true);
+              window.setTimeout(() => setCustomCopied(false), 2000);
+            }}
+          >
+            {customCopied ? "Copied!" : "Copy link"}
+          </button>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
