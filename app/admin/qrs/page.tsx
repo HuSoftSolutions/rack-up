@@ -37,6 +37,13 @@ type QrItem = {
   locationId?: string;
 };
 
+type CustomRouteOption = {
+  key: string;
+  label: string;
+  detail: string;
+  path: string;
+};
+
 export default function AdminQrPage() {
   const { user } = useAuth();
   const [entities, setEntities] = useState<BusinessEntity[]>([]);
@@ -50,10 +57,9 @@ export default function AdminQrPage() {
   const [locationFilter, setLocationFilter] = useState<string>("__all__");
   const [remoteLandingUrl, setRemoteLandingUrl] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [customTargetInput, setCustomTargetInput] = useState("/signup");
+  const [customRouteKey, setCustomRouteKey] = useState("signup");
   const [customTargetUrl, setCustomTargetUrl] = useState<string | null>(null);
   const [customQrDataUrl, setCustomQrDataUrl] = useState<string | null>(null);
-  const [customError, setCustomError] = useState<string | null>(null);
   const [customCopied, setCustomCopied] = useState(false);
 
   useEffect(() => {
@@ -204,31 +210,69 @@ export default function AdminQrPage() {
     };
   }, [allItems.locationItems, allItems.remoteItems, tab, businessFilter, causeFilter, locationFilter]);
 
+  const customRouteOptions = useMemo<CustomRouteOption[]>(() => {
+    const options: CustomRouteOption[] = [
+      { key: "signup", label: "Create an account", detail: "Signup page", path: "/signup" },
+      { key: "signin", label: "Sign in", detail: "Login page", path: "/signin" },
+      { key: "donate", label: "Start a donation", detail: "Donation entry page", path: "/donate" },
+      {
+        key: "rewards",
+        label: "View rewards",
+        detail: "Rewards home",
+        path: "/rewards",
+      },
+      { key: "profile", label: "Open profile", detail: "Account profile", path: "/profile" },
+    ];
+
+    if (remoteLandingUrl) {
+      options.push({
+        key: "remote-landing",
+        label: "Support any charity remotely",
+        detail: "Remote donation landing",
+        path: remoteLandingUrl,
+      });
+    }
+
+    const firstCause = causes.find((cause) => !!cause.remoteUrl);
+    if (firstCause?.remoteUrl) {
+      options.push({
+        key: "remote-cause",
+        label: "Support a specific charity remotely",
+        detail: firstCause.title ?? "Remote charity page",
+        path: firstCause.remoteUrl,
+      });
+    }
+
+    const firstBusiness = entities.find((biz) => biz.locations.some((loc) => !!loc.donationUrl));
+    const firstLocation = firstBusiness?.locations.find((loc) => !!loc.donationUrl);
+    if (firstBusiness && firstLocation?.donationUrl) {
+      options.push({
+        key: "location-landing",
+        label: "In-store: choose a charity",
+        detail: `${firstBusiness.name} · ${firstLocation.name}`,
+        path: firstLocation.donationUrl,
+      });
+    }
+
+    return options;
+  }, [causes, entities, remoteLandingUrl]);
+
+  useEffect(() => {
+    if (!customRouteOptions.some((option) => option.key === customRouteKey)) {
+      setCustomRouteKey(customRouteOptions[0]?.key ?? "");
+    }
+  }, [customRouteKey, customRouteOptions]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const raw = customTargetInput.trim();
-    if (!raw) {
-      setCustomError("Enter a page path or URL.");
+    const selectedRoute = customRouteOptions.find((option) => option.key === customRouteKey);
+    if (!selectedRoute) {
       setCustomTargetUrl(null);
       setCustomQrDataUrl(null);
       return;
     }
     const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin).replace(/\/$/, "");
-    let normalized: string;
-    try {
-      if (/^https?:\/\//i.test(raw)) {
-        normalized = new URL(raw).toString();
-      } else {
-        const path = raw.startsWith("/") ? raw : `/${raw}`;
-        normalized = new URL(path, origin).toString();
-      }
-    } catch {
-      setCustomError("Invalid page path or URL.");
-      setCustomTargetUrl(null);
-      setCustomQrDataUrl(null);
-      return;
-    }
-    setCustomError(null);
+    const normalized = new URL(selectedRoute.path, origin).toString();
     setCustomTargetUrl(normalized);
     let canceled = false;
     async function generateCustomQr() {
@@ -243,7 +287,7 @@ export default function AdminQrPage() {
     return () => {
       canceled = true;
     };
-  }, [customTargetInput]);
+  }, [customRouteKey, customRouteOptions]);
 
   const counts = {
     all: allItems.locationItems.length + allItems.remoteItems.length,
@@ -308,16 +352,20 @@ export default function AdminQrPage() {
       <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <div className="text-sm font-semibold text-white">Custom page QR</div>
         <p className="mt-1 text-xs text-zinc-400">
-          Generate a QR for any app page, like <span className="font-mono text-zinc-300">/signup</span>.
+          Pick a destination from this list to generate a QR code for a non-technical team member.
         </p>
         <div className="mt-3 flex flex-col gap-3">
-          <input
-            value={customTargetInput}
-            onChange={(e) => setCustomTargetInput(e.target.value)}
-            placeholder="/signup or https://your-domain.com/signup"
-            className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-zinc-500"
-          />
-          {customError ? <div className="text-xs text-red-300">{customError}</div> : null}
+          <select
+            value={customRouteKey}
+            onChange={(e) => setCustomRouteKey(e.target.value)}
+            className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white"
+          >
+            {customRouteOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label} - {option.detail}
+              </option>
+            ))}
+          </select>
           <div className="flex justify-center">
             {customQrDataUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
