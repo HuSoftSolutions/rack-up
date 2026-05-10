@@ -4,7 +4,8 @@
       "http://localhost:3000",
       "https://rackup.betabuddysports.com",
       "https://rack-up-env-staging-husoftsolutions-projects.vercel.app",
-      "https://rackuppoints.com"
+      "https://rackuppoints.com",
+      "https://www.rackuppoints.com"
     ],
     "method": ["PUT", "GET", "HEAD", "OPTIONS"],
     "responseHeader": ["Content-Type", "x-goog-resumable", "x-goog-meta-*"],
