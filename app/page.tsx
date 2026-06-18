@@ -10,6 +10,8 @@ import FeaturedPartners, { type PartnerLogo } from "@/app/_components/FeaturedPa
 import { unstable_noStore as noStore } from "next/cache";
 import { resolvePointsConfig } from "@/lib/server/points-config";
 import type { CauseDoc } from "@/lib/types/business";
+import type { ScanEventDoc, ScanEventLocation } from "@/lib/types/scan-event";
+import ScanMap, { type MapSpot } from "@/app/locations/ScanMap";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -56,6 +58,7 @@ async function fetchLandingData(): Promise<{
   giveaways: LandingGiveaway[];
   totalDonationCents: number;
   partners: PartnerLogo[];
+  mapSpots: MapSpot[];
   error?: string | null;
 }> {
   noStore();
@@ -83,14 +86,23 @@ async function fetchLandingData(): Promise<{
       .where("active", "==", true)
       .get();
 
-    const [donationSnap, donationLifetimeSnap, causeSnap, businessesSnap, locationsSnap, giveawaysSnap] = await Promise.all([
+    const [donationSnap, donationLifetimeSnap, causeSnap, businessesSnap, locationsSnap, giveawaysSnap, scanEventsSnap] = await Promise.all([
       donationSnapPromise,
       donationLifetimeSnapPromise,
       causeSnapPromise,
       businessesSnapPromise,
       adminFirestore.collectionGroup("locations").get(),
       adminFirestore.collection("giveaways").where("status", "==", "active").limit(20).get(),
+      adminFirestore.collection("scan_events").where("active", "==", true).get(),
     ]);
+
+    const mapSpots: MapSpot[] = scanEventsSnap.docs
+      .map((doc) => {
+        const data = doc.data() as ScanEventDoc;
+        return { id: doc.id, title: data.title ?? doc.id, place: data.place ?? null };
+      })
+      .filter((s): s is { id: string; title: string; place: ScanEventLocation } => Boolean(s.place))
+      .map((s) => ({ id: s.id, title: s.title, address: s.place.address, lat: s.place.lat, lng: s.place.lng }));
 
     const donations = donationSnap.docs.map((doc) => {
       const data = doc.data();
@@ -191,7 +203,7 @@ async function fetchLandingData(): Promise<{
       return a.logo.localeCompare(b.logo);
     });
 
-    return { donations, causes, giveaways, totalDonationCents, partners, error: null };
+    return { donations, causes, giveaways, totalDonationCents, partners, mapSpots, error: null };
   } catch (err) {
     console.error("Landing data fetch failed:", err);
     return {
@@ -200,6 +212,7 @@ async function fetchLandingData(): Promise<{
       giveaways: [],
       totalDonationCents: 0,
       partners: [],
+      mapSpots: [],
       error: err instanceof Error ? err.message : "Failed to load landing data.",
     };
   }
@@ -242,7 +255,8 @@ function pointsLabel(cause: LandingCause, source: "in_person" | "remote") {
 }
 
 export default async function Home() {
-  const { donations, causes, giveaways, totalDonationCents, partners, error } = await fetchLandingData();
+  const { donations, causes, giveaways, totalDonationCents, partners, mapSpots, error } = await fetchLandingData();
+  const showMap = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) && mapSpots.length > 0;
 
   return (
     <PublicShell contentClassName="flex flex-col gap-0">
@@ -316,6 +330,27 @@ export default async function Home() {
             )}
           </div>
         </header>
+
+        {/* ── 1b. Scan locations map ── */}
+        {showMap ? (
+          <section className="pb-20">
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Where to scan</h2>
+                <p className="mt-1 text-sm text-zinc-400">
+                  {mapSpots.length} place{mapSpots.length === 1 ? "" : "s"} to scan and support a cause.
+                </p>
+              </div>
+              <Link
+                className="text-sm font-medium text-emerald-300 transition hover:text-emerald-200"
+                href="/locations"
+              >
+                See all locations &rarr;
+              </Link>
+            </div>
+            <ScanMap spots={mapSpots} />
+          </section>
+        ) : null}
 
         {/* ── 2. Stats Bar ── */}
         <section className="pb-20">

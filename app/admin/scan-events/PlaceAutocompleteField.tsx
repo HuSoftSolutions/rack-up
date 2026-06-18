@@ -78,14 +78,15 @@ export default function PlaceAutocompleteField({ value, onChange }: Props) {
 
   return (
     <div className="space-y-2">
+      {/* Host element is managed imperatively by the Google widget — keep it free of React children. */}
       <div
         ref={hostRef}
         className="scan-place-autocomplete rounded-md border border-white/15 bg-white/[0.04] [&_*]:box-border"
-      >
-        {status === "loading" ? (
-          <div className="px-3 py-2 text-xs text-zinc-500">Loading address search…</div>
-        ) : null}
-      </div>
+      />
+
+      {status === "loading" ? (
+        <div className="text-xs text-zinc-500">Loading address search…</div>
+      ) : null}
 
       {status === "error" ? (
         <div className="text-xs text-red-300">
