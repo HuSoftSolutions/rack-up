@@ -273,6 +273,12 @@ export default async function Home() {
               </Link>
               <Link
                 className="inline-flex h-12 items-center justify-center rounded-full border border-white/30 px-7 text-sm font-semibold text-white transition hover:bg-white/10"
+                href="/locations"
+              >
+                Where to scan
+              </Link>
+              <Link
+                className="inline-flex h-12 items-center justify-center rounded-full border border-white/30 px-7 text-sm font-semibold text-white transition hover:bg-white/10"
                 href="/rewards"
               >
                 See rewards

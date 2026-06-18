@@ -5,12 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { formatCadence } from "@/lib/server/scan-events";
+import type { ScanEventLocation } from "@/lib/types/scan-event";
+import PlaceAutocompleteField from "./PlaceAutocompleteField";
 
 type AdminScanEvent = {
   id: string;
   title: string;
   description?: string;
   active: boolean;
+  place?: ScanEventLocation | null;
   association: {
     type: "standalone" | "charity" | "business_location" | "custom";
     causeId?: string | null;
@@ -65,6 +68,7 @@ type FormState = {
   title: string;
   description: string;
   active: boolean;
+  place: ScanEventLocation | null;
   associationType: "standalone" | "charity" | "business_location" | "custom";
   causeId: string;
   businessId: string;
@@ -88,6 +92,7 @@ function defaultForm(): FormState {
     title: "",
     description: "",
     active: true,
+    place: null,
     associationType: "standalone",
     causeId: "",
     businessId: "",
@@ -240,6 +245,7 @@ export default function AdminScanEventsPage() {
       title: item.title,
       description: item.description ?? "",
       active: item.active !== false,
+      place: item.place ?? null,
       associationType: item.association.type,
       causeId: item.association.causeId ?? "",
       businessId: item.association.businessId ?? "",
@@ -279,6 +285,7 @@ export default function AdminScanEventsPage() {
         title: form.title,
         description: form.description,
         active: form.active,
+        place: form.place,
         association: {
           type: form.associationType,
           causeId: form.causeId || null,
@@ -533,6 +540,14 @@ export default function AdminScanEventsPage() {
                 onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
               />
             </label>
+
+            <div className="mt-3 text-sm text-zinc-300">
+              <div className="mb-1">Scan location (shown on the public map &amp; &ldquo;Where to scan&rdquo; page)</div>
+              <PlaceAutocompleteField
+                value={form.place}
+                onChange={(place) => setForm((prev) => ({ ...prev, place }))}
+              />
+            </div>
 
             <div className="mt-3 grid gap-3 md:grid-cols-3">
           <label className="text-sm text-zinc-300">

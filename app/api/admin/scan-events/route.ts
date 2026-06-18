@@ -51,6 +51,7 @@ export async function GET(request: Request) {
         title: data.title,
         description: data.description ?? "",
         active: data.active !== false,
+        place: data.place ?? null,
         association: data.association,
         cadence: data.cadence,
         rewards: {

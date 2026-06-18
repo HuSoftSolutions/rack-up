@@ -6,6 +6,7 @@ import type {
   ScanEventCadence,
   ScanEventCadenceUnit,
   ScanEventDoc,
+  ScanEventLocation,
   ScanEventRewards,
 } from "@/lib/types/scan-event";
 
@@ -99,6 +100,27 @@ function normalizeCadenceUnit(value: unknown): ScanEventCadenceUnit {
   return "hours";
 }
 
+function asFiniteNumber(value: unknown): number | undefined {
+  const parsed = typeof value === "string" ? Number(value) : value;
+  return typeof parsed === "number" && Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizePlace(value: unknown): ScanEventLocation | null {
+  const record = parseRecord(value);
+  const address = asString(record.address);
+  const lat = asFiniteNumber(record.lat);
+  const lng = asFiniteNumber(record.lng);
+  // Require a full address + valid coordinates; anything partial is treated as "no place".
+  if (!address || lat === undefined || lng === undefined) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return {
+    address,
+    lat,
+    lng,
+    placeId: asString(record.placeId) ?? null,
+  };
+}
+
 export function normalizeScanEventInput(value: unknown): Omit<ScanEventDoc, "createdAt" | "updatedAt"> {
   const record = parseRecord(value);
   const associationRecord = parseRecord(record.association);
@@ -169,6 +191,7 @@ export function normalizeScanEventInput(value: unknown): Omit<ScanEventDoc, "cre
     title,
     description: asString(record.description) ?? null,
     active: asBoolean(record.active, true),
+    place: normalizePlace(record.place),
     association,
     cadence,
     rewards,
@@ -186,6 +209,7 @@ export function mapScanEventDocToPublic(id: string, data: ScanEventDoc): PublicS
     cadence: data.cadence,
     rewards: data.rewards,
     association: data.association,
+    place: data.place ?? null,
   };
 }
 

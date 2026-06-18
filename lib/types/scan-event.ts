@@ -32,10 +32,19 @@ export type ScanEventRewards = {
   };
 };
 
+export type ScanEventLocation = {
+  address: string;
+  lat: number;
+  lng: number;
+  placeId?: string | null;
+};
+
 export type ScanEventDoc = {
   title: string;
   description?: string | null;
   active: boolean;
+  /** Physical place where this scan event lives, used for the public map + directory. */
+  place?: ScanEventLocation | null;
   association: ScanEventAssociation;
   cadence: ScanEventCadence;
   rewards: ScanEventRewards;
@@ -53,4 +62,5 @@ export type PublicScanEvent = {
   cadence: ScanEventCadence;
   rewards: ScanEventRewards;
   association: ScanEventAssociation;
+  place?: ScanEventLocation | null;
 };

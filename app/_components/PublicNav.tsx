@@ -38,6 +38,7 @@ type PublicShellProps = {
 
 const mainNav = [
   { label: "Home", href: "/" },
+  { label: "Where to scan", href: "/locations" },
   { label: "Rewards", href: "/rewards" },
 ];
 
