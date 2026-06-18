@@ -59,6 +59,7 @@ async function fetchLandingData(): Promise<{
   totalDonationCents: number;
   partners: PartnerLogo[];
   mapSpots: MapSpot[];
+  scanLocationCount: number;
   error?: string | null;
 }> {
   noStore();
@@ -203,7 +204,16 @@ async function fetchLandingData(): Promise<{
       return a.logo.localeCompare(b.logo);
     });
 
-    return { donations, causes, giveaways, totalDonationCents, partners, mapSpots, error: null };
+    return {
+      donations,
+      causes,
+      giveaways,
+      totalDonationCents,
+      partners,
+      mapSpots,
+      scanLocationCount: scanEventsSnap.size,
+      error: null,
+    };
   } catch (err) {
     console.error("Landing data fetch failed:", err);
     return {
@@ -213,6 +223,7 @@ async function fetchLandingData(): Promise<{
       totalDonationCents: 0,
       partners: [],
       mapSpots: [],
+      scanLocationCount: 0,
       error: err instanceof Error ? err.message : "Failed to load landing data.",
     };
   }
@@ -255,7 +266,7 @@ function pointsLabel(cause: LandingCause, source: "in_person" | "remote") {
 }
 
 export default async function Home() {
-  const { donations, causes, giveaways, totalDonationCents, partners, mapSpots, error } = await fetchLandingData();
+  const { donations, causes, giveaways, totalDonationCents, partners, mapSpots, scanLocationCount, error } = await fetchLandingData();
   const showMap = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) && mapSpots.length > 0;
 
   return (
@@ -338,7 +349,7 @@ export default async function Home() {
               <div>
                 <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Where to scan</h2>
                 <p className="mt-1 text-sm text-zinc-400">
-                  {mapSpots.length} place{mapSpots.length === 1 ? "" : "s"} to scan and support a cause.
+                  {scanLocationCount} place{scanLocationCount === 1 ? "" : "s"} to scan and support a cause.
                 </p>
               </div>
               <Link
