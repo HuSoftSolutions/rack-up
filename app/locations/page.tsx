@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { adminFirestore } from "@/lib/firebase/admin";
 import PublicShell from "@/app/_components/PublicNav";
 import { unstable_noStore as noStore } from "next/cache";
@@ -12,6 +13,7 @@ export const revalidate = 0;
 type ScanSpot = {
   id: string;
   title: string;
+  logoUrl: string | null;
   place: ScanEventLocation | null;
 };
 
@@ -25,6 +27,7 @@ async function fetchScanSpots(): Promise<{ spots: ScanSpot[]; error?: string | n
         return {
           id: doc.id,
           title: data.title ?? doc.id,
+          logoUrl: data.imageUrl ?? null,
           place: data.place ?? null,
         } satisfies ScanSpot;
       })
@@ -99,8 +102,21 @@ export default async function LocationsPage() {
                 key={spot.id}
                 className="flex h-full flex-col rounded-xl border border-white/10 bg-white/[0.03] p-5 transition hover:border-emerald-300/40 hover:bg-white/[0.05]"
               >
-                <div className="text-lg font-semibold text-white">{spot.title}</div>
-                <p className="mt-1 flex-1 text-sm leading-relaxed text-zinc-400">
+                <div className="flex items-center gap-3">
+                  {spot.logoUrl ? (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white p-1">
+                      <Image
+                        src={spot.logoUrl}
+                        alt={`${spot.title} logo`}
+                        width={96}
+                        height={96}
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
+                  ) : null}
+                  <div className="text-lg font-semibold text-white">{spot.title}</div>
+                </div>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-zinc-400">
                   {hasAddress ? address : "Location coming soon."}
                 </p>
                 {hasAddress ? (
