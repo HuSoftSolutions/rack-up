@@ -4,7 +4,8 @@ import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireUser } from "@/lib/server/auth";
 import { cadenceToMs, inspectScanEventToken } from "@/lib/server/scan-events";
 import { maybeAwardSameDayBonus } from "@/lib/server/same-day-bonus";
-import type { ScanEventDoc } from "@/lib/types/scan-event";
+import { maybeAwardScanChallengeEntries } from "@/lib/server/scan-challenges";
+import type { ScanEventAssociation, ScanEventDoc } from "@/lib/types/scan-event";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
     let nextEligibleAt: Timestamp | null = null;
     let blockedByCadence = false;
     let scannedBusinessId: string | null = null;
+    let scannedAssociation: ScanEventAssociation | null = null;
 
     await adminFirestore.runTransaction(async (tx) => {
       const [eventSnap, claimSnap] = await Promise.all([tx.get(eventRef), tx.get(claimRef)]);
@@ -90,6 +92,7 @@ export async function POST(request: Request) {
       const event = eventSnap.data() as ScanEventDoc;
       if (event.active === false) throw new Error("This scan event is inactive.");
       scannedBusinessId = event.association?.businessId ?? null;
+      scannedAssociation = event.association ?? null;
 
       const claimState = (claimSnap.data() as ClaimState | undefined) ?? undefined;
       if (event.cadence.unit === "days") {
@@ -282,6 +285,21 @@ export async function POST(request: Request) {
       // Bonus is non-critical; never block the primary claim response.
     }
 
+    let challengeAwarded = false;
+    let challengeEntriesAwarded = 0;
+    try {
+      const challengeResult = await maybeAwardScanChallengeEntries({
+        userId: uid,
+        scanEventId: inspected.eventId,
+        association: scannedAssociation,
+        now,
+      });
+      challengeAwarded = challengeResult.awarded;
+      challengeEntriesAwarded = challengeResult.entriesAwarded;
+    } catch {
+      // Scan challenges are non-critical; never block the primary claim response.
+    }
+
     return NextResponse.json({
       ok: true,
       blockedByCadence: false,
@@ -293,6 +311,10 @@ export async function POST(request: Request) {
       sameDayBonus: {
         awarded: bonusAwarded,
         pointsAwarded: bonusPointsAwarded,
+      },
+      scanChallenge: {
+        awarded: challengeAwarded,
+        entriesAwarded: challengeEntriesAwarded,
       },
     });
   } catch (err) {
