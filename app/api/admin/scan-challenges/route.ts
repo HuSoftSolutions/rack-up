@@ -137,3 +137,26 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    await requireAdmin(request);
+    const url = new URL(request.url);
+    let id = url.searchParams.get("id")?.trim() ?? "";
+    if (!id) {
+      const body = (await request.json().catch(() => ({}))) as { id?: unknown };
+      id = typeof body.id === "string" ? body.id.trim() : "";
+    }
+    if (!id) return badRequest("A challenge id is required.");
+
+    await adminFirestore.collection("scan_challenges").doc(id).delete();
+    return NextResponse.json({ ok: true, id });
+  } catch (err) {
+    if (err instanceof AuthError) {
+      const status = err.message.includes("Admin") ? 403 : 401;
+      return NextResponse.json({ error: err.message }, { status });
+    }
+    const message = err instanceof Error ? err.message : "Failed to delete scan challenge.";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}

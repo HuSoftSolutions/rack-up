@@ -32,6 +32,7 @@ const navItems: NavItem[] = [
   { href: "/admin/causes", label: "Charities" },
   { href: "/admin/qrs", label: "QR Codes" },
   { href: "/admin/scan-events", label: "Scan Events" },
+  { href: "/admin/scan-challenges", label: "Scan Challenges" },
   { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/giveaways", label: "Community Drawings" },
   { href: "/admin/businesses", label: "Businesses" },
