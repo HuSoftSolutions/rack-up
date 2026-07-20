@@ -52,6 +52,22 @@ function timezoneOffsetMs(date: Date, timezone: string): number {
   return asIfUtc - date.getTime();
 }
 
+/**
+ * Interpret a naive "YYYY-MM-DDTHH:mm" wall-clock string (e.g. from an
+ * <input type="datetime-local">) as a time in the given IANA timezone and
+ * return the corresponding UTC instant. Returns null if the string doesn't
+ * match the expected shape. A second refinement pass handles DST edges.
+ */
+export function zonedDateTimeToUtc(localValue: string, timezone: string): Date | null {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(localValue.trim());
+  if (!match) return null;
+  const naiveUtc = new Date(`${match[1]}T${match[2]}:00Z`);
+  if (Number.isNaN(naiveUtc.getTime())) return null;
+  let result = new Date(naiveUtc.getTime() - timezoneOffsetMs(naiveUtc, timezone));
+  result = new Date(naiveUtc.getTime() - timezoneOffsetMs(result, timezone));
+  return result;
+}
+
 /** UTC instant of local midnight for the day the given instant falls in. */
 export function startOfLocalDayUtc(date: Date, timezone: string): Date {
   const dateKey = localDateKey(date, timezone);

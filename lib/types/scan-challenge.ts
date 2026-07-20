@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase-admin/firestore";
 
-export type ScanChallengeWindowType = "calendar_week" | "rolling_days";
+export type ScanChallengeWindowType = "calendar_week" | "rolling_days" | "challenge_period";
 export type ScanChallengeCountMode = "claims" | "distinct_events";
 export type ScanChallengeMatchMode = "any" | "all";
 export type ScanChallengeGiveawayTargetMode = "selected" | "all_active";
@@ -12,6 +12,8 @@ export type ScanChallengeWindow = {
   weekStartsOn?: number;
   /** rolling_days only: size of the rolling window. */
   days?: number;
+  // challenge_period: counts every scan between the challenge's startsAt and
+  // endsAt as one bucket (requires startsAt; periodKey is the constant "campaign").
 };
 
 export type ScanChallengeScope = {

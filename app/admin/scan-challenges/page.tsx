@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 type ChallengeThreshold = { id: string; scanCount: number; entries: number };
 
 type ChallengeWindow = {
-  type: "calendar_week" | "rolling_days";
+  type: "calendar_week" | "rolling_days" | "challenge_period";
   timezone: string;
   weekStartsOn?: number;
   days?: number;
@@ -74,7 +74,7 @@ type FormState = {
   id: string | null;
   title: string;
   active: boolean;
-  windowType: "calendar_week" | "rolling_days";
+  windowType: "calendar_week" | "rolling_days" | "challenge_period";
   timezone: string;
   weekStartsOn: string;
   rollingDays: string;
@@ -100,7 +100,7 @@ function defaultForm(): FormState {
     timezone: "America/New_York",
     weekStartsOn: "1",
     rollingDays: "7",
-    countMode: "distinct_events",
+    countMode: "claims",
     scopeMatchMode: "all",
     scopeBusinessIds: [],
     scopeCauseIds: [],
@@ -136,7 +136,9 @@ function summarize(challenge: AdminScanChallenge): string {
   const window =
     challenge.window.type === "calendar_week"
       ? `each ${WEEKDAYS.find((d) => d.value === String(challenge.window.weekStartsOn ?? 1))?.label ?? "Monday"}-start week`
-      : `any ${challenge.window.days ?? 7}-day window`;
+      : challenge.window.type === "challenge_period"
+        ? "across the whole challenge period"
+        : `any ${challenge.window.days ?? 7}-day window`;
   const counting = challenge.countMode === "distinct_events" ? "distinct events" : "total scans";
   return `${tiers || "No tiers"} · counted as ${counting} · ${window}`;
 }
@@ -156,6 +158,18 @@ export default function AdminScanChallengesPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [showScope, setShowScope] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [backfillOpenId, setBackfillOpenId] = useState<string | null>(null);
+  const [bf, setBf] = useState({
+    startDate: "",
+    endDate: "",
+    countMode: "claims" as "distinct_events" | "claims",
+    targetMode: "selected" as "selected" | "all_active",
+    giveawayIds: [] as string[],
+    thresholds: [{ scanCount: "3", entries: "1" }] as ThresholdRow[],
+  });
+  const [bfBusy, setBfBusy] = useState(false);
+  const [bfResult, setBfResult] = useState<string | null>(null);
+  const [bfError, setBfError] = useState<string | null>(null);
 
   async function load() {
     if (!user) return;
@@ -216,7 +230,12 @@ export default function AdminScanChallengesPage() {
       id: item.id,
       title: item.title,
       active: item.active !== false,
-      windowType: item.window.type === "rolling_days" ? "rolling_days" : "calendar_week",
+      windowType:
+        item.window.type === "rolling_days"
+          ? "rolling_days"
+          : item.window.type === "challenge_period"
+            ? "challenge_period"
+            : "calendar_week",
       timezone: item.window.timezone ?? "America/New_York",
       weekStartsOn: String(item.window.weekStartsOn ?? 1),
       rollingDays: String(item.window.days ?? 7),
@@ -259,6 +278,9 @@ export default function AdminScanChallengesPage() {
       if (thresholds.length === 0) {
         throw new Error("Add at least one tier (e.g. 3 scans → 1 entry).");
       }
+      if (form.windowType === "challenge_period" && !form.startsAt) {
+        throw new Error("Set a start date — entire-period challenges need one.");
+      }
 
       const idToken = await user.getIdToken();
       const payload = {
@@ -272,11 +294,16 @@ export default function AdminScanChallengesPage() {
                 timezone: form.timezone,
                 weekStartsOn: Number(form.weekStartsOn || 1),
               }
-            : {
-                type: "rolling_days" as const,
-                timezone: form.timezone,
-                days: Number(form.rollingDays || 7),
-              },
+            : form.windowType === "challenge_period"
+              ? {
+                  type: "challenge_period" as const,
+                  timezone: form.timezone,
+                }
+              : {
+                  type: "rolling_days" as const,
+                  timezone: form.timezone,
+                  days: Number(form.rollingDays || 7),
+                },
         scope: {
           matchMode: form.scopeMatchMode,
           businessIds: form.scopeBusinessIds,
@@ -356,6 +383,89 @@ export default function AdminScanChallengesPage() {
       setError(err instanceof Error ? err.message : "Failed to delete challenge.");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  function openBackfill(challenge: AdminScanChallenge) {
+    const next = backfillOpenId === challenge.id ? null : challenge.id;
+    setBackfillOpenId(next);
+    setBfResult(null);
+    setBfError(null);
+    if (next) {
+      setBf({
+        startDate: isoToLocalInput(challenge.startsAt),
+        endDate: isoToLocalInput(challenge.endsAt),
+        countMode: challenge.countMode === "distinct_events" ? "distinct_events" : "claims",
+        targetMode: challenge.giveaway.targetMode === "all_active" ? "all_active" : "selected",
+        giveawayIds: challenge.giveaway.giveawayIds ?? [],
+        thresholds:
+          challenge.thresholds.length > 0
+            ? [...challenge.thresholds]
+                .sort((a, b) => a.scanCount - b.scanCount)
+                .map((t) => ({ scanCount: String(t.scanCount), entries: String(t.entries) }))
+            : [{ scanCount: "3", entries: "1" }],
+      });
+    }
+  }
+
+  async function runBackfill(challengeId: string, mode: "preview" | "commit") {
+    if (!user || bfBusy) return;
+    if (
+      mode === "commit" &&
+      !window.confirm(
+        "Create giveaway entries for everyone who qualifies in this date range? This writes to the live giveaway. Safe to re-run — entries that already exist are skipped.",
+      )
+    ) {
+      return;
+    }
+    setBfBusy(true);
+    setBfError(null);
+    if (mode === "commit") setBfResult(null);
+    try {
+      const idToken = await user.getIdToken();
+      const thresholds = bf.thresholds
+        .map((t) => ({ scanCount: Number(t.scanCount || 0), entries: Number(t.entries || 0) }))
+        .filter((t) => t.scanCount > 0 && t.entries > 0);
+      const res = await fetch(`/api/admin/scan-challenges/${challengeId}/backfill`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode,
+          // Raw datetime-local strings: the server interprets them in the
+          // challenge's timezone so the admin's browser timezone can't shift them.
+          startDate: bf.startDate || null,
+          endDate: bf.endDate || null,
+          countMode: bf.countMode,
+          thresholds,
+          targetMode: bf.targetMode,
+          giveawayIds: bf.giveawayIds,
+        }),
+      });
+      const json = (await res.json()) as {
+        error?: string;
+        claimsScanned?: number;
+        usersQualified?: number;
+        entriesToCreate?: number;
+        entriesCreated?: number;
+        entriesAlreadyExist?: number;
+        giveawayCount?: number;
+        warnings?: string[];
+      };
+      if (!res.ok) throw new Error(json.error ?? "Backfill failed.");
+      const gCount = json.giveawayCount ?? 0;
+      const action =
+        mode === "preview"
+          ? `${json.entriesToCreate ?? 0} entries would be created`
+          : `${json.entriesCreated ?? 0} entries created`;
+      const warningText =
+        Array.isArray(json.warnings) && json.warnings.length > 0 ? ` ⚠ ${json.warnings.join(" ")}` : "";
+      setBfResult(
+        `${mode === "preview" ? "Preview" : "Done"}: scanned ${json.claimsScanned ?? 0} scans · ${json.usersQualified ?? 0} members qualify · ${action} · ${json.entriesAlreadyExist ?? 0} already existed · ${gCount} giveaway${gCount === 1 ? "" : "s"}.${warningText}`,
+      );
+    } catch (err) {
+      setBfError(err instanceof Error ? err.message : "Backfill failed.");
+    } finally {
+      setBfBusy(false);
     }
   }
 
@@ -508,6 +618,7 @@ export default function AdminScanChallengesPage() {
                   }
                 >
                   <option value="calendar_week">Resetting week</option>
+                  <option value="challenge_period">Entire challenge period</option>
                   <option value="rolling_days">Rolling day window</option>
                 </select>
               </label>
@@ -526,6 +637,14 @@ export default function AdminScanChallengesPage() {
                     ))}
                   </select>
                 </label>
+              ) : form.windowType === "challenge_period" ? (
+                <div className="text-sm text-zinc-300">
+                  <div className="mb-1">One goal for the whole run</div>
+                  <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400">
+                    Scans are counted across the challenge&rsquo;s start and end dates as a single total. A start
+                    date is required below.
+                  </p>
+                </div>
               ) : (
                 <label className="text-sm text-zinc-300">
                   <div className="mb-1">Window length (days)</div>
@@ -562,8 +681,8 @@ export default function AdminScanChallengesPage() {
                     setForm((prev) => ({ ...prev, countMode: e.target.value as FormState["countMode"] }))
                   }
                 >
-                  <option value="distinct_events">Different scan events</option>
-                  <option value="claims">Every scan (even repeats)</option>
+                  <option value="claims">Every valid scan (even repeats)</option>
+                  <option value="distinct_events">Different scan events only</option>
                 </select>
               </label>
             </div>
@@ -766,6 +885,17 @@ export default function AdminScanChallengesPage() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => openBackfill(challenge)}
+                      className={`rounded-lg border px-3 py-1 text-xs transition active:scale-[0.98] ${
+                        backfillOpenId === challenge.id
+                          ? "border-amber-300/70 bg-amber-400/15 text-amber-100"
+                          : "border-white/15 text-zinc-200 hover:bg-white/5"
+                      }`}
+                    >
+                      {backfillOpenId === challenge.id ? "Close backfill" : "Backfill"}
+                    </button>
+                    <button
+                      type="button"
                       disabled={busyId === challenge.id}
                       onClick={() => void remove(challenge)}
                       className="rounded-lg border border-red-500/30 px-3 py-1 text-xs text-red-200 transition hover:bg-red-500/10 active:scale-[0.98] disabled:opacity-50"
@@ -781,6 +911,179 @@ export default function AdminScanChallengesPage() {
                     {challenge.startsAt && challenge.endsAt ? " " : ""}
                     {challenge.endsAt ? `Until ${new Date(challenge.endsAt).toLocaleString()}` : ""}
                   </p>
+                ) : null}
+
+                {backfillOpenId === challenge.id ? (
+                  <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/[0.05] p-3">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-200">
+                      Backfill past scans into entries
+                    </p>
+                    <p className="mb-3 text-xs text-zinc-400">
+                      Looks back over scan history in the date range and awards entries to anyone who qualifies —
+                      for members who already met the goal but haven’t scanned since. Always <strong>Preview</strong> first;
+                      it’s safe to re-run (existing entries are skipped).
+                    </p>
+
+                    <p className="mb-3 rounded border border-white/10 bg-black/30 px-2 py-1.5 text-xs text-zinc-400">
+                      {challenge.window.type === "challenge_period"
+                        ? "This challenge counts one total across its whole start–end period, so the backfill uses the challenge's own dates."
+                        : challenge.window.type === "rolling_days"
+                          ? "Rolling-day challenges can't be backfilled — switch the challenge's time window first."
+                          : "Counted per week (matching the challenge's weekly reset). Weeks that overlap your date range are included in full."}
+                    </p>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {challenge.window.type !== "challenge_period" ? (
+                        <>
+                          <label className="text-xs text-zinc-300">
+                            <div className="mb-1 font-medium text-zinc-100">Start</div>
+                            <input
+                              type="datetime-local"
+                              className="h-9 w-full rounded border border-white/10 bg-black/40 px-2 text-xs text-white outline-none focus:border-amber-300"
+                              value={bf.startDate}
+                              onChange={(e) => setBf((p) => ({ ...p, startDate: e.target.value }))}
+                            />
+                          </label>
+                          <label className="text-xs text-zinc-300">
+                            <div className="mb-1 font-medium text-zinc-100">End</div>
+                            <input
+                              type="datetime-local"
+                              className="h-9 w-full rounded border border-white/10 bg-black/40 px-2 text-xs text-white outline-none focus:border-amber-300"
+                              value={bf.endDate}
+                              onChange={(e) => setBf((p) => ({ ...p, endDate: e.target.value }))}
+                            />
+                          </label>
+                        </>
+                      ) : null}
+                      <label className="text-xs text-zinc-300">
+                        <div className="mb-1 font-medium text-zinc-100">What counts</div>
+                        <select
+                          className="h-9 w-full rounded border border-white/10 bg-black/40 px-2 text-xs text-white outline-none focus:border-amber-300"
+                          value={bf.countMode}
+                          onChange={(e) => setBf((p) => ({ ...p, countMode: e.target.value as "distinct_events" | "claims" }))}
+                        >
+                          <option value="claims">Every valid scan (even repeats)</option>
+                          <option value="distinct_events">Different scan events only</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="mt-3">
+                      <div className="mb-1 text-xs font-medium text-zinc-100">Tiers</div>
+                      <div className="space-y-1.5">
+                        {bf.thresholds.map((tier, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={1}
+                              className="h-8 w-20 rounded border border-white/10 bg-black/40 px-2 text-xs text-white outline-none focus:border-amber-300"
+                              value={tier.scanCount}
+                              onChange={(e) =>
+                                setBf((p) => {
+                                  const next = [...p.thresholds];
+                                  next[index] = { ...next[index], scanCount: e.target.value };
+                                  return { ...p, thresholds: next };
+                                })
+                              }
+                            />
+                            <span className="text-xs text-zinc-500">scans →</span>
+                            <input
+                              type="number"
+                              min={1}
+                              className="h-8 w-20 rounded border border-white/10 bg-black/40 px-2 text-xs text-white outline-none focus:border-amber-300"
+                              value={tier.entries}
+                              onChange={(e) =>
+                                setBf((p) => {
+                                  const next = [...p.thresholds];
+                                  next[index] = { ...next[index], entries: e.target.value };
+                                  return { ...p, thresholds: next };
+                                })
+                              }
+                            />
+                            <span className="text-xs text-zinc-500">entries</span>
+                            <button
+                              type="button"
+                              className="rounded border border-white/15 px-2 py-1 text-xs text-zinc-300 transition hover:bg-white/5 disabled:opacity-40"
+                              disabled={bf.thresholds.length <= 1}
+                              onClick={() => setBf((p) => ({ ...p, thresholds: p.thresholds.filter((_, i) => i !== index) }))}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        className="mt-2 rounded border border-white/15 px-2 py-1 text-xs text-zinc-200 transition hover:bg-white/5"
+                        onClick={() => setBf((p) => ({ ...p, thresholds: [...p.thresholds, { scanCount: "", entries: "1" }] }))}
+                      >
+                        Add tier
+                      </button>
+                    </div>
+
+                    <div className="mt-3">
+                      <div className="mb-1 text-xs font-medium text-zinc-100">Entries go to</div>
+                      <select
+                        className="h-9 w-full rounded border border-white/10 bg-black/40 px-2 text-xs text-white outline-none focus:border-amber-300"
+                        value={bf.targetMode}
+                        onChange={(e) => setBf((p) => ({ ...p, targetMode: e.target.value as "selected" | "all_active" }))}
+                      >
+                        <option value="selected">Selected giveaways</option>
+                        <option value="all_active">All active giveaways</option>
+                      </select>
+                      {bf.targetMode === "selected" ? (
+                        <div className="mt-2 max-h-32 space-y-1 overflow-y-auto rounded border border-white/10 bg-black/30 p-2">
+                          {giveaways.length === 0 ? (
+                            <div className="text-xs text-zinc-500">No active or draft giveaways available.</div>
+                          ) : (
+                            giveaways.map((g) => {
+                              const checked = bf.giveawayIds.includes(g.id);
+                              return (
+                                <label key={g.id} className="flex items-center gap-2 text-xs text-zinc-200">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) =>
+                                      setBf((p) => ({ ...p, giveawayIds: toggleId(p.giveawayIds, g.id, e.target.checked) }))
+                                    }
+                                  />
+                                  <span>
+                                    {g.title} ({g.status})
+                                  </span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {bfError ? (
+                      <div className="mt-3 rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">{bfError}</div>
+                    ) : null}
+                    {bfResult ? (
+                      <div className="mt-3 rounded border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs text-emerald-200">{bfResult}</div>
+                    ) : null}
+
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void runBackfill(challenge.id, "preview")}
+                        disabled={bfBusy || challenge.window.type === "rolling_days"}
+                        className="rounded border border-white/15 px-3 py-1.5 text-xs font-semibold text-zinc-100 transition hover:bg-white/5 disabled:opacity-60"
+                      >
+                        {bfBusy ? "Working…" : "Preview"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void runBackfill(challenge.id, "commit")}
+                        disabled={bfBusy || challenge.window.type === "rolling_days"}
+                        className="rounded bg-amber-400 px-3 py-1.5 text-xs font-semibold text-black transition hover:bg-amber-300 disabled:opacity-60"
+                      >
+                        {bfBusy ? "Working…" : "Run backfill"}
+                      </button>
+                    </div>
+                  </div>
                 ) : null}
               </article>
             ))}

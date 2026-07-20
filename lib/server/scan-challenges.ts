@@ -41,7 +41,7 @@ function asPositiveInt(value: unknown, fallback: number, min = 1, max = 1_000_00
   return Math.min(max, Math.max(min, Math.floor(parsed)));
 }
 
-function asStringArray(value: unknown): string[] {
+export function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return Array.from(
     new Set(value.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)),
@@ -74,10 +74,18 @@ function asTimestampOrNull(value: unknown): Timestamp | null {
 
 function normalizeWindow(value: unknown): ScanChallengeWindow {
   const record = parseRecord(value);
-  const type = record.type === "rolling_days" ? "rolling_days" : "calendar_week";
+  const type =
+    record.type === "rolling_days"
+      ? "rolling_days"
+      : record.type === "challenge_period"
+        ? "challenge_period"
+        : "calendar_week";
   const timezone = isValidTimezone(record.timezone) ? (record.timezone as string).trim() : DEFAULT_TIMEZONE;
   if (type === "rolling_days") {
     return { type, timezone, days: asPositiveInt(record.days, 7, 1, 366) };
+  }
+  if (type === "challenge_period") {
+    return { type, timezone };
   }
   return { type, timezone, weekStartsOn: asPositiveInt(record.weekStartsOn, 1, 1, 7) };
 }
@@ -133,15 +141,22 @@ export function normalizeScanChallengeInput(
     throw new Error("Select at least one giveaway, or use targetMode 'all_active'.");
   }
 
+  const window = normalizeWindow(record.window);
+  const startsAt = asTimestampOrNull(record.startsAt);
+  if (window.type === "challenge_period" && !startsAt) {
+    throw new Error("A start date is required when the window is the entire challenge period.");
+  }
+
   return {
     title,
     active: asBoolean(record.active, true),
-    window: normalizeWindow(record.window),
+    window,
     scope: normalizeScope(record.scope),
-    countMode: record.countMode === "claims" ? "claims" : "distinct_events",
+    // Default: every valid scan counts. distinct_events is an explicit opt-in.
+    countMode: record.countMode === "distinct_events" ? "distinct_events" : "claims",
     thresholds,
     giveaway: { targetMode, giveawayIds },
-    startsAt: asTimestampOrNull(record.startsAt),
+    startsAt,
     endsAt: asTimestampOrNull(record.endsAt),
   };
 }
@@ -165,7 +180,7 @@ type ClaimEventData = {
   association?: ScanEventAssociation | null;
 };
 
-function scanMatchesScope(
+export function scanMatchesScope(
   scope: ScanChallengeScope,
   scanEventId: string | undefined,
   association: ScanEventAssociation | null | undefined,
@@ -187,7 +202,18 @@ function scanMatchesScope(
   return scope.matchMode === "any" ? checks.some(Boolean) : checks.every(Boolean);
 }
 
-function resolveWindow(window: ScanChallengeWindow, now: Date): { start: Date; periodKey: string } {
+/** Constant period key for challenge_period windows — one bucket per challenge. */
+export const CAMPAIGN_PERIOD_KEY = "campaign";
+
+function resolveWindow(
+  window: ScanChallengeWindow,
+  now: Date,
+  startsAt: Timestamp | null | undefined,
+): { start: Date; periodKey: string } {
+  if (window.type === "challenge_period") {
+    // startsAt is guaranteed by normalizeScanChallengeInput for this type.
+    return { start: startsAt?.toDate() ?? now, periodKey: CAMPAIGN_PERIOD_KEY };
+  }
   if (window.type === "rolling_days") {
     const days = window.days ?? 7;
     // Daily bucket so a sliding window can't re-award the same rung repeatedly.
@@ -200,22 +226,87 @@ function resolveWindow(window: ScanChallengeWindow, now: Date): { start: Date; p
   };
 }
 
-async function resolveTargetGiveawayIds(challenge: ScanChallengeDoc): Promise<string[]> {
-  if (challenge.giveaway.targetMode === "all_active") {
+/**
+ * Period key a given claim falls into, matching the live award key scheme so
+ * backfilled entries collide (dedupe) with live-awarded ones.
+ * rolling_days is intentionally unsupported: live keys are award-day based and
+ * cannot be reproduced from claim history — callers must reject that case.
+ */
+export function periodKeyForClaim(window: ScanChallengeWindow, claimDate: Date): string {
+  if (window.type === "challenge_period") return CAMPAIGN_PERIOD_KEY;
+  if (window.type === "rolling_days") {
+    throw new Error("Backfill is not supported for rolling-day windows.");
+  }
+  return weekStartKey(claimDate, window.timezone, window.weekStartsOn ?? 1);
+}
+
+export async function resolveTargetGiveawayIds(giveaway: {
+  targetMode: "selected" | "all_active";
+  giveawayIds: string[];
+}): Promise<string[]> {
+  if (giveaway.targetMode === "all_active") {
     const snap = await adminFirestore.collection("giveaways").where("status", "==", "active").get();
     return snap.docs.map((doc) => doc.id);
   }
-  const valid: string[] = [];
-  await Promise.all(
-    Array.from(new Set(challenge.giveaway.giveawayIds)).map(async (giveawayId) => {
-      const snap = await adminFirestore.collection("giveaways").doc(giveawayId).get();
-      if (!snap.exists) return;
-      const status = (snap.data() as { status?: string } | undefined)?.status ?? "draft";
-      // Match the scan-claim path: entries may accrue to active or draft giveaways.
-      if (status === "active" || status === "draft") valid.push(giveawayId);
-    }),
+  const ids = asStringArray(giveaway.giveawayIds);
+  if (ids.length === 0) return [];
+  const snaps = await adminFirestore.getAll(
+    ...ids.map((id) => adminFirestore.collection("giveaways").doc(id)),
   );
+  const valid: string[] = [];
+  snaps.forEach((snap) => {
+    if (!snap.exists) return;
+    const status = (snap.data() as { status?: string } | undefined)?.status ?? "draft";
+    // Match the scan-claim path: entries may accrue to active or draft giveaways.
+    if (status === "active" || status === "draft") valid.push(snap.id);
+  });
   return valid;
+}
+
+/** Deterministic id for a challenge-earned giveaway entry — shared by live awards and backfills. */
+export function challengeEntryId(params: {
+  giveawayId: string;
+  challengeId: string;
+  userId: string;
+  periodKey: string;
+  thresholdId: string;
+}): string {
+  return `${params.giveawayId}_challenge_${params.challengeId}_${params.userId}_${params.periodKey}_${params.thresholdId}`;
+}
+
+/** Entry document body — shared by live awards and backfills so the two are byte-identical. */
+export function buildChallengeEntry(params: {
+  giveawayId: string;
+  userId: string;
+  challengeId: string;
+  threshold: ScanChallengeThreshold;
+  periodKey: string;
+  now: Timestamp;
+  triggeringScanEventId?: string | null;
+  backfilled?: boolean;
+}) {
+  return {
+    giveawayId: params.giveawayId,
+    donationId: null,
+    userId: params.userId,
+    entriesCount: params.threshold.entries,
+    pointsApplied: 0,
+    pointsCarryIn: 0,
+    pointsCarryOut: 0,
+    entryUnitPoints: null,
+    entryMultiplier: null,
+    scanSource: "scan_challenge",
+    amountCents: null,
+    sourceType: "scan_challenge",
+    scanChallengeId: params.challengeId,
+    scanChallengeThresholdId: params.threshold.id,
+    scanChallengeScanCount: params.threshold.scanCount,
+    scanChallengePeriodKey: params.periodKey,
+    triggeringScanEventId: params.triggeringScanEventId ?? null,
+    ...(params.backfilled ? { backfilled: true, backfilledAt: params.now } : {}),
+    createdAt: params.now,
+    updatedAt: params.now,
+  };
 }
 
 async function awardChallenge(
@@ -232,7 +323,7 @@ async function awardChallenge(
   // Only re-evaluate when the triggering scan itself counts toward this challenge.
   if (!scanMatchesScope(challenge.scope, scanEventId, association)) return 0;
 
-  const { start, periodKey } = resolveWindow(challenge.window, nowDate);
+  const { start, periodKey } = resolveWindow(challenge.window, nowDate, challenge.startsAt);
 
   const eventsSnap = await adminFirestore
     .collection("scan_event_claim_events")
@@ -252,7 +343,7 @@ async function awardChallenge(
   const metThresholds = challenge.thresholds.filter((threshold) => count >= threshold.scanCount);
   if (metThresholds.length === 0) return 0;
 
-  const giveawayIds = await resolveTargetGiveawayIds(challenge);
+  const giveawayIds = await resolveTargetGiveawayIds(challenge.giveaway);
   if (giveawayIds.length === 0) return 0;
 
   const entriesCol = adminFirestore.collection("giveaway_entries");
@@ -265,7 +356,9 @@ async function awardChallenge(
   if (candidates.length === 0) return 0;
 
   const refs = candidates.map(({ giveawayId, threshold }) =>
-    entriesCol.doc(`${giveawayId}_challenge_${challenge.id}_${userId}_${periodKey}_${threshold.id}`),
+    entriesCol.doc(
+      challengeEntryId({ giveawayId, challengeId: challenge.id, userId, periodKey, thresholdId: threshold.id }),
+    ),
   );
   const existing = await adminFirestore.getAll(...refs);
 
@@ -275,27 +368,18 @@ async function awardChallenge(
   existing.forEach((snap, index) => {
     if (snap.exists) return; // already awarded this rung for this period — idempotent no-op
     const { giveawayId, threshold } = candidates[index];
-    batch.set(refs[index], {
-      giveawayId,
-      donationId: null,
-      userId,
-      entriesCount: threshold.entries,
-      pointsApplied: 0,
-      pointsCarryIn: 0,
-      pointsCarryOut: 0,
-      entryUnitPoints: null,
-      entryMultiplier: null,
-      scanSource: "scan_challenge",
-      amountCents: null,
-      sourceType: "scan_challenge",
-      scanChallengeId: challenge.id,
-      scanChallengeThresholdId: threshold.id,
-      scanChallengeScanCount: threshold.scanCount,
-      scanChallengePeriodKey: periodKey,
-      triggeringScanEventId: scanEventId,
-      createdAt: now,
-      updatedAt: now,
-    });
+    batch.set(
+      refs[index],
+      buildChallengeEntry({
+        giveawayId,
+        userId,
+        challengeId: challenge.id,
+        threshold,
+        periodKey,
+        now,
+        triggeringScanEventId: scanEventId,
+      }),
+    );
     awardedEntries += threshold.entries;
     writes += 1;
   });
