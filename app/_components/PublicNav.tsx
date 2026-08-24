@@ -116,7 +116,7 @@ function PublicNavbar() {
               current={pathname.startsWith("/rewards/giveaways")}
               className="hidden md:inline-flex"
             >
-              <NavbarLabel>My Community Drawings</NavbarLabel>
+              <NavbarLabel>My Entries</NavbarLabel>
             </NavbarItem>
             <NavbarItem onClick={handleSignOut} className="hidden md:inline-flex">
               <NavbarLabel>Sign out</NavbarLabel>
@@ -166,7 +166,7 @@ function PublicSidebar() {
           />
           <div>
             <SidebarLabel>Rack Up</SidebarLabel>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">Give back &amp; earn</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">Show up. Earn rewards.</div>
           </div>
         </div>
       </SidebarHeader>
@@ -192,7 +192,7 @@ function PublicSidebar() {
                 <SidebarLabel>My rewards</SidebarLabel>
               </SidebarItem>
               <SidebarItem href="/rewards/giveaways" current={pathname.startsWith("/rewards/giveaways")}>
-                <SidebarLabel>My Community Drawings</SidebarLabel>
+                <SidebarLabel>My Entries</SidebarLabel>
               </SidebarItem>
             </>
           ) : (

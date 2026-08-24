@@ -1,7 +1,6 @@
 import Link from "next/link";
 import LandingAuthActions from "@/app/_components/LandingAuthActions";
 import LandingEligibilityCta from "@/app/_components/LandingEligibilityCta";
-import GiveawayProgressCard from "@/app/_components/GiveawayProgressCard";
 import LandingCommunityDrawings from "@/app/_components/LandingCommunityDrawings";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { ClientOnly } from "@/app/_components/ClientOnly";
@@ -23,6 +22,14 @@ type LandingDonation = {
   points: number | null;
   causeTitle: string | null;
   businessName: string | null;
+  createdAt: string | null;
+};
+
+type LandingActivityItem = {
+  id: string;
+  kind: "scan" | "reward";
+  label: string;
+  detail: string;
   createdAt: string | null;
 };
 
@@ -54,6 +61,7 @@ type LandingGiveaway = {
 
 async function fetchLandingData(): Promise<{
   donations: LandingDonation[];
+  activity: LandingActivityItem[];
   causes: LandingCause[];
   giveaways: LandingGiveaway[];
   totalDonationCents: number;
@@ -87,7 +95,7 @@ async function fetchLandingData(): Promise<{
       .where("active", "==", true)
       .get();
 
-    const [donationSnap, donationLifetimeSnap, causeSnap, businessesSnap, locationsSnap, giveawaysSnap, scanEventsSnap] = await Promise.all([
+    const [donationSnap, donationLifetimeSnap, causeSnap, businessesSnap, locationsSnap, giveawaysSnap, scanEventsSnap, claimEventsSnap, rewardIssuesSnap] = await Promise.all([
       donationSnapPromise,
       donationLifetimeSnapPromise,
       causeSnapPromise,
@@ -95,6 +103,8 @@ async function fetchLandingData(): Promise<{
       adminFirestore.collectionGroup("locations").get(),
       adminFirestore.collection("giveaways").where("status", "==", "active").limit(20).get(),
       adminFirestore.collection("scan_events").where("active", "==", true).get(),
+      adminFirestore.collection("scan_event_claim_events").orderBy("createdAt", "desc").limit(12).get(),
+      adminFirestore.collection("reward_issues").orderBy("issuedAt", "desc").limit(8).get(),
     ]);
 
     const mapSpots: MapSpot[] = scanEventsSnap.docs
@@ -204,8 +214,85 @@ async function fetchLandingData(): Promise<{
       return a.logo.localeCompare(b.logo);
     });
 
+    const scanEventTitleById = new Map<string, string>(
+      scanEventsSnap.docs.map((doc) => {
+        const data = doc.data() as ScanEventDoc;
+        return [doc.id, data.title ?? doc.id] as [string, string];
+      }),
+    );
+    const missingEventIds = Array.from(
+      new Set(
+        claimEventsSnap.docs
+          .map((doc) => (doc.data() as { scanEventId?: string }).scanEventId)
+          .filter(
+            (id): id is string =>
+              typeof id === "string" && id.length > 0 && !scanEventTitleById.has(id),
+          ),
+      ),
+    );
+    if (missingEventIds.length > 0) {
+      const refs = missingEventIds.map((id) => adminFirestore.collection("scan_events").doc(id));
+      const eventSnaps = await adminFirestore.getAll(...refs);
+      eventSnaps.forEach((snap) => {
+        const data = snap.data() as { title?: string } | undefined;
+        if (data?.title) scanEventTitleById.set(snap.id, data.title);
+      });
+    }
+
+    const scanActivity = claimEventsSnap.docs.map((doc) => {
+      const data = doc.data() as {
+        scanEventId?: string;
+        pointsAwarded?: number;
+        giveawayEntriesAwarded?: number;
+        association?: { businessId?: string | null };
+        createdAt?: { toDate?: () => Date };
+      };
+      const businessId = data.association?.businessId ?? null;
+      const businessName = businessId ? businessMap.get(businessId)?.name ?? null : null;
+      const detail =
+        (data.scanEventId ? scanEventTitleById.get(data.scanEventId) : null) ??
+        businessName ??
+        "a local partner";
+      const points = typeof data.pointsAwarded === "number" ? data.pointsAwarded : 0;
+      const entries =
+        typeof data.giveawayEntriesAwarded === "number" ? data.giveawayEntriesAwarded : 0;
+      let label = "Checked in";
+      if (points > 0) label = `+${points} pts`;
+      else if (entries > 0) label = `+${entries} ${entries === 1 ? "entry" : "entries"}`;
+      return {
+        id: `scan_${doc.id}`,
+        kind: "scan",
+        label,
+        detail,
+        createdAt:
+          typeof data.createdAt?.toDate === "function" ? data.createdAt.toDate().toISOString() : null,
+      } satisfies LandingActivityItem;
+    });
+
+    const rewardActivity = rewardIssuesSnap.docs.map((doc) => {
+      const data = doc.data() as {
+        displayPayload?: { title?: string; businessName?: string };
+        issuedAt?: { toDate?: () => Date };
+      };
+      const title = data.displayPayload?.title ?? "Reward";
+      const businessName = data.displayPayload?.businessName ?? "a local partner";
+      return {
+        id: `reward_${doc.id}`,
+        kind: "reward",
+        label: "Reward redeemed",
+        detail: `${title} at ${businessName}`,
+        createdAt:
+          typeof data.issuedAt?.toDate === "function" ? data.issuedAt.toDate().toISOString() : null,
+      } satisfies LandingActivityItem;
+    });
+
+    const activity = [...scanActivity, ...rewardActivity]
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+      .slice(0, 8);
+
     return {
       donations,
+      activity,
       causes,
       giveaways,
       totalDonationCents,
@@ -218,6 +305,7 @@ async function fetchLandingData(): Promise<{
     console.error("Landing data fetch failed:", err);
     return {
       donations: [],
+      activity: [],
       causes: [],
       giveaways: [],
       totalDonationCents: 0,
@@ -266,7 +354,7 @@ function pointsLabel(cause: LandingCause, source: "in_person" | "remote") {
 }
 
 export default async function Home() {
-  const { donations, causes, giveaways, totalDonationCents, partners, mapSpots, scanLocationCount, error } = await fetchLandingData();
+  const { donations, activity, causes, giveaways, totalDonationCents, partners, mapSpots, scanLocationCount, error } = await fetchLandingData();
   const showMap = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) && mapSpots.length > 0;
 
   return (
@@ -279,28 +367,21 @@ export default async function Home() {
 
           <div className="relative space-y-5 lg:max-w-3xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
-              Give back &middot; Earn rewards
+              Show up &middot; Earn points &middot; Support local
             </span>
             <h1 className="text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
-              Turn everyday purchases into&nbsp;impact.
+              Show up. Rack up. Get&nbsp;rewarded.
             </h1>
             <p className="max-w-xl text-lg leading-relaxed text-zinc-300 sm:text-xl">
-              Rack Up connects local businesses, generous supporters, and community causes. To support
-              and earn points, visit a participating location and scan the in-store QR code tied
-              to the cause.
+              Turn your workouts into local rewards. Check in at participating gyms, earn RackUp
+              Points, and redeem them at businesses around your community.
             </p>
             <div className="flex flex-wrap gap-3 pt-2">
               <Link
                 className="inline-flex h-12 items-center justify-center rounded-full bg-emerald-400 px-7 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-300 hover:shadow-emerald-500/30"
                 href="/signup"
               >
-                Get started
-              </Link>
-              <Link
-                className="inline-flex h-12 items-center justify-center rounded-full border border-white/30 px-7 text-sm font-semibold text-white transition hover:bg-white/10"
-                href="/locations"
-              >
-                Where to scan
+                Join RackUp
               </Link>
               <Link
                 className="inline-flex h-12 items-center justify-center rounded-full border border-white/30 px-7 text-sm font-semibold text-white transition hover:bg-white/10"
@@ -320,21 +401,21 @@ export default async function Home() {
               </span>
               Live activity
             </div>
-            {donations.length === 0 ? (
+            {activity.length === 0 ? (
               <div className="mt-3 text-sm text-zinc-400">
-                Support activity will appear here once campaigns are active.
+                Member activity will appear here as people check in and redeem rewards.
               </div>
             ) : (
               <div className="hide-scrollbar mt-3 flex gap-3 overflow-x-auto pb-2">
-                {donations.slice(0, 8).map((d) => (
+                {activity.map((a) => (
                   <div
-                    key={d.id}
+                    key={a.id}
                     className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm"
                   >
-                    <span className="font-semibold text-white">{formatMoney(d.amountCents)}</span>
-                    <span className="text-zinc-400">&rarr;</span>
-                    <span className="text-zinc-300">{d.causeTitle ?? "a cause"}</span>
-                    <span className="text-xs text-zinc-500">{formatDate(d.createdAt)}</span>
+                    <span className="font-semibold text-emerald-300">{a.label}</span>
+                    <span className="text-zinc-400">&mdash;</span>
+                    <span className="text-zinc-300">{a.detail}</span>
+                    <span className="text-xs text-zinc-500">{formatDate(a.createdAt)}</span>
                   </div>
                 ))}
               </div>
@@ -388,55 +469,92 @@ export default async function Home() {
               <div className="mb-3 h-1 w-10 rounded-full bg-emerald-400" />
               <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">How it works</h2>
               <p className="mt-2 max-w-lg text-sm text-zinc-400">
-                Support causes, earn points, and qualify for prizes in three simple steps.
+                Show up. Rack up points. Get rewarded.
               </p>
             </div>
 
             <div className="mt-12 grid gap-10 sm:grid-cols-3">
               <div className="text-center">
                 <div className="text-5xl font-bold text-emerald-400/20">01</div>
-                <h3 className="mt-2 text-lg font-semibold text-white">Scan a QR code</h3>
+                <h3 className="mt-2 text-lg font-semibold text-white">Show up &amp; scan</h3>
                 <p className="mt-1 text-sm leading-relaxed text-zinc-400">
-                  Visit a participating location and scan the in-store QR code, or use a shared remote link.
+                  Visit a participating gym, get your workout in, and scan the RackUp QR code.
                 </p>
               </div>
               <div className="text-center">
                 <div className="text-5xl font-bold text-emerald-400/20">02</div>
-                <h3 className="mt-2 text-lg font-semibold text-white">Support a cause</h3>
+                <h3 className="mt-2 text-lg font-semibold text-white">Rack up points</h3>
                 <p className="mt-1 text-sm leading-relaxed text-zinc-400">
-                  Choose an amount to donate. In-person visits earn the most points, but remote support counts too.
+                  Every check-in earns points. Keep showing up, stay consistent, and watch your points add up.
                 </p>
               </div>
               <div className="text-center">
                 <div className="text-5xl font-bold text-emerald-400/20">03</div>
-                <h3 className="mt-2 text-lg font-semibold text-white">Earn rewards &amp; prizes</h3>
+                <h3 className="mt-2 text-lg font-semibold text-white">Get rewarded</h3>
                 <p className="mt-1 text-sm leading-relaxed text-zinc-400">
-                  Community drawings are held monthly. Entry thresholds and multipliers can vary by community drawing,
-                  and your carryover points continue between donations until an entry is reached.
+                  Redeem your points for exclusive deals and rewards at participating local businesses.
                 </p>
               </div>
             </div>
 
-            <div className="mt-8 rounded-xl border border-emerald-300/20 bg-emerald-500/[0.08] p-4 text-sm text-emerald-100">
-              <span className="font-semibold">Community drawing entry rules:</span> drawings happen once per month,
-              and entry credit is cumulative per community drawing using that community drawing&apos;s configured threshold.
-            </div>
-            <ClientOnly>
-              <GiveawayProgressCard className="mt-3" />
-            </ClientOnly>
-
             <div className="mt-10 flex flex-wrap justify-center gap-3">
               <Link
                 className="inline-flex h-11 items-center justify-center rounded-full bg-emerald-300 px-6 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-400/20 transition hover:bg-emerald-200"
-                href="/donate"
+                href="/locations"
               >
-                Donate in person
+                Find a place to scan
               </Link>
               <Link
                 className="inline-flex h-11 items-center justify-center rounded-full border border-emerald-200/50 px-6 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-200/10"
-                href="/donate/remote"
+                href="/rewards"
               >
-                Support from home
+                See local rewards
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ── 3b. Weekly scan challenge ── */}
+        <section className="py-20">
+          <div className="mx-auto max-w-3xl">
+            <div className="flex flex-col items-center text-center">
+              <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                Show up. Earn entries. Win.
+              </h2>
+              <p className="mt-2 max-w-lg text-sm text-zinc-400">
+                Stay active and earn entries into RackUp giveaways and community drawings just by showing up.
+              </p>
+            </div>
+
+            <div className="mt-8 rounded-2xl border border-emerald-300/20 bg-emerald-500/[0.08] p-6 sm:p-8">
+              <div className="text-xs font-semibold uppercase tracking-widest text-emerald-300">
+                Weekly scan challenge
+              </div>
+              <div className="mt-4 space-y-2 text-base text-white sm:text-lg">
+                <div>
+                  <span className="font-semibold">3 scans</span> <span className="underline decoration-emerald-300/60 underline-offset-4">in one week</span> = <span className="font-semibold">1 entry</span>
+                </div>
+                <div>
+                  <span className="font-semibold">5 scans</span> <span className="underline decoration-emerald-300/60 underline-offset-4">in one week</span> = <span className="font-semibold">2 entries</span>
+                </div>
+              </div>
+              <p className="mt-4 text-sm text-emerald-100/80">
+                Entries are earned automatically based on your qualifying scans.
+              </p>
+            </div>
+
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Link
+                className="inline-flex h-11 items-center justify-center rounded-full bg-emerald-400 px-6 text-sm font-semibold text-emerald-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-300"
+                href="/locations"
+              >
+                Where to scan
+              </Link>
+              <Link
+                className="inline-flex h-11 items-center justify-center rounded-full border border-white/30 px-6 text-sm font-semibold text-white transition hover:bg-white/10"
+                href="/rewards"
+              >
+                See rewards
               </Link>
               <LandingEligibilityCta />
             </div>
