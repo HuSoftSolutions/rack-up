@@ -102,6 +102,11 @@ export default function SignInClient() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
+              <div className="mt-2 text-right text-sm">
+                <TextLink className="font-semibold text-emerald-200" href="/forgot-password">
+                  Forgot password?
+                </TextLink>
+              </div>
             </Field>
           </Fieldset>
 

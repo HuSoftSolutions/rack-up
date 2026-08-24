@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { adminAuth, adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireAdmin } from "@/lib/server/auth";
-import { sendInviteEmail } from "@/lib/server/sendgrid";
+import { generatePasswordResetPageLink, resolveOrigin } from "@/lib/server/action-links";
+import { sendInviteEmail } from "@/lib/server/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,34 +38,16 @@ export async function POST(request: Request) {
       adminFirestore.collection("business_admins").doc(user.uid).get(),
     ]);
 
-    const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0] ?? "";
-    const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0] ?? "https";
-    const origin =
-      process.env.NEXT_PUBLIC_SITE_URL ??
-      request.headers.get("origin") ??
-      request.headers.get("x-forwarded-origin") ??
-      (forwardedHost ? `${forwardedProto}://${forwardedHost}` : "");
-    const defaultBase = "http://127.0.0.1:3000";
-    const actionLink = await adminAuth.generatePasswordResetLink(user.email, {
-      url: origin ? `${origin.replace(/\/$/, "")}/invite` : `${defaultBase}/invite`,
-      handleCodeInApp: true,
-    });
-    const inviteLink = (() => {
-      try {
-        const parsed = new URL(actionLink);
-        const code = parsed.searchParams.get("oobCode");
-        if (!code) return actionLink;
-        const base = origin ? origin.replace(/\/$/, "") : defaultBase;
-        return `${base}/invite?oobCode=${encodeURIComponent(code)}`;
-      } catch {
-        return actionLink;
-      }
-    })();
+    const inviteLink = await generatePasswordResetPageLink(
+      user.email,
+      resolveOrigin(request),
+      "/invite",
+    );
 
     const warnings: string[] = [];
-    const from = process.env.SENDGRID_FROM_EMAIL;
+    const from = process.env.RESEND_FROM_EMAIL;
     if (!from) {
-      warnings.push("Invite email not sent: missing SENDGRID_FROM_EMAIL.");
+      warnings.push("Invite email not sent: missing RESEND_FROM_EMAIL.");
     } else {
       let businessName: string | null = null;
       const businessId = bizDoc.data()?.businessId as string | undefined;
