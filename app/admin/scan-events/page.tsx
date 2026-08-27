@@ -14,6 +14,10 @@ type AdminScanEvent = {
   description?: string;
   active: boolean;
   place?: ScanEventLocation | null;
+  proximity?: {
+    mode: "auto" | "off" | "log" | "enforce";
+    radiusMeters: number;
+  } | null;
   association: {
     type: "standalone" | "charity" | "business_location" | "custom";
     causeId?: string | null;
@@ -60,8 +64,25 @@ type ScanEventActivityRow = {
   giveawayAwardCount: number;
   giveawayTargetMode: string | null;
   giveawayIds: string[];
+  proximity?: {
+    mode: string;
+    distanceMeters: number | null;
+    verified: boolean | null;
+    failureReason: string | null;
+  } | null;
   createdAt: string | null;
 };
+
+/** Compact distance cell for the activity tables. */
+function formatProximityCell(proximity: ScanEventActivityRow["proximity"]): string {
+  if (!proximity || proximity.mode === "off") return "—";
+  if (proximity.failureReason === "no_place") return "no place set";
+  if (!proximity.verified) return "unverified";
+  if (proximity.distanceMeters === null) return "verified";
+  return proximity.distanceMeters >= 1000
+    ? `${(proximity.distanceMeters / 1000).toFixed(1)} km`
+    : `${proximity.distanceMeters} m`;
+}
 
 type FormState = {
   id: string | null;
@@ -76,6 +97,8 @@ type FormState = {
   customLabel: string;
   cadenceUnit: "hours" | "days" | "weeks";
   cadenceInterval: string;
+  proximityMode: "auto" | "off" | "log" | "enforce";
+  proximityRadiusMeters: string;
   pointsEnabled: boolean;
   pointsAmount: string;
   giveawayEnabled: boolean;
@@ -100,6 +123,8 @@ function defaultForm(): FormState {
     customLabel: "",
     cadenceUnit: "hours",
     cadenceInterval: "24",
+    proximityMode: "auto",
+    proximityRadiusMeters: "100",
     pointsEnabled: true,
     pointsAmount: "50",
     giveawayEnabled: false,
@@ -253,6 +278,8 @@ export default function AdminScanEventsPage() {
       customLabel: item.association.customLabel ?? "",
       cadenceUnit: item.cadence.unit,
       cadenceInterval: String(item.cadence.interval),
+      proximityMode: item.proximity?.mode ?? "auto",
+      proximityRadiusMeters: String(item.proximity?.radiusMeters ?? 100),
       pointsEnabled: item.rewards.points.enabled,
       pointsAmount: String(item.rewards.points.amount ?? 0),
       giveawayEnabled: item.rewards.giveaway.enabled,
@@ -296,6 +323,10 @@ export default function AdminScanEventsPage() {
         cadence: {
           unit: form.cadenceUnit,
           interval: Number(form.cadenceInterval || 0),
+        },
+        proximity: {
+          mode: form.proximityMode,
+          radiusMeters: Number(form.proximityRadiusMeters || 100),
         },
         rewards: {
           points: {
@@ -547,6 +578,51 @@ export default function AdminScanEventsPage() {
                 value={form.place}
                 onChange={(place) => setForm((prev) => ({ ...prev, place }))}
               />
+            </div>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <label className="text-sm text-zinc-300">
+                <div className="mb-1">Location checking</div>
+                <select
+                  className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white outline-none focus:border-emerald-400"
+                  value={form.proximityMode}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      proximityMode: event.target.value as FormState["proximityMode"],
+                    }))
+                  }
+                >
+                  <option value="auto">
+                    Automatic &mdash; on whenever a scan location is set (recommended)
+                  </option>
+                  <option value="off">Off &mdash; claim from anywhere</option>
+                  <option value="log">Log only &mdash; record the result, never block</option>
+                  <option value="enforce">Enforce &mdash; always block outside the radius</option>
+                </select>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {form.proximityMode === "auto"
+                    ? form.place
+                      ? "Active: claims must be made at the scan location above."
+                      : "Inactive until a scan location is set above. Add one to protect this event."
+                    : "Overrides the automatic default for this event only."}
+                </p>
+              </label>
+              <label className="text-sm text-zinc-300">
+                <div className="mb-1">Allowed radius (meters)</div>
+                <input
+                  type="number"
+                  min={25}
+                  max={5000}
+                  disabled={form.proximityMode === "off"}
+                  className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white outline-none focus:border-emerald-400 disabled:opacity-50"
+                  value={form.proximityRadiusMeters}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, proximityRadiusMeters: event.target.value }))
+                  }
+                />
+                <p className="mt-1 text-xs text-zinc-500">100m is a good default.</p>
+              </label>
             </div>
 
             <div className="mt-3 grid gap-3 md:grid-cols-3">
@@ -884,6 +960,7 @@ export default function AdminScanEventsPage() {
                   <th className="px-3 py-2">Claim #</th>
                   <th className="px-3 py-2">Points</th>
                   <th className="px-3 py-2">Entries</th>
+                  <th className="px-3 py-2">Distance</th>
                 </tr>
               </thead>
               <tbody>
@@ -899,6 +976,15 @@ export default function AdminScanEventsPage() {
                     <td className="px-3 py-2">{row.claimCount}</td>
                     <td className="px-3 py-2">{row.pointsAwarded}</td>
                     <td className="px-3 py-2">{row.giveawayEntriesAwarded}</td>
+                    <td
+                      className={`px-3 py-2 whitespace-nowrap ${
+                        row.proximity && row.proximity.mode !== "off" && !row.proximity.verified
+                        ? "text-amber-300"
+                        : ""
+                      }`}
+                    >
+                      {formatProximityCell(row.proximity)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1137,6 +1223,7 @@ export default function AdminScanEventsPage() {
                               <th className="px-2 py-1">Points</th>
                               <th className="px-2 py-1">Entries</th>
                               <th className="px-2 py-1">Giveaways</th>
+                              <th className="px-2 py-1">Distance</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1150,6 +1237,15 @@ export default function AdminScanEventsPage() {
                                 <td className="px-2 py-1">{row.pointsAwarded}</td>
                                 <td className="px-2 py-1">{row.giveawayEntriesAwarded}</td>
                                 <td className="px-2 py-1">{row.giveawayAwardCount}</td>
+                                <td
+                                  className={`px-2 py-1 ${
+                                    row.proximity && row.proximity.mode !== "off" && !row.proximity.verified
+                        ? "text-amber-300"
+                        : ""
+                                  }`}
+                                >
+                                  {formatProximityCell(row.proximity)}
+                                </td>
                               </tr>
                             ))}
                           </tbody>

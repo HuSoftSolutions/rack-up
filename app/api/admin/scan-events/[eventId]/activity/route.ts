@@ -55,6 +55,12 @@ export async function GET(
           giveawayAwardCount?: number;
           giveawayTargetMode?: string;
           giveawayIds?: string[];
+          proximity?: {
+            mode?: string;
+            distanceMeters?: number | null;
+            verified?: boolean | null;
+            failureReason?: string | null;
+          } | null;
           createdAt?: unknown;
         };
         return {
@@ -69,6 +75,16 @@ export async function GET(
             typeof data.giveawayAwardCount === "number" ? data.giveawayAwardCount : 0,
           giveawayTargetMode: data.giveawayTargetMode ?? null,
           giveawayIds: Array.isArray(data.giveawayIds) ? data.giveawayIds : [],
+          proximity: data.proximity
+            ? {
+                mode: data.proximity.mode ?? "off",
+                distanceMeters:
+                  typeof data.proximity.distanceMeters === "number" ? data.proximity.distanceMeters : null,
+                verified:
+                  typeof data.proximity.verified === "boolean" ? data.proximity.verified : null,
+                failureReason: data.proximity.failureReason ?? null,
+              }
+            : null,
           createdAt: toIso(data.createdAt),
         };
       })

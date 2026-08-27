@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import confetti from "canvas-confetti";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -23,7 +23,46 @@ type ScanEventPayload = {
     locationId?: string | null;
     customLabel?: string | null;
   };
+  proximity?: { mode: "off" | "log" | "enforce"; radiusMeters: number } | null;
 };
+
+type ClaimCoords = { lat: number; lng: number; accuracy?: number };
+
+/** How long we wait for a GPS fix before giving up. */
+const GEO_TIMEOUT_MS = 15_000;
+
+function formatDistance(meters: number | null): string {
+  if (meters === null) return "some distance";
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${meters} m`;
+}
+
+function requestCoords(): Promise<
+  { ok: true; coords: ClaimCoords } | { ok: false; reason: "unsupported" | "denied" | "unavailable" }
+> {
+  return new Promise((resolve) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      resolve({ ok: false, reason: "unsupported" });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        resolve({
+          ok: true,
+          coords: {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : undefined,
+          },
+        }),
+      (error) =>
+        resolve({
+          ok: false,
+          reason: error.code === error.PERMISSION_DENIED ? "denied" : "unavailable",
+        }),
+      { enableHighAccuracy: true, timeout: GEO_TIMEOUT_MS, maximumAge: 0 },
+    );
+  });
+}
 
 export default function ScanClaimClient({
   token,
@@ -34,6 +73,59 @@ export default function ScanClaimClient({
 }) {
   const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  const [locationState, setLocationState] = useState<
+    "idle" | "checking" | "granted" | "too_far" | "denied" | "unavailable"
+  >("idle");
+  const [locationDistance, setLocationDistance] = useState<number | null>(null);
+  const grantRef = useRef<string | null>(null);
+
+  const proximityMode = event.proximity?.mode ?? "off";
+  const locationRequired = proximityMode === "enforce";
+
+  const verifyLocation = useCallback(async () => {
+    if (!user) return;
+    setLocationState("checking");
+    setLocationDistance(null);
+
+    const located = await requestCoords();
+    if (!located.ok) {
+      grantRef.current = null;
+      setLocationState(located.reason === "denied" ? "denied" : "unavailable");
+      return;
+    }
+
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/scan-events/verify-location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ token, coords: located.coords }),
+      });
+      const json = (await res.json()) as {
+        withinRadius?: boolean | null;
+        grant?: string | null;
+        distanceMeters?: number | null;
+      };
+      if (!res.ok) {
+        grantRef.current = null;
+        setLocationState("unavailable");
+        return;
+      }
+      grantRef.current = json.grant ?? null;
+      setLocationDistance(json.distanceMeters ?? null);
+      setLocationState(json.withinRadius === false ? "too_far" : "granted");
+    } catch {
+      grantRef.current = null;
+      setLocationState("unavailable");
+    }
+  }, [token, user]);
+
+  // Verify as soon as the page opens, so the permission prompt and the check are
+  // done by the time the user reaches for the claim button.
+  useEffect(() => {
+    if (proximityMode === "off" || !user) return;
+    void verifyLocation();
+  }, [proximityMode, user, verifyLocation]);
   const [result, setResult] = useState<{ tone: "ok" | "warn" | "error"; text: string } | null>(null);
 
   const rewardsLabel = useMemo(() => {
@@ -102,10 +194,14 @@ export default function ScanClaimClient({
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token, locationGrant: grantRef.current }),
       });
       const json = (await res.json()) as {
         error?: string;
+        blockedByDistance?: boolean;
+        reason?: string;
+        distanceMeters?: number | null;
+        radiusMeters?: number | null;
         blockedByCadence?: boolean;
         nextEligibleAt?: string | null;
         pointsAwarded?: number;
@@ -113,6 +209,19 @@ export default function ScanClaimClient({
         giveawayAwardCount?: number;
       };
       if (!res.ok) {
+        if (json.blockedByDistance) {
+          // The grant expired or was never issued; re-verify so the user can retry.
+          grantRef.current = null;
+          void verifyLocation();
+          setResult({
+            tone: "warn",
+            text:
+              json.reason === "expired"
+                ? "Your location check expired. We're re-checking now — try again in a moment."
+                : "We couldn't confirm you're at the location. This reward can only be claimed on site.",
+          });
+          return;
+        }
         if (json.blockedByCadence) {
           const when = json.nextEligibleAt
             ? event.cadence.unit === "days"
@@ -162,6 +271,11 @@ export default function ScanClaimClient({
       <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-200">
         <p>Cadence: {formatCadence(event.cadence)}</p>
         <p className="mt-1">Rewards: {rewardsLabel}</p>
+        {proximityMode === "enforce" ? (
+          <p className="mt-1 text-zinc-400">
+            Must be claimed at the location &mdash; your device location is checked.
+          </p>
+        ) : null}
         <p className="mt-1">Association: {associationLabel}</p>
         <p className="mt-1">Giveaway target: {giveawayLabel}</p>
         {event.rewards.giveaway.enabled &&
@@ -172,6 +286,49 @@ export default function ScanClaimClient({
           </p>
         ) : null}
       </div>
+
+      {user && proximityMode !== "off" ? (
+        <div
+          className={`rounded-lg border p-3 text-sm ${
+            locationState === "granted"
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+              : locationState === "checking" || locationState === "idle"
+                ? "border-white/10 bg-white/5 text-zinc-300"
+                : locationState === "too_far"
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-100"
+                  : "border-red-500/40 bg-red-500/10 text-red-100"
+          }`}
+        >
+          {locationState === "checking" || locationState === "idle" ? (
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-500 border-t-transparent"
+              />
+              Verifying you&rsquo;re at the location...
+            </span>
+          ) : locationState === "granted" ? (
+            <>Location confirmed &mdash; you&rsquo;re good to claim.</>
+          ) : (
+            <div className="space-y-2">
+              <p>
+                {locationState === "too_far"
+                  ? `You're about ${formatDistance(locationDistance)} away. This reward can only be claimed at the location.`
+                  : locationState === "denied"
+                    ? "Location access is blocked. Enable location for this site in your browser settings, then try again."
+                    : "We couldn't determine your location. Check that location services are on, then try again."}
+              </p>
+              <button
+                type="button"
+                onClick={() => void verifyLocation()}
+                className="rounded-md border border-white/20 px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {!user ? (
         <Link
@@ -184,7 +341,7 @@ export default function ScanClaimClient({
         <button
           type="button"
           onClick={() => void claim()}
-          disabled={submitting}
+          disabled={submitting || (locationRequired && locationState !== "granted")}
           className="inline-flex w-full items-center justify-center rounded-lg bg-emerald-400 px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-60"
         >
           {submitting ? "Claiming..." : "Claim scan reward"}

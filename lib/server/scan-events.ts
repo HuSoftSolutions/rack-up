@@ -7,6 +7,9 @@ import type {
   ScanEventCadenceUnit,
   ScanEventDoc,
   ScanEventLocation,
+  ResolvedProximityMode,
+  ScanEventProximity,
+  ScanEventProximityMode,
   ScanEventRewards,
 } from "@/lib/types/scan-event";
 
@@ -121,6 +124,121 @@ function normalizePlace(value: unknown): ScanEventLocation | null {
   };
 }
 
+function normalizeProximityMode(value: unknown): ScanEventProximityMode {
+  if (value === "log") return "log";
+  if (value === "enforce") return "enforce";
+  if (value === "off") return "off";
+  return "auto";
+}
+
+/**
+ * Applies the "auto" default: an event with usable coordinates enforces, and one
+ * without is inert. Coordinates are the switch — there is nothing to turn on.
+ */
+export function resolveProximityMode(
+  place: { lat?: unknown; lng?: unknown } | null | undefined,
+  proximity: { mode?: unknown } | null | undefined,
+): ResolvedProximityMode {
+  const hasCoords =
+    Boolean(place) &&
+    Number.isFinite(Number(place?.lat)) &&
+    Number.isFinite(Number(place?.lng));
+  if (!hasCoords) return "off";
+  const mode = normalizeProximityMode(proximity?.mode);
+  return mode === "auto" ? "enforce" : mode;
+}
+
+/** Default geofence radius. Generous on purpose: GPS indoors routinely drifts 50-100m. */
+export const DEFAULT_PROXIMITY_RADIUS_METERS = 100;
+const MIN_PROXIMITY_RADIUS_METERS = 25;
+const MAX_PROXIMITY_RADIUS_METERS = 5000;
+
+/**
+ * Extra slack granted from the device's own reported accuracy, so a phone with a
+ * weak fix is not punished. Capped so a coarse IP-derived fix (often several km)
+ * cannot buy its way inside the radius.
+ */
+export const MAX_ACCURACY_SLACK_METERS = 100;
+
+/**
+ * How long a verified location stays good for. Covers signing in or reading the
+ * page before tapping claim; far too short to leave and still claim.
+ */
+export const LOCATION_GRANT_TTL_MS = 5 * 60 * 1000;
+
+function normalizeProximity(value: unknown): ScanEventProximity {
+  const record = parseRecord(value);
+  return {
+    mode: normalizeProximityMode(record.mode),
+    radiusMeters: asPositiveInt(
+      record.radiusMeters,
+      DEFAULT_PROXIMITY_RADIUS_METERS,
+      MIN_PROXIMITY_RADIUS_METERS,
+      MAX_PROXIMITY_RADIUS_METERS,
+    ),
+  };
+}
+
+const EARTH_RADIUS_METERS = 6_371_000;
+
+/** Great-circle distance in meters between two lat/lng pairs. */
+export function haversineMeters(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+export type ProximityCoords = { lat: number; lng: number; accuracy?: number };
+
+export type ProximityEvaluation = {
+  distanceMeters: number;
+  accuracyMeters: number | null;
+  allowanceMeters: number;
+  withinRadius: boolean;
+};
+
+/**
+ * Compare a device fix against an event's place. The device's own reported
+ * accuracy widens the allowance (capped), so a weak fix is forgiven but a coarse
+ * IP-derived fix cannot buy its way inside.
+ */
+export function evaluateProximity(
+  place: { lat: number; lng: number },
+  radiusMeters: number,
+  coords: ProximityCoords,
+): ProximityEvaluation {
+  const distanceMeters = haversineMeters(coords, place);
+  const accuracyMeters =
+    typeof coords.accuracy === "number" && Number.isFinite(coords.accuracy) ? coords.accuracy : null;
+  const allowanceMeters = radiusMeters + Math.min(accuracyMeters ?? 0, MAX_ACCURACY_SLACK_METERS);
+  return {
+    distanceMeters,
+    accuracyMeters,
+    allowanceMeters,
+    withinRadius: distanceMeters <= allowanceMeters,
+  };
+}
+
+export function normalizeProximityCoords(value: unknown): ProximityCoords | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const lat = Number(record.lat);
+  const lng = Number(record.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  const accuracyRaw = Number(record.accuracy);
+  const accuracy = Number.isFinite(accuracyRaw) && accuracyRaw >= 0 ? accuracyRaw : undefined;
+  return { lat, lng, accuracy };
+}
+
 export function normalizeScanEventInput(value: unknown): Omit<ScanEventDoc, "createdAt" | "updatedAt"> {
   const record = parseRecord(value);
   const associationRecord = parseRecord(record.association);
@@ -187,11 +305,20 @@ export function normalizeScanEventInput(value: unknown): Omit<ScanEventDoc, "cre
   const title = asString(record.title);
   if (!title) throw new Error("title is required.");
 
+  const place = normalizePlace(record.place);
+  const proximity = normalizeProximity(record.proximity);
+  // "auto" is inert without coordinates by design; an explicit mode is not, and
+  // would silently never match, so refuse that misconfiguration.
+  if ((proximity.mode === "log" || proximity.mode === "enforce") && !place) {
+    throw new Error("Set a scan location before enabling location checking.");
+  }
+
   return {
     title,
     description: asString(record.description) ?? null,
     active: asBoolean(record.active, true),
-    place: normalizePlace(record.place),
+    place,
+    proximity,
     association,
     cadence,
     rewards,
@@ -210,6 +337,13 @@ export function mapScanEventDocToPublic(id: string, data: ScanEventDoc): PublicS
     rewards: data.rewards,
     association: data.association,
     place: data.place ?? null,
+    proximity: {
+      mode: resolveProximityMode(data.place, data.proximity),
+      radiusMeters: Math.max(
+        1,
+        Math.floor(data.proximity?.radiusMeters ?? DEFAULT_PROXIMITY_RADIUS_METERS),
+      ),
+    },
   };
 }
 
@@ -233,6 +367,57 @@ export function inspectScanEventToken(token: string | null | undefined): ScanTok
     return { ok: true, eventId: parsed.eventId };
   } catch {
     return { ok: false, reason: "invalid_payload" };
+  }
+}
+
+type LocationGrantPayload = {
+  v: 1;
+  eventId: string;
+  uid: string;
+  /** Expiry, epoch ms. */
+  exp: number;
+  /** Recorded distance in meters, for the audit trail. */
+  d: number;
+};
+
+export type LocationGrantVerifyResult =
+  | { ok: true; distanceMeters: number }
+  | { ok: false; reason: "missing" | "malformed" | "invalid_signature" | "expired" | "mismatch" };
+
+/**
+ * Mints a short-lived, signed proof that a specific user was verified inside a
+ * specific event's geofence. The claim endpoint trusts this rather than trusting
+ * coordinates in the request body, so a page cannot replay a stale fix later.
+ */
+export function createLocationGrant(eventId: string, uid: string, distanceMeters: number): string {
+  const payload: LocationGrantPayload = {
+    v: 1,
+    eventId,
+    uid,
+    exp: Date.now() + LOCATION_GRANT_TTL_MS,
+    d: Math.round(distanceMeters),
+  };
+  const encoded = base64UrlEncode(JSON.stringify(payload));
+  return `${encoded}.${sign(encoded)}`;
+}
+
+export function verifyLocationGrant(
+  grant: string | null | undefined,
+  eventId: string,
+  uid: string,
+): LocationGrantVerifyResult {
+  if (!grant) return { ok: false, reason: "missing" };
+  const [encoded, signature] = grant.split(".");
+  if (!encoded || !signature) return { ok: false, reason: "malformed" };
+  if (!timingSafeEqual(signature, sign(encoded))) return { ok: false, reason: "invalid_signature" };
+  try {
+    const parsed = JSON.parse(base64UrlDecode(encoded).toString("utf8")) as LocationGrantPayload;
+    if (!parsed || parsed.v !== 1) return { ok: false, reason: "malformed" };
+    if (parsed.eventId !== eventId || parsed.uid !== uid) return { ok: false, reason: "mismatch" };
+    if (!Number.isFinite(parsed.exp) || parsed.exp < Date.now()) return { ok: false, reason: "expired" };
+    return { ok: true, distanceMeters: Number.isFinite(parsed.d) ? parsed.d : 0 };
+  } catch {
+    return { ok: false, reason: "malformed" };
   }
 }
 

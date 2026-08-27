@@ -32,6 +32,25 @@ export type ScanEventRewards = {
   };
 };
 
+/**
+ * Proximity enforcement for a scan event.
+ * - "auto":    the default. Enforces whenever the event has coordinates, and is
+ *              inert when it does not, so filling in an address is the only step
+ *              needed to protect a location.
+ * - "off":     explicit opt-out, even when coordinates exist.
+ * - "log":     capture the result on the claim record but never block.
+ * - "enforce": always enforce (identical to "auto" once coordinates exist).
+ */
+export type ScanEventProximityMode = "auto" | "off" | "log" | "enforce";
+
+/** Mode after applying the "auto" default. What the claim path actually acts on. */
+export type ResolvedProximityMode = "off" | "log" | "enforce";
+
+export type ScanEventProximity = {
+  mode: ScanEventProximityMode;
+  radiusMeters: number;
+};
+
 export type ScanEventLocation = {
   address: string;
   lat: number;
@@ -45,6 +64,8 @@ export type ScanEventDoc = {
   active: boolean;
   /** Physical place where this scan event lives, used for the public map + directory. */
   place?: ScanEventLocation | null;
+  /** Location gating. Absent on legacy docs, which are treated as mode "off". */
+  proximity?: ScanEventProximity | null;
   association: ScanEventAssociation;
   cadence: ScanEventCadence;
   rewards: ScanEventRewards;
@@ -63,4 +84,6 @@ export type PublicScanEvent = {
   rewards: ScanEventRewards;
   association: ScanEventAssociation;
   place?: ScanEventLocation | null;
+  /** Already resolved, so the client never has to interpret "auto". */
+  proximity?: { mode: ResolvedProximityMode; radiusMeters: number } | null;
 };

@@ -2,16 +2,38 @@ import { NextResponse } from "next/server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireUser } from "@/lib/server/auth";
-import { cadenceToMs, inspectScanEventToken } from "@/lib/server/scan-events";
+import {
+  DEFAULT_PROXIMITY_RADIUS_METERS,
+  cadenceToMs,
+  inspectScanEventToken,
+  resolveProximityMode,
+  verifyLocationGrant,
+} from "@/lib/server/scan-events";
 import { maybeAwardSameDayBonus } from "@/lib/server/same-day-bonus";
 import { maybeAwardScanChallengeEntries } from "@/lib/server/scan-challenges";
-import type { ScanEventAssociation, ScanEventDoc } from "@/lib/types/scan-event";
+import type {
+  ResolvedProximityMode,
+  ScanEventAssociation,
+  ScanEventDoc,
+} from "@/lib/types/scan-event";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type ClaimBody = {
   token?: string;
+  /** Signed proof from /api/scan-events/verify-location that the user is on site. */
+  locationGrant?: string | null;
+};
+
+type ProximityRecord = {
+  mode: ResolvedProximityMode;
+  radiusMeters: number | null;
+  /** Distance carried on the verified grant, when one was presented. */
+  distanceMeters: number | null;
+  verified: boolean;
+  /** Why verification failed or could not run. */
+  failureReason: "no_place" | "missing" | "expired" | "invalid" | null;
 };
 
 type ClaimState = {
@@ -67,6 +89,7 @@ export async function POST(request: Request) {
       return badRequest("Invalid JSON body.");
     }
     const token = body.token?.trim();
+    const locationGrant = typeof body.locationGrant === "string" ? body.locationGrant.trim() : null;
     const inspected = inspectScanEventToken(token);
     if (!inspected.ok) {
       return badRequest(`Invalid scan token (${inspected.reason}).`);
@@ -83,6 +106,14 @@ export async function POST(request: Request) {
     let claimCount = 0;
     let nextEligibleAt: Timestamp | null = null;
     let blockedByCadence = false;
+    let blockedByDistance = false;
+    let proximity: ProximityRecord = {
+      mode: "off",
+      radiusMeters: null,
+      distanceMeters: null,
+      verified: false,
+      failureReason: null,
+    };
     let scannedBusinessId: string | null = null;
     let scannedAssociation: ScanEventAssociation | null = null;
 
@@ -93,6 +124,42 @@ export async function POST(request: Request) {
       if (event.active === false) throw new Error("This scan event is inactive.");
       scannedBusinessId = event.association?.businessId ?? null;
       scannedAssociation = event.association ?? null;
+
+      const place = event.place ?? null;
+      const proximityMode = resolveProximityMode(place, event.proximity);
+      if (proximityMode !== "off") {
+        const radiusMeters =
+          Math.max(1, Math.floor(event.proximity?.radiusMeters ?? DEFAULT_PROXIMITY_RADIUS_METERS)) ||
+          DEFAULT_PROXIMITY_RADIUS_METERS;
+        proximity = { ...proximity, mode: proximityMode, radiusMeters };
+
+        if (!place) {
+          // resolveProximityMode already guarantees coordinates here; kept as a
+          // belt-and-braces fail-open so a live campaign can never hard-lock.
+          proximity.failureReason = "no_place";
+        } else {
+          const verified = verifyLocationGrant(locationGrant, inspected.eventId, uid);
+          if (verified.ok) {
+            proximity.verified = true;
+            proximity.distanceMeters = verified.distanceMeters;
+          } else {
+            proximity.failureReason =
+              verified.reason === "missing"
+                ? "missing"
+                : verified.reason === "expired"
+                  ? "expired"
+                  : "invalid";
+            if (proximityMode === "enforce") {
+              blockedByDistance = true;
+              claimCount = Math.max(
+                0,
+                Math.floor((claimSnap.data() as ClaimState | undefined)?.claimCount ?? 0),
+              );
+              return;
+            }
+          }
+        }
+      }
 
       const claimState = (claimSnap.data() as ClaimState | undefined) ?? undefined;
       if (event.cadence.unit === "days") {
@@ -247,9 +314,24 @@ export async function POST(request: Request) {
         giveawayTargetMode,
         giveawayIds: giveawayIdsUsed,
         association: event.association,
+        proximity,
         createdAt: now,
       });
     });
+
+    if (blockedByDistance) {
+      return NextResponse.json(
+        {
+          ok: false,
+          blockedByDistance: true,
+          reason: proximity.failureReason,
+          claimCount,
+          distanceMeters: proximity.distanceMeters,
+          radiusMeters: proximity.radiusMeters,
+        },
+        { status: 403 },
+      );
+    }
 
     if (blockedByCadence) {
       return NextResponse.json(
@@ -315,6 +397,11 @@ export async function POST(request: Request) {
       scanChallenge: {
         awarded: challengeAwarded,
         entriesAwarded: challengeEntriesAwarded,
+      },
+      proximity: {
+        mode: proximity.mode,
+        verified: proximity.verified,
+        distanceMeters: proximity.distanceMeters,
       },
     });
   } catch (err) {

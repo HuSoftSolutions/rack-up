@@ -52,6 +52,7 @@ export async function GET(request: Request) {
         description: data.description ?? "",
         active: data.active !== false,
         place: data.place ?? null,
+        proximity: data.proximity ?? null,
         association: data.association,
         cadence: data.cadence,
         rewards: {
