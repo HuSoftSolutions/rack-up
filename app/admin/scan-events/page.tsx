@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { formatCadence } from "@/lib/server/scan-events";
+import { DEFAULT_PROXIMITY_RADIUS_METERS, formatCadence } from "@/lib/server/scan-events";
 import type { ScanEventLocation } from "@/lib/types/scan-event";
 import PlaceAutocompleteField from "./PlaceAutocompleteField";
 
@@ -84,6 +84,53 @@ function formatProximityCell(proximity: ScanEventActivityRow["proximity"]): stri
     : `${proximity.distanceMeters} m`;
 }
 
+type ScanEventDenialRow = {
+  id: string;
+  scanEventId: string | null;
+  scanEventTitle?: string | null;
+  userId: string | null;
+  userDisplayName?: string | null;
+  userEmail?: string | null;
+  userPhoneNumber?: string | null;
+  stage: string;
+  outcome: string | null;
+  mode: string;
+  distanceMeters: number | null;
+  accuracyMeters: number | null;
+  radiusMeters: number | null;
+  allowanceMeters: number | null;
+  createdAt: string | null;
+};
+
+function formatMeters(value: number | null): string {
+  if (value === null) return "—";
+  return value >= 1000 ? `${(value / 1000).toFixed(1)} km` : `${value} m`;
+}
+
+/** Plain-English reason a member was turned away. */
+function formatDenialReason(row: ScanEventDenialRow): string {
+  if (row.outcome === "too_far") return "outside radius";
+  if (row.outcome === "expired") return "check expired";
+  if (row.outcome === "missing") return "no location check";
+  if (row.outcome === "invalid") return "invalid check";
+  return row.outcome ?? "unknown";
+}
+
+/**
+ * Denials cluster just past the limit when a radius is too tight for the site,
+ * and scatter far out when someone is genuinely elsewhere. The median of the
+ * measured ones is the number to size a radius against.
+ */
+function summarizeDenials(rows: ScanEventDenialRow[]): string | null {
+  const measured = rows
+    .map((row) => row.distanceMeters)
+    .filter((value): value is number => value !== null)
+    .sort((a, b) => a - b);
+  if (measured.length === 0) return null;
+  const median = measured[Math.floor(measured.length / 2)];
+  return `${rows.length} blocked · median ${formatMeters(median)} · furthest ${formatMeters(measured[measured.length - 1])}`;
+}
+
 type FormState = {
   id: string | null;
   title: string;
@@ -124,7 +171,7 @@ function defaultForm(): FormState {
     cadenceUnit: "hours",
     cadenceInterval: "24",
     proximityMode: "auto",
-    proximityRadiusMeters: "100",
+    proximityRadiusMeters: String(DEFAULT_PROXIMITY_RADIUS_METERS),
     pointsEnabled: true,
     pointsAmount: "50",
     giveawayEnabled: false,
@@ -155,6 +202,9 @@ export default function AdminScanEventsPage() {
   const [activityByEventId, setActivityByEventId] = useState<Record<string, ScanEventActivityRow[]>>({});
   const [activityLoadingByEventId, setActivityLoadingByEventId] = useState<Record<string, boolean>>({});
   const [activityErrorByEventId, setActivityErrorByEventId] = useState<Record<string, string | null>>({});
+  const [denialsByEventId, setDenialsByEventId] = useState<Record<string, ScanEventDenialRow[]>>({});
+  const [denialsLoadingByEventId, setDenialsLoadingByEventId] = useState<Record<string, boolean>>({});
+  const [denialsErrorByEventId, setDenialsErrorByEventId] = useState<Record<string, string | null>>({});
   const [globalActivityRows, setGlobalActivityRows] = useState<ScanEventActivityRow[]>([]);
   const [globalActivityLoading, setGlobalActivityLoading] = useState(false);
   const [globalActivityError, setGlobalActivityError] = useState<string | null>(null);
@@ -279,7 +329,7 @@ export default function AdminScanEventsPage() {
       cadenceUnit: item.cadence.unit,
       cadenceInterval: String(item.cadence.interval),
       proximityMode: item.proximity?.mode ?? "auto",
-      proximityRadiusMeters: String(item.proximity?.radiusMeters ?? 100),
+      proximityRadiusMeters: String(item.proximity?.radiusMeters ?? DEFAULT_PROXIMITY_RADIUS_METERS),
       pointsEnabled: item.rewards.points.enabled,
       pointsAmount: String(item.rewards.points.amount ?? 0),
       giveawayEnabled: item.rewards.giveaway.enabled,
@@ -326,7 +376,7 @@ export default function AdminScanEventsPage() {
         },
         proximity: {
           mode: form.proximityMode,
-          radiusMeters: Number(form.proximityRadiusMeters || 100),
+          radiusMeters: Number(form.proximityRadiusMeters || DEFAULT_PROXIMITY_RADIUS_METERS),
         },
         rewards: {
           points: {
@@ -484,6 +534,28 @@ export default function AdminScanEventsPage() {
       }));
     } finally {
       setActivityLoadingByEventId((prev) => ({ ...prev, [eventId]: false }));
+    }
+  }
+
+  async function loadDenials(eventId: string) {
+    if (!user) return;
+    setDenialsLoadingByEventId((prev) => ({ ...prev, [eventId]: true }));
+    setDenialsErrorByEventId((prev) => ({ ...prev, [eventId]: null }));
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/admin/scan-events/denials?eventId=${encodeURIComponent(eventId)}&limit=200`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const json = (await res.json()) as { rows?: ScanEventDenialRow[]; error?: string };
+      if (!res.ok || !json.rows) throw new Error(json.error ?? "Failed to load blocked location checks.");
+      setDenialsByEventId((prev) => ({ ...prev, [eventId]: json.rows ?? [] }));
+    } catch (err) {
+      setDenialsErrorByEventId((prev) => ({
+        ...prev,
+        [eventId]: err instanceof Error ? err.message : "Failed to load blocked location checks.",
+      }));
+    } finally {
+      setDenialsLoadingByEventId((prev) => ({ ...prev, [eventId]: false }));
     }
   }
 
@@ -1026,6 +1098,7 @@ export default function AdminScanEventsPage() {
                         const next = expandedActivityEventId === event.id ? null : event.id;
                         setExpandedActivityEventId(next);
                         if (next && !activityByEventId[event.id]) void loadActivity(event.id);
+                        if (next && !denialsByEventId[event.id]) void loadDenials(event.id);
                       }}
                       className={`rounded-lg border px-3 py-1 text-xs transition active:scale-[0.98] ${
                         expandedActivityEventId === event.id
@@ -1252,6 +1325,64 @@ export default function AdminScanEventsPage() {
                         </table>
                       </div>
                     )}
+
+                    <div className="mt-4 border-t border-white/10 pt-3">
+                      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                          Blocked location checks
+                        </p>
+                        {summarizeDenials(denialsByEventId[event.id] ?? []) ? (
+                          <p className="text-xs text-amber-300">
+                            {summarizeDenials(denialsByEventId[event.id] ?? [])}
+                          </p>
+                        ) : null}
+                      </div>
+                      <p className="mb-2 text-xs text-zinc-500">
+                        Members turned away by the geofence. A tight cluster just past{" "}
+                        {event.proximity?.radiusMeters ?? DEFAULT_PROXIMITY_RADIUS_METERS} m
+                        usually means the radius is too small for this site, not that anyone was off site.
+                      </p>
+                      {denialsErrorByEventId[event.id] ? (
+                        <div className="rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
+                          {denialsErrorByEventId[event.id]}
+                        </div>
+                      ) : denialsLoadingByEventId[event.id] ? (
+                        <div className="text-xs text-zinc-400">Loading blocked checks...</div>
+                      ) : (denialsByEventId[event.id]?.length ?? 0) === 0 ? (
+                        <div className="text-xs text-zinc-500">No one has been blocked here.</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-xs">
+                            <thead className="text-left text-zinc-500">
+                              <tr>
+                                <th className="px-2 py-1">When</th>
+                                <th className="px-2 py-1">Name</th>
+                                <th className="px-2 py-1">Email</th>
+                                <th className="px-2 py-1">Distance</th>
+                                <th className="px-2 py-1">GPS accuracy</th>
+                                <th className="px-2 py-1">Allowed</th>
+                                <th className="px-2 py-1">Reason</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(denialsByEventId[event.id] ?? []).map((row) => (
+                                <tr key={row.id} className="border-t border-white/10 text-zinc-200">
+                                  <td className="px-2 py-1">
+                                    {row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"}
+                                  </td>
+                                  <td className="px-2 py-1">{row.userDisplayName ?? "—"}</td>
+                                  <td className="px-2 py-1">{row.userEmail ?? "—"}</td>
+                                  <td className="px-2 py-1 text-amber-300">{formatMeters(row.distanceMeters)}</td>
+                                  <td className="px-2 py-1">{formatMeters(row.accuracyMeters)}</td>
+                                  <td className="px-2 py-1">{formatMeters(row.allowanceMeters ?? row.radiusMeters)}</td>
+                                  <td className="px-2 py-1">{formatDenialReason(row)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : null}
               </article>

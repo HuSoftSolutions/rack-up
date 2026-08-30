@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireUser } from "@/lib/server/auth";
 import {
@@ -60,6 +61,27 @@ export async function POST(request: Request) {
 
     const evaluation = evaluateProximity(place, radiusMeters, coords);
     if (!evaluation.withinRadius) {
+      // A denial is otherwise invisible: no grant is issued, so the claim endpoint
+      // never runs and writes no claim event. Record it so radii can be tuned from
+      // real fixes instead of guesswork.
+      try {
+        await adminFirestore.collection("scan_event_location_denials").add({
+          scanEventId: inspected.eventId,
+          userId: uid,
+          stage: "verify",
+          outcome: "too_far",
+          mode,
+          distanceMeters: Math.round(evaluation.distanceMeters),
+          accuracyMeters:
+            evaluation.accuracyMeters === null ? null : Math.round(evaluation.accuracyMeters),
+          radiusMeters,
+          allowanceMeters: Math.round(evaluation.allowanceMeters),
+          createdAt: Timestamp.now(),
+        });
+      } catch {
+        // Telemetry is best-effort; never turn a logging failure into a user-facing one.
+      }
+
       return NextResponse.json({
         required: mode === "enforce",
         withinRadius: false,

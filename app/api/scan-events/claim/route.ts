@@ -155,6 +155,20 @@ export async function POST(request: Request) {
                 0,
                 Math.floor((claimSnap.data() as ClaimState | undefined)?.claimCount ?? 0),
               );
+              // This return skips the claim-event write below, so log the block
+              // here — queued writes still commit when the transaction resolves.
+              tx.set(adminFirestore.collection("scan_event_location_denials").doc(), {
+                scanEventId: inspected.eventId,
+                userId: uid,
+                stage: "claim",
+                outcome: proximity.failureReason,
+                mode: proximityMode,
+                distanceMeters: null,
+                accuracyMeters: null,
+                radiusMeters,
+                allowanceMeters: null,
+                createdAt: now,
+              });
               return;
             }
           }

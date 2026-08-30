@@ -148,8 +148,13 @@ export function resolveProximityMode(
   return mode === "auto" ? "enforce" : mode;
 }
 
-/** Default geofence radius. Generous on purpose: GPS indoors routinely drifts 50-100m. */
-export const DEFAULT_PROXIMITY_RADIUS_METERS = 100;
+/**
+ * Default geofence radius. Generous on purpose: GPS indoors routinely drifts
+ * 50-100m, and a POI pin is often set at a storefront while members claim from
+ * the parking lot. Sites on a large shared parcel (a strip mall, a plaza) need
+ * a per-event override on top of this.
+ */
+export const DEFAULT_PROXIMITY_RADIUS_METERS = 150;
 const MIN_PROXIMITY_RADIUS_METERS = 25;
 const MAX_PROXIMITY_RADIUS_METERS = 5000;
 
