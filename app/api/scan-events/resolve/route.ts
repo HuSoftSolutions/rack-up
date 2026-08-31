@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { inspectScanEventToken, mapScanEventDocToPublic } from "@/lib/server/scan-events";
+import { loadProximityEnforcement } from "@/lib/server/proximity-settings";
 import type { ScanEventDoc } from "@/lib/types/scan-event";
 
 export const runtime = "nodejs";
@@ -22,6 +23,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "This scan event is currently inactive." }, { status: 410 });
   }
   return NextResponse.json({
-    event: mapScanEventDocToPublic(snap.id, data),
+    event: mapScanEventDocToPublic(snap.id, data, await loadProximityEnforcement()),
   });
 }

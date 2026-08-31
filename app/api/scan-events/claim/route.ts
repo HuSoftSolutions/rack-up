@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireUser } from "@/lib/server/auth";
+import { applyEnforcementCeiling, loadProximityEnforcement } from "@/lib/server/proximity-settings";
 import {
   DEFAULT_PROXIMITY_RADIUS_METERS,
   cadenceToMs,
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
     const eventRef = adminFirestore.collection("scan_events").doc(inspected.eventId);
     const claimRef = adminFirestore.collection("scan_event_claims").doc(`${inspected.eventId}_${uid}`);
     const now = Timestamp.now();
+    const enforcementCeiling = await loadProximityEnforcement();
     let awardedPoints = 0;
     let awardedEntries = 0;
     let giveawayAwardCount = 0;
@@ -126,7 +128,10 @@ export async function POST(request: Request) {
       scannedAssociation = event.association ?? null;
 
       const place = event.place ?? null;
-      const proximityMode = resolveProximityMode(place, event.proximity);
+      const proximityMode = applyEnforcementCeiling(
+        resolveProximityMode(place, event.proximity),
+        enforcementCeiling,
+      );
       if (proximityMode !== "off") {
         const radiusMeters =
           Math.max(1, Math.floor(event.proximity?.radiusMeters ?? DEFAULT_PROXIMITY_RADIUS_METERS)) ||

@@ -149,6 +149,23 @@ export function resolveProximityMode(
 }
 
 /**
+ * Clamp an event's own resolved mode to a site-wide ceiling. Downgrades only:
+ * "off" silences everything, "log" lets checks run and be recorded but never
+ * block a claim, "enforce" leaves the event's own setting alone.
+ *
+ * Pure by design — this module is reachable from client components, so the
+ * Firestore-backed setting that supplies the ceiling lives in proximity-settings.
+ */
+export function applyEnforcementCeiling(
+  mode: ResolvedProximityMode,
+  ceiling: ResolvedProximityMode,
+): ResolvedProximityMode {
+  if (ceiling === "off") return "off";
+  if (ceiling === "log") return mode === "off" ? "off" : "log";
+  return mode;
+}
+
+/**
  * Default geofence radius. Generous on purpose: GPS indoors routinely drifts
  * 50-100m, and a POI pin is often set at a storefront while members claim from
  * the parking lot. Sites on a large shared parcel (a strip mall, a plaza) need
@@ -332,7 +349,13 @@ export function normalizeScanEventInput(value: unknown): Omit<ScanEventDoc, "cre
   };
 }
 
-export function mapScanEventDocToPublic(id: string, data: ScanEventDoc): PublicScanEvent {
+export function mapScanEventDocToPublic(
+  id: string,
+  data: ScanEventDoc,
+  /** Site-wide ceiling; callers pass the current setting so the claim page and
+   * the claim endpoint agree on whether location is required. */
+  enforcementCeiling: ResolvedProximityMode = "enforce",
+): PublicScanEvent {
   return {
     id,
     title: data.title,
@@ -343,7 +366,10 @@ export function mapScanEventDocToPublic(id: string, data: ScanEventDoc): PublicS
     association: data.association,
     place: data.place ?? null,
     proximity: {
-      mode: resolveProximityMode(data.place, data.proximity),
+      mode: applyEnforcementCeiling(
+        resolveProximityMode(data.place, data.proximity),
+        enforcementCeiling,
+      ),
       radiusMeters: Math.max(
         1,
         Math.floor(data.proximity?.radiusMeters ?? DEFAULT_PROXIMITY_RADIUS_METERS),

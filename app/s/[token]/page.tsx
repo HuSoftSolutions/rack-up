@@ -3,6 +3,7 @@ import { getStorage } from "firebase-admin/storage";
 import PublicShell from "@/app/_components/PublicNav";
 import { adminFirestore, firebaseAdminApp } from "@/lib/firebase/admin";
 import { inspectScanEventToken, mapScanEventDocToPublic } from "@/lib/server/scan-events";
+import { loadProximityEnforcement } from "@/lib/server/proximity-settings";
 import type { ScanEventDoc } from "@/lib/types/scan-event";
 import ScanClaimClient from "./claim-client";
 
@@ -64,7 +65,7 @@ export default async function ScanEventPage({ params }: { params: Promise<{ toke
   if (!snap.exists) notFound();
   const data = snap.data() as ScanEventDoc;
   if (data.active === false) notFound();
-  const event = mapScanEventDocToPublic(snap.id, data);
+  const event = mapScanEventDocToPublic(snap.id, data, await loadProximityEnforcement());
   event.imageUrl = (await resolveScanImageUrl(data)) ?? (await resolveAssociatedImageUrl(data));
 
   return (

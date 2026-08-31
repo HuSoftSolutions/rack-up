@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
 import { adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireUser } from "@/lib/server/auth";
+import { applyEnforcementCeiling, loadProximityEnforcement } from "@/lib/server/proximity-settings";
 import {
   DEFAULT_PROXIMITY_RADIUS_METERS,
   LOCATION_GRANT_TTL_MS,
@@ -49,7 +50,10 @@ export async function POST(request: Request) {
     const event = eventSnap.data() as ScanEventDoc;
 
     const place = event.place ?? null;
-    const mode = resolveProximityMode(place, event.proximity);
+    const mode = applyEnforcementCeiling(
+      resolveProximityMode(place, event.proximity),
+      await loadProximityEnforcement(),
+    );
     const radiusMeters =
       Math.max(1, Math.floor(event.proximity?.radiusMeters ?? DEFAULT_PROXIMITY_RADIUS_METERS)) ||
       DEFAULT_PROXIMITY_RADIUS_METERS;

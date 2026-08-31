@@ -84,6 +84,35 @@ function formatProximityCell(proximity: ScanEventActivityRow["proximity"]): stri
     : `${proximity.distanceMeters} m`;
 }
 
+type ProximitySettingsState = {
+  enforcement: "off" | "log" | "enforce";
+  note: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+};
+
+const ENFORCEMENT_OPTIONS: {
+  value: ProximitySettingsState["enforcement"];
+  label: string;
+  blurb: string;
+}[] = [
+  {
+    value: "enforce",
+    label: "On",
+    blurb: "Members must be at the location to claim. Each event's own setting applies.",
+  },
+  {
+    value: "log",
+    label: "Record only",
+    blurb: "Location is checked and distances are recorded, but nobody is ever blocked.",
+  },
+  {
+    value: "off",
+    label: "Off",
+    blurb: "No location check at all. Members aren't even asked for location permission.",
+  },
+];
+
 type ScanEventDenialRow = {
   id: string;
   scanEventId: string | null;
@@ -202,6 +231,9 @@ export default function AdminScanEventsPage() {
   const [activityByEventId, setActivityByEventId] = useState<Record<string, ScanEventActivityRow[]>>({});
   const [activityLoadingByEventId, setActivityLoadingByEventId] = useState<Record<string, boolean>>({});
   const [activityErrorByEventId, setActivityErrorByEventId] = useState<Record<string, string | null>>({});
+  const [proximitySettings, setProximitySettings] = useState<ProximitySettingsState | null>(null);
+  const [proximitySettingsSaving, setProximitySettingsSaving] = useState(false);
+  const [proximitySettingsError, setProximitySettingsError] = useState<string | null>(null);
   const [denialsByEventId, setDenialsByEventId] = useState<Record<string, ScanEventDenialRow[]>>({});
   const [denialsLoadingByEventId, setDenialsLoadingByEventId] = useState<Record<string, boolean>>({});
   const [denialsErrorByEventId, setDenialsErrorByEventId] = useState<Record<string, string | null>>({});
@@ -235,6 +267,7 @@ export default function AdminScanEventsPage() {
       setBusinesses(json.businesses ?? []);
       setGiveaways(json.giveaways ?? []);
       await loadGlobalActivity(idToken);
+      await loadProximitySettings(idToken);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load scan events.");
     } finally {
@@ -534,6 +567,47 @@ export default function AdminScanEventsPage() {
       }));
     } finally {
       setActivityLoadingByEventId((prev) => ({ ...prev, [eventId]: false }));
+    }
+  }
+
+  async function loadProximitySettings(idTokenOverride?: string) {
+    if (!user) return;
+    try {
+      const idToken = idTokenOverride ?? (await user.getIdToken());
+      const res = await fetch("/api/admin/scan-events/proximity-settings", {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const json = (await res.json()) as { settings?: ProximitySettingsState; error?: string };
+      if (!res.ok || !json.settings) throw new Error(json.error ?? "Failed to load location settings.");
+      setProximitySettings(json.settings);
+      setProximitySettingsError(null);
+    } catch (err) {
+      setProximitySettingsError(
+        err instanceof Error ? err.message : "Failed to load location settings.",
+      );
+    }
+  }
+
+  async function saveProximityEnforcement(enforcement: ProximitySettingsState["enforcement"]) {
+    if (!user || proximitySettingsSaving) return;
+    setProximitySettingsSaving(true);
+    setProximitySettingsError(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/admin/scan-events/proximity-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ enforcement }),
+      });
+      const json = (await res.json()) as { settings?: ProximitySettingsState; error?: string };
+      if (!res.ok || !json.settings) throw new Error(json.error ?? "Failed to save location settings.");
+      setProximitySettings(json.settings);
+    } catch (err) {
+      setProximitySettingsError(
+        err instanceof Error ? err.message : "Failed to save location settings.",
+      );
+    } finally {
+      setProximitySettingsSaving(false);
     }
   }
 
@@ -946,6 +1020,80 @@ export default function AdminScanEventsPage() {
           </section>
         </div>
       ) : null}
+
+      <section
+        className={`rounded-2xl border p-4 ${
+          proximitySettings && proximitySettings.enforcement !== "enforce"
+            ? "border-amber-400/40 bg-amber-500/[0.07]"
+            : "border-white/10 bg-white/[0.03]"
+        }`}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Location verification</h2>
+            <p className="mt-1 text-sm text-zinc-400">
+              Site-wide switch for every scan event. Turning this down never changes an
+              event&rsquo;s own settings &mdash; radii and per-event modes are kept, so turning it
+              back on restores exactly what was there before.
+            </p>
+          </div>
+          {proximitySettings && proximitySettings.enforcement !== "enforce" ? (
+            <span className="rounded-full border border-amber-400/40 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-100">
+              {proximitySettings.enforcement === "off" ? "Guard is OFF" : "Recording only"}
+            </span>
+          ) : null}
+        </div>
+
+        {proximitySettingsError ? (
+          <div className="mt-3 rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
+            {proximitySettingsError}
+          </div>
+        ) : null}
+
+        {proximitySettings ? (
+          <>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {ENFORCEMENT_OPTIONS.map((option) => {
+                const selected = proximitySettings.enforcement === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    disabled={proximitySettingsSaving}
+                    onClick={() => void saveProximityEnforcement(option.value)}
+                    className={`rounded-xl border p-3 text-left transition disabled:opacity-60 ${
+                      selected
+                        ? "border-emerald-400/50 bg-emerald-500/10"
+                        : "border-white/10 bg-white/[0.02] hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-semibold text-white">
+                      <span
+                        aria-hidden
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          selected ? "bg-emerald-400" : "bg-zinc-600"
+                        }`}
+                      />
+                      {option.label}
+                    </span>
+                    <span className="mt-1 block text-xs text-zinc-400">{option.blurb}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs text-zinc-500">
+              {proximitySettingsSaving
+                ? "Saving..."
+                : proximitySettings.updatedAt
+                  ? `Last changed ${new Date(proximitySettings.updatedAt).toLocaleString()}.`
+                  : "Never changed."}{" "}
+              Takes effect immediately &mdash; no deploy needed.
+            </p>
+          </>
+        ) : (
+          <p className="mt-3 text-sm text-zinc-500">Loading location settings...</p>
+        )}
+      </section>
 
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
