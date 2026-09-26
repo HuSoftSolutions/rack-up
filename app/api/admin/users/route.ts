@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { UserRecord } from "firebase-admin/auth";
 import { adminAuth, adminFirestore } from "@/lib/firebase/admin";
 import { AuthError, requireAdmin } from "@/lib/server/auth";
 
@@ -15,9 +16,15 @@ export async function GET(request: Request) {
   try {
     await requireAdmin(request);
 
-    const list = await adminAuth.listUsers(200);
+    const authUsers: UserRecord[] = [];
+    let pageToken: string | undefined;
+    do {
+      const page = await adminAuth.listUsers(1000, pageToken);
+      authUsers.push(...page.users);
+      pageToken = page.pageToken;
+    } while (pageToken);
     const userProfiles = new Map<string, { fullName?: string | null; displayName?: string | null; phoneNumber?: string | null }>();
-    const userIds = list.users.map((user) => user.uid);
+    const userIds = authUsers.map((user) => user.uid);
     for (let i = 0; i < userIds.length; i += 300) {
       const batch = userIds.slice(i, i + 300);
       const refs = batch.map((uid) => adminFirestore.collection("users").doc(uid));
@@ -33,7 +40,7 @@ export async function GET(request: Request) {
     }
 
     const users = await Promise.all(
-      list.users.map(async (user) => {
+      authUsers.map(async (user) => {
         const adminDoc = await adminFirestore.collection("admins").doc(user.uid).get();
         const bizDoc = await adminFirestore.collection("business_admins").doc(user.uid).get();
         const bizData = bizDoc.data() as { businessId?: string; role?: string; locationIds?: string[] } | undefined;
@@ -55,6 +62,11 @@ export async function GET(request: Request) {
         };
       }),
     );
+
+    users.sort((a, b) => {
+      const newestFirst = (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+      return newestFirst || a.uid.localeCompare(b.uid);
+    });
 
     return NextResponse.json({ users });
   } catch (err) {
